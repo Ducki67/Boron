@@ -528,7 +528,7 @@ void AFortInventory::UpdateEntry(FFortItemEntry& Entry)
 
 bool RemoveInventoryItem(IInterface* Interface, FGuid& ItemGuid, int Count, bool bForceRemoval)
 {
-    if (FConfiguration::bInfiniteAmmo)
+    if (GameRuleConfig::bInfiniteAmmo)
         return true;
 
     static auto InterfaceOffset = FindClass("FortPlayerController")->GetSuper()->GetPropertiesSize() + (VersionInfo.EngineVersion >= 4.27 ? 16 : 8);

@@ -141,7 +141,7 @@ void AFortPlayerPawnAthena::ServerHandlePickupInfo(UObject* Context, FFrame& Sta
 
 
     Pawn->IncomingPickups.Add(Pickup);*/
-}
+} // CRASH ON this line  16.40 tested!
 
 void AFortPlayerPawnAthena::ServerHandlePickupWithRequestedSwap(UObject* Context, FFrame& Stack)
 {

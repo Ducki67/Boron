@@ -25,8 +25,8 @@ void* Misc::SendRequestNow(void* Arg1, void* MCPData, int)
 float Misc::GetMaxTickRate(UEngine* Engine, float DeltaTime, bool bAllowFrameRateSmoothing)
 {
     // improper, DS is supposed to do hitching differently
-    return (float)FConfiguration::MaxTickRate;
-    // return std::clamp(1.f / DeltaTime, 1.f, FConfiguration::MaxTickRate);
+    return (float)FConfig::MaxTickRate;
+    // return std::clamp(1.f / DeltaTime, 1.f, FConfig::MaxTickRate);
 }
 
 uint32 Misc::CheckCheckpointHeartBeat()
@@ -353,7 +353,7 @@ bool Listen()
     NetDriver->NetDriverName = NetDriverName;
     NetDriver->World = World;
 
-    if (VersionInfo.EngineVersion >= 5.3 && FConfiguration::bEnableIris)
+    if (VersionInfo.EngineVersion >= 5.3 && FConfig::bEnableIris)
     {
         *(bool*)(__int64(&NetDriver->ReplicationDriver) + 0x11) = true;
     }
@@ -374,7 +374,7 @@ bool Listen()
 
     auto URL = (FURL*)malloc(FURL::Size());
     memset((PBYTE)URL, 0, FURL::Size());
-    URL->Port = FConfiguration::Port;
+    URL->Port = FConfig::Port;
 
     FString Err;
     if (!InitListen(NetDriver, World, URL, false, Err))

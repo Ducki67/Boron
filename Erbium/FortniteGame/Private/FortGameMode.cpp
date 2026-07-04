@@ -54,14 +54,14 @@ bool bIsLargeTeamGame = false;
 
 void SetupPlaylist(AFortGameMode* GameMode, AFortGameStateAthena* GameState)
 {
-    auto Playlist = FindObject<UFortPlaylistAthena>(FConfiguration::Playlist);
+    auto Playlist = FindObject<UFortPlaylistAthena>(FConfig::Playlist);
 
     if (!Playlist)
         Playlist = FindObject<UFortPlaylistAthena>(L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo");
 
     if (Playlist)
     {
-        if (FConfiguration::bForceRespawns)
+        if (GameRuleConfig::bForceRespawns)
         {
             if (Playlist->HasbRespawnInAir())
                 Playlist->bRespawnInAir = true;
@@ -69,19 +69,19 @@ void SetupPlaylist(AFortGameMode* GameMode, AFortGameStateAthena* GameState)
             {
                 Playlist->RespawnHeight.Curve.CurveTable = nullptr;
                 Playlist->RespawnHeight.Curve.RowName = FName();
-                Playlist->RespawnHeight.Value = 20000;
+                Playlist->RespawnHeight.Value = GameRuleConfig::RespawnHightGamemode;
             }
             if (Playlist->HasRespawnTime())
             {
                 Playlist->RespawnTime.Curve.CurveTable = nullptr;
                 Playlist->RespawnTime.Curve.RowName = FName();
-                Playlist->RespawnTime.Value = 3;
+                Playlist->RespawnTime.Value = GameRuleConfig::RespawnTimeGamemode;
             }
             Playlist->RespawnType = 1;
             // if (Playlist->HasbForceRespawnLocationInsideOfVolume())
             //      Playlist->bForceRespawnLocationInsideOfVolume = true;
         }
-        if (FConfiguration::bForceRespawns || FConfiguration::bJoinInProgress)
+        if (GameRuleConfig::bForceRespawns || GameRuleConfig::bJoinInProgress)
         {
             if (Playlist->HasbAllowJoinInProgress())
                 Playlist->bAllowJoinInProgress = true;
@@ -263,7 +263,7 @@ void AFortGameMode::ReadyToStartMatch_(UObject* Context, FFrame& Stack, bool* Re
             NetDriver->NetDriverName = NetDriverName;
             NetDriver->World = World;
 
-            if (VersionInfo.EngineVersion >= 5.3 && FConfiguration::bEnableIris)
+            if (VersionInfo.EngineVersion >= 5.3 && FConfig::bEnableIris)
             {
                 *(bool*)(__int64(&NetDriver->ReplicationDriver) + 0x11) = true;
             }
@@ -280,7 +280,7 @@ void AFortGameMode::ReadyToStartMatch_(UObject* Context, FFrame& Stack, bool* Re
 
             auto URL = (FURL*)malloc(FURL::Size());
             memset((PBYTE)URL, 0, FURL::Size());
-            URL->Port = FConfiguration::Port;
+            URL->Port = FConfig::Port;
 
             auto InitListen = (bool (*)(UNetDriver*, UWorld*, FURL*, bool, FString&))FindInitListen();
             auto SetWorld = (void (*)(UNetDriver*, UWorld*))FindSetWorld();
@@ -301,7 +301,7 @@ void AFortGameMode::ReadyToStartMatch_(UObject* Context, FFrame& Stack, bool* Re
         if (VersionInfo.FortniteVersion > 4.0 /*&& (VersionInfo.EngineVersion != 4.25)*/)
             SetupPlaylist(GameMode, GameState);
 
-        auto Playlist = FindObject<UFortPlaylistAthena>(FConfiguration::Playlist);
+        auto Playlist = FindObject<UFortPlaylistAthena>(FConfig::Playlist);
 
         if (!Playlist)
             Playlist = FindObject<UFortPlaylistAthena>(L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo");
@@ -825,11 +825,11 @@ void AFortGameMode::ReadyToStartMatch_(UObject* Context, FFrame& Stack, bool* Re
             for (auto& [Class, Handle] : GameState->AllPlayerBuildableClassesIndexLookup)
                 AFortGameStateAthena::BuildingClassMap[Handle] = Class;
 
-        if constexpr (FConfiguration::WebhookURL && *FConfiguration::WebhookURL)
+        if constexpr (DiscordWebhookConfig::WebhookURL && *DiscordWebhookConfig::WebhookURL)
         {
             auto curl = curl_easy_init();
 
-            curl_easy_setopt(curl, CURLOPT_URL, FConfiguration::WebhookURL);
+            curl_easy_setopt(curl, CURLOPT_URL, DiscordWebhookConfig::WebhookURL);
             curl_slist* headers = curl_slist_append(NULL, "Content-Type: application/json");
             curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
@@ -1184,7 +1184,7 @@ void AFortGameMode::HandlePostSafeZonePhaseChanged(AFortGameMode* GameMode, int 
             }
         }
 
-        if (!FConfiguration::bLateGame || GameMode->SafeZonePhase > FConfiguration::LateGameZone)
+        if (!LategameConfig::bLateGame || GameMode->SafeZonePhase > LategameConfig::LateGameZone)
         {
             auto Duration = Durations[NewSafeZonePhase];
             auto HoldDuration = HoldDurations[NewSafeZonePhase];
@@ -1206,30 +1206,30 @@ void AFortGameMode::HandlePostSafeZonePhaseChanged(AFortGameMode* GameMode, int 
         GameMode->SafeZoneIndicator->SafeZoneFinishShrinkTime = GameMode->SafeZoneIndicator->SafeZoneStartShrinkTime + Duration;
     }*/
 
-    if (FConfiguration::bLateGame && GameMode->SafeZonePhase < FConfiguration::LateGameZone)
+    if (LategameConfig::bLateGame && GameMode->SafeZonePhase < LategameConfig::LateGameZone)
     {
         GameMode->SafeZoneIndicator->SafeZoneStartShrinkTime = TimeSeconds;
         GameMode->SafeZoneIndicator->SafeZoneFinishShrinkTime = GameMode->SafeZoneIndicator->SafeZoneStartShrinkTime + 0.15f;
         return;
     }
-    else if (FConfiguration::bLateGame && GameMode->SafeZonePhase == FConfiguration::LateGameZone)
+    else if (LategameConfig::bLateGame && GameMode->SafeZonePhase == LategameConfig::LateGameZone)
     {
         // auto Duration = Durations[FConfiguration::LateGameZone];
         // auto HoldDuration = HoldDurations[FConfiguration::LateGameZone];
 
-        if (FConfiguration::bLateGame && FConfiguration::bLateGameLongZone)
+        if (LategameConfig::bLateGame && LategameConfig::bLateGameLongZone)
             GameMode->SafeZoneIndicator->SafeZoneStartShrinkTime = 676767.f;
         if (VersionInfo.FortniteVersion >= 13)
-            GameMode->SafeZoneIndicator->SafeZoneFinishShrinkTime = GameMode->SafeZoneIndicator->SafeZoneStartShrinkTime + Durations[FConfiguration::LateGameZone];
+            GameMode->SafeZoneIndicator->SafeZoneFinishShrinkTime = GameMode->SafeZoneIndicator->SafeZoneStartShrinkTime + Durations[LategameConfig::LateGameZone];
     }
 
-    if (FConfiguration::bLateGame && (SafeZoneLoc.X != 0 || SafeZoneLoc.Y != 0 || SafeZoneLoc.Z != 0))
+    if (LategameConfig::bLateGame && (SafeZoneLoc.X != 0 || SafeZoneLoc.Y != 0 || SafeZoneLoc.Z != 0))
     {
         GameMode->SafeZoneIndicator->NextCenter = SafeZoneLoc;
         GameMode->SafeZoneIndicator->LastCenter = SafeZoneLoc;
     }
 
-    if (NewSafeZonePhase > (FConfiguration::bLateGame ? FConfiguration::LateGameZone : 1))
+    if (NewSafeZonePhase > (LategameConfig::bLateGame ? LategameConfig::LateGameZone : 1))
     {
         for (auto& UncastedPlayer : GameMode->AlivePlayers)
         {
@@ -1294,7 +1294,7 @@ void AFortGameMode::HandleStartingNewPlayer_(UObject* Context, FFrame& Stack)
         NewPlayer->WorldInventory->InventoryType = 0;
     }
 
-    if (wcsstr(FConfiguration::Playlist, L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2"))
+    if (wcsstr(FConfig::Playlist, L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2"))
         AFortAthenaCreativePortal::Create(NewPlayer);
 
     PlayerState->WorldPlayerId = WorldPlayerId;
@@ -1312,7 +1312,7 @@ uint8_t AFortGameMode::PickTeam(AFortGameMode* GameMode, uint8_t PreferredTeam, 
                         ? (GameMode->GameState->HasCurrentPlaylistInfo() ? GameMode->GameState->CurrentPlaylistInfo.BasePlaylist : GameMode->GameState->CurrentPlaylistData)
                         : nullptr;
 
-    if (wcscmp(FConfiguration::Playlist, L"/DurianPlaylist/Playlist/Playlist_Durian.Playlist_Durian") == 0)
+    if (wcscmp(FConfig::Playlist, L"/DurianPlaylist/Playlist/Playlist_Durian.Playlist_Durian") == 0)
     {
         CurrentTeam++;
         return ret;
@@ -1346,11 +1346,11 @@ bool AFortGameMode::StartAircraftPhase(AFortGameMode* GameMode, char a2)
     auto Playlist = VersionInfo.FortniteVersion >= 3.5 && GameMode->HasWarmupRequiredPlayerCount()
                         ? (GameMode->GameState->HasCurrentPlaylistInfo() ? GameMode->GameState->CurrentPlaylistInfo.BasePlaylist : GameMode->GameState->CurrentPlaylistData)
                         : nullptr;
-    if constexpr (FConfiguration::WebhookURL && *FConfiguration::WebhookURL)
+    if constexpr (DiscordWebhookConfig::WebhookURL && *DiscordWebhookConfig::WebhookURL)
     {
         auto curl = curl_easy_init();
 
-        curl_easy_setopt(curl, CURLOPT_URL, FConfiguration::WebhookURL);
+        curl_easy_setopt(curl, CURLOPT_URL, DiscordWebhookConfig::WebhookURL);
         curl_slist* headers = curl_slist_append(NULL, "Content-Type: application/json");
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
@@ -1380,10 +1380,10 @@ bool AFortGameMode::StartAircraftPhase(AFortGameMode* GameMode, char a2)
     SetConsoleTitleA(GUI::windowTitle);
 
     // credit to heliato
-    if (FConfiguration::bJoinInProgress || (Playlist && (Playlist->HasbAllowJoinInProgress() ? Playlist->bAllowJoinInProgress : false)))
+    if (GameRuleConfig::bJoinInProgress || (Playlist && (Playlist->HasbAllowJoinInProgress() ? Playlist->bAllowJoinInProgress : false)))
         *(bool*)(uint64_t(&GameMode->WarmupRequiredPlayerCount) - 4) = false;
 
-    if (FConfiguration::bLateGame && VersionInfo.FortniteVersion < 25.20)
+    if (LategameConfig::bLateGame && VersionInfo.FortniteVersion < 25.20)
     {
         auto Aircraft = GameState->HasAircrafts() ? (GameState->Aircrafts.Num() > 0 ? GameState->Aircrafts[0] : nullptr) : GameState->Aircraft;
 
@@ -1410,7 +1410,7 @@ bool AFortGameMode::StartAircraftPhase(AFortGameMode* GameMode, char a2)
         }
         else
         {
-            Loc = GameMode->SafeZoneLocations.Get(FConfiguration::LateGameZone + (VersionInfo.FortniteVersion >= 24 ? 3 : 0) - 1, FVector::Size());
+            Loc = GameMode->SafeZoneLocations.Get(LategameConfig::LateGameZone + (VersionInfo.FortniteVersion >= 24 ? 3 : 0) - 1, FVector::Size());
         }
 
         Loc.Z = 17500.f;
@@ -1463,7 +1463,7 @@ void AFortGameMode::OnAircraftExitedDropZone_(UObject* Context, FFrame& Stack)
     auto GameMode = (AFortGameMode*)Context;
     auto GameState = (AFortGameStateAthena*)GameMode->GameState;
 
-    if (FConfiguration::bLateGame)
+    if (LategameConfig::bLateGame)
     {
         static auto CompClass = FindClass("FortControllerComponent_Aircraft");
 
@@ -1489,7 +1489,7 @@ void AFortGameMode::OnAircraftExitedDropZone_(UObject* Context, FFrame& Stack)
         }
     }
 
-    if (FConfiguration::bLateGame)
+    if (LategameConfig::bLateGame)
     {
         GameState->GamePhase = 4;
         GameState->GamePhaseStep = 7;
@@ -1606,7 +1606,7 @@ void StartNewSafeZonePhase(AFortGameMode* GameMode, int NewSafeZonePhase, bool b
             GameMode->SafeZoneIndicator->NextNextMegaStormGridCellThickness = NextPhaseInfo.MegaStormGridCellThickness;
         }
 
-        GameMode->SafeZoneIndicator->SafeZoneStartShrinkTime = FConfiguration::bLateGame && FConfiguration::bLateGameLongZone ? 676767.f : TimeSeconds + PhaseInfo.WaitTime;
+        GameMode->SafeZoneIndicator->SafeZoneStartShrinkTime = LategameConfig::bLateGame && LategameConfig::bLateGameLongZone ? 676767.f : TimeSeconds + PhaseInfo.WaitTime;
         GameMode->SafeZoneIndicator->SafeZoneFinishShrinkTime = GameMode->SafeZoneIndicator->SafeZoneStartShrinkTime + PhaseInfo.ShrinkTime;
 
         GameMode->SafeZoneIndicator->CurrentDamageInfo = PhaseInfo.DamageInfo;
@@ -1644,7 +1644,7 @@ void SpawnInitialSafeZone(AFortGameMode* GameMode)
     SafeZoneIndicator->OnSafeZonePhaseChanged.Bind(GameMode, FName(L"HandlePostSafeZonePhaseChanged"));
     GameMode->OnSafeZoneIndicatorSpawned.Process(SafeZoneIndicator);
 
-    StartNewSafeZonePhase(GameMode, FConfiguration::bLateGame ? (FConfiguration::LateGameZone + (VersionInfo.FortniteVersion >= 24 ? 3 : 0)) : 1, true);
+    StartNewSafeZonePhase(GameMode, LategameConfig::bLateGame ? (LategameConfig::LateGameZone + (VersionInfo.FortniteVersion >= 24 ? 3 : 0)) : 1, true);
 
     // return SpawnInitialSafeZoneOG(GameMode);
 }
@@ -1809,7 +1809,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
         }
     };
 
-    auto Playlist = FindObject<UFortPlaylistAthena>(FConfiguration::Playlist);
+    auto Playlist = FindObject<UFortPlaylistAthena>(FConfig::Playlist);
 
     if (!Playlist)
         Playlist = FindObject<UFortPlaylistAthena>(L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo");

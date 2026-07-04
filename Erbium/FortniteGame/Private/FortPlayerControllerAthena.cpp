@@ -51,10 +51,10 @@ void AFortPlayerControllerAthena::ServerAcknowledgePossession(UObject* Context, 
                         : nullptr;
     if (Playlist && Playlist->RespawnType > 0 && Num > 0)
     {
-        if (FConfiguration::bLateGame)
+        if (LategameConfig::bLateGame)
             FortPawn->SetShield(100.f);
     }
-    if ((!FConfiguration::bKeepInventory || FConfiguration::bLateGame) && PlayerController->WorldInventory)
+    if ((!GameRuleConfig::bKeepInventory || LategameConfig::bLateGame) && PlayerController->WorldInventory)
     {
         UEAllocatedVector<FGuid> GuidsToRemove;
         for (int i = 0; i < PlayerController->WorldInventory->Inventory.ReplicatedEntries.Num(); i++)
@@ -196,7 +196,7 @@ void AFortPlayerControllerAthena::ServerAcknowledgePossession(UObject* Context, 
             for (auto& AbilitySet : AFortGameMode::AbilitySets)
                 PlayerController->PlayerState->AbilitySystemComponent->GiveAbilitySet(AbilitySet);
     }
-    else if (FConfiguration::bLateGame && (!FConfiguration::bKeepInventory || FConfiguration::bLateGame))
+    else if (LategameConfig::bLateGame && (!GameRuleConfig::bKeepInventory || LategameConfig::bLateGame))
     {
         auto Shotgun = LateGame::GetShotgun();
         auto AssaultRifle = LateGame::GetAssaultRifle();
@@ -250,7 +250,7 @@ void AFortPlayerControllerAthena::ServerAttemptAircraftJump_(UObject* Context, F
     auto GameMode = (AFortGameMode*)UWorld::GetWorld()->AuthorityGameMode;
     auto GameState = (AFortGameStateAthena*)GameMode->GameState;
 
-    if (VersionInfo.FortniteVersion >= 11.00 || FConfiguration::bLateGame)
+    if (VersionInfo.FortniteVersion >= 11.00 || LategameConfig::bLateGame)
     {
         static auto bIsComp = Context->IsA(FindClass("FortControllerComponent_Aircraft"));
         if (bIsComp)
@@ -280,7 +280,7 @@ void AFortPlayerControllerAthena::ServerAttemptAircraftJump_(UObject* Context, F
         ServerAttemptAircraftJumpOG((AFortPlayerControllerAthena*)Context, Rotation);
     }
 
-    if (FConfiguration::bLateGame)
+    if (LategameConfig::bLateGame)
     {
         PlayerController->MyFortPawn->SetShield(100.f);
         auto Aircraft = GameState->HasAircrafts() ? GameState->Aircrafts[0] : (GameState->HasAircraft() ? GameState->Aircraft : nullptr);
@@ -559,7 +559,7 @@ void AFortPlayerControllerAthena::ServerCreateBuildingActor(UObject* Context, FF
 
     UFortWorldItem* Item = nullptr;
     auto Resource = UFortKismetLibrary::K2_GetResourceItemDefinition(((ABuildingSMActor*)BuildingClass->GetDefaultObj())->ResourceType);
-    if (!FConfiguration::bInfiniteMats)
+    if (!GameRuleConfig::bInfiniteMats)
     {
         auto CanAffordToPlaceBuildableClass = (bool (*)(AFortPlayerControllerAthena*, FBuildingClassData))CanAffordToPlaceBuildableClass_;
 
@@ -638,7 +638,7 @@ void AFortPlayerControllerAthena::ServerCreateBuildingActor(UObject* Context, FF
     if (Building->HasTeamIndex())
         Building->TeamIndex = Building->Team;
 
-    if (!PlayerController->bBuildFree && !FConfiguration::bInfiniteMats)
+    if (!PlayerController->bBuildFree && !GameRuleConfig::bInfiniteMats)
     {
         auto PayBuildableClassPlacementCost = (int (*)(AFortPlayerControllerAthena*, FBuildingClassData))PayBuildableClassPlacementCost_;
 
@@ -1095,7 +1095,7 @@ void AFortPlayerControllerAthena::ClientOnPawnDied(AFortPlayerControllerAthena* 
     auto PlayerState = (AFortPlayerStateAthena*)PlayerController->PlayerState;
 
     if (PlayerController->WorldInventory && PlayerController->Pawn &&
-        ((PlayerController->Pawn->HasbShouldDropItemsOnDeath() ? PlayerController->Pawn->bShouldDropItemsOnDeath : true) && !FConfiguration::bKeepInventory))
+        ((PlayerController->Pawn->HasbShouldDropItemsOnDeath() ? PlayerController->Pawn->bShouldDropItemsOnDeath : true) && !GameRuleConfig::bKeepInventory))
     {
         bool bHasMats = false;
         for (int i = 0; i < PlayerController->WorldInventory->Inventory.ReplicatedEntries.Num(); i++)
@@ -1305,7 +1305,7 @@ void AFortPlayerControllerAthena::ClientOnPawnDied(AFortPlayerControllerAthena* 
             }
         }
 
-        if (FConfiguration::SiphonAmount > 0 && PlayerController->Pawn && KillerPlayerState && KillerPlayerState->AbilitySystemComponent && KillerPawn && KillerPawn->Controller != PlayerController)
+        if (GameRuleConfig::SiphonAmount > 0 && PlayerController->Pawn && KillerPlayerState && KillerPlayerState->AbilitySystemComponent && KillerPawn && KillerPawn->Controller != PlayerController)
         {
             auto Handle = KillerPlayerState->AbilitySystemComponent->MakeEffectContext();
             FGameplayTag Tag;
@@ -1322,16 +1322,16 @@ void AFortPlayerControllerAthena::ClientOnPawnDied(AFortPlayerControllerAthena* 
 
             if (Health == 100)
             {
-                Shield += Shield + FConfiguration::SiphonAmount;
+                Shield += Shield + GameRuleConfig::SiphonAmount;
             }
-            else if (Health + FConfiguration::SiphonAmount > 100)
+            else if (Health + GameRuleConfig::SiphonAmount > 100)
             {
                 Health = 100;
-                Shield += (Health + FConfiguration::SiphonAmount) - 100;
+                Shield += (Health + GameRuleConfig::SiphonAmount) - 100;
             }
-            else if (Health + FConfiguration::SiphonAmount <= 100)
+            else if (Health + GameRuleConfig::SiphonAmount <= 100)
             {
-                Health += FConfiguration::SiphonAmount;
+                Health += GameRuleConfig::SiphonAmount;
             }
 
             KillerPawn->SetHealth(Health);
@@ -1754,9 +1754,9 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
             // UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"startshrinksafezone"), nullptr);
         }
         else if (command == "infiniteammo")
-            FConfiguration::bInfiniteAmmo ^= 1;
+            GameRuleConfig::bInfiniteAmmo ^= 1;
         else if (command == "infinitemats")
-            FConfiguration::bInfiniteMats ^= 1;
+            GameRuleConfig::bInfiniteMats ^= 1;
         else if (command == "demospeed")
         {
             if (args.size() != 2)
@@ -1987,7 +1987,7 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
         }
         else if (command == "keepinv" || command == "keepinventory")
         {
-            FConfiguration::bKeepInventory ^= 1;
+            GameRuleConfig::bKeepInventory ^= 1;
             PlayerController->ClientMessage(FString(L"Toggled keep inventory!"), FName(), 1.f);
         }
         else if (command == "timeofday" || command == "time" || command == "t")
@@ -2980,7 +2980,7 @@ void AFortPlayerControllerAthena::EnterAircraft(UObject* Object, AActor* Aircraf
     else
         PlayerController = (AFortPlayerControllerAthena*)Object;
 
-    if (!FConfiguration::bKeepInventory && PlayerController->WorldInventory)
+    if (!GameRuleConfig::bKeepInventory && PlayerController->WorldInventory)
     {
         UEAllocatedVector<FGuid> GuidsToRemove;
         for (int i = 0; i < PlayerController->WorldInventory->Inventory.ReplicatedEntries.Num(); i++)
@@ -3624,7 +3624,7 @@ void AFortPlayerControllerAthena::PostLoadHook()
     if (VersionInfo.FortniteVersion >= 16)
         Hooking::ExecHook(GetDefaultObj()->GetFunction("ServerClientIsReadyToRespawn"), ServerClientIsReadyToRespawn);
 
-    if (FConfiguration::bEnableCheats)
+    if (GameRuleConfig::bEnableCheats)
         Hooking::ExecHook(GetDefaultObj()->GetFunction("ServerCheat"), ServerCheat);
 
     auto ServerAttemptInteractPC = GetDefaultObj()->GetFunction("ServerAttemptInteract");
@@ -3659,7 +3659,7 @@ void AFortPlayerControllerAthena::PostLoadHook()
     Hooking::ExecHook(GetDefaultObj()->GetFunction("SpawnToyInstance"), SpawnToyInstance);
     Hooking::Hook(FindEnterAircraft(), EnterAircraft, EnterAircraftOG);
 
-    if (wcsstr(FConfiguration::Playlist, L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2")) // on 24.20+ u get killed for going into water without this
+    if (wcsstr(FConfig::Playlist, L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2")) // on 24.20+ u get killed for going into water without this
         Hooking::ExecHook(GetDefaultObj()->GetFunction("ServerTeleportToPlaygroundLobbyIsland"), ServerTeleportToPlaygroundLobbyIsland);
 
     Hooking::ExecHook(GetDefaultObj()->GetFunction("ServerCraftSchematic"), ServerCraftSchematic);

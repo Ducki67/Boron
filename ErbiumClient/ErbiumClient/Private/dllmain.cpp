@@ -28,8 +28,8 @@ void Main()
 {
     SDK::Init();
 
-    if (wcscmp(FConfiguration::Playlist, L"/DurianPlaylist/Playlist/Playlist_Durian.Playlist_Durian") == 0)
-        FConfiguration::bEnableIris = false;
+    if (wcscmp(FConfig::Playlist, L"/DurianPlaylist/Playlist/Playlist_Durian.Playlist_Durian") == 0)
+        FConfig::bEnableIris = false;
 
     if (VersionInfo.EngineVersion >= 5.0)
     {
@@ -48,7 +48,7 @@ void Main()
     {
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"net.AllowEncryption 0"), nullptr);
     }
-    if (VersionInfo.EngineVersion >= 5.3 && FConfiguration::bEnableIris)
+    if (VersionInfo.EngineVersion >= 5.3 && FConfig::bEnableIris)
     {
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"log LogIris None"), nullptr);
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"log LogIrisRpc None"), nullptr);

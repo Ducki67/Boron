@@ -20,12 +20,12 @@
 
 void Main()
 {
-    if constexpr (!FConfiguration::bGUI)
+    if constexpr (!FConfig::bGUI)
         AllocConsole();
 
-    if constexpr (!FConfiguration::bGUI || !FConfiguration::bUseStdoutLog)
+    if constexpr (!FConfig::bGUI || !FConfig::bUseStdoutLog)
     {
-        if (!FConfiguration::bGUI || GetConsoleWindow())
+        if (!FConfig::bGUI || GetConsoleWindow())
         {
             FILE* s;
             freopen_s(&s, "CONOUT$", "w", stdout);
@@ -34,15 +34,15 @@ void Main()
         }
     }
 
-    if constexpr (FConfiguration::bCustomCrashReporter)
+    if constexpr (FConfig::bCustomCrashReporter)
         FCrashReporter::Register();
 
     printf("Initializing SDK...\n");
     SDK::Init();
 
-    if constexpr (FConfiguration::bGUI)
+    if constexpr (FConfig::bGUI)
     {
-        if constexpr (FConfiguration::bUseStdoutLog)
+        if constexpr (FConfig::bUseStdoutLog)
         {
             FILE* s;
             freopen_s(&s, "stdout.log", "w", stdout);
@@ -52,8 +52,8 @@ void Main()
         CreateThread(0, 0, (LPTHREAD_START_ROUTINE)GUI::Init, 0, 0, 0);
     }
 
-    if (wcscmp(FConfiguration::Playlist, L"/DurianPlaylist/Playlist/Playlist_Durian.Playlist_Durian") == 0)
-        FConfiguration::bEnableIris = false;
+    if (wcscmp(FConfig::Playlist, L"/DurianPlaylist/Playlist/Playlist_Durian.Playlist_Durian") == 0)
+        FConfig::bEnableIris = false;
 
     if (VersionInfo.EngineVersion >= 5.0)
     {
@@ -78,7 +78,7 @@ void Main()
             //     *(bool*)(uintptr_t(DefaultCurieGlobals) + Offset) = false;
         }
     }
-    if (VersionInfo.EngineVersion >= 5.3 && FConfiguration::bEnableIris)
+    if (VersionInfo.EngineVersion >= 5.3 && FConfig::bEnableIris)
     {
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"log LogIris None"), nullptr);
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"log LogIrisRpc None"), nullptr);
@@ -148,7 +148,7 @@ void Main()
     return;
 #endif
 
-    if constexpr (FConfiguration::WebhookURL && *FConfiguration::WebhookURL)
+    if constexpr (DiscordWebhookConfig::WebhookURL && *DiscordWebhookConfig::WebhookURL)
         curl_global_init(CURL_GLOBAL_ALL);
 
     sprintf_s(GUI::windowTitle,
@@ -195,12 +195,12 @@ void Main()
     UWorld::GetWorld()->OwningGameInstance->LocalPlayers.Remove(0);
     const wchar_t* terrainOpen = L"open Athena_Terrain";
 
-    if (wcsstr(FConfiguration::Playlist, L"/MoleGame/Playlists/Playlist_MoleGame"))
+    if (wcsstr(FConfig::Playlist, L"/MoleGame/Playlists/Playlist_MoleGame"))
     {
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Mole.WorstCasePlayerCount 1"), nullptr);
         terrainOpen = L"open Mole_UnderBase_Parent";
     }
-    else if (VersionInfo.FortniteVersion >= 12.00 && wcsstr(FConfiguration::Playlist, L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2"))
+    else if (VersionInfo.FortniteVersion >= 12.00 && wcsstr(FConfig::Playlist, L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2"))
         terrainOpen = L"open Creative_NoApollo_Terrain";
     else
     {

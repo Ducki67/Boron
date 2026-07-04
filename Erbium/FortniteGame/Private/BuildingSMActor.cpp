@@ -486,7 +486,7 @@ _out:
         *(uint32*)(__int64(&BuildingClassData) + UpgradeLevelOffset) = 0;
 
     UFortWorldItem* Item = nullptr;
-    if (!FConfiguration::bInfiniteMats)
+    if (!GameRuleConfig::bInfiniteMats)
     {
         auto CanAffordToPlaceBuildableClass = (bool (*)(AFortPlayerControllerAthena*, FBuildingClassData))CanAffordToPlaceBuildableClass_;
 
@@ -571,7 +571,7 @@ _out:
 
     // UWorld::FinishSpawnActor(Building, BuildLoc, BuildRot);
 
-    if (!PlayerController->bBuildFree && !FConfiguration::bInfiniteMats)
+    if (!PlayerController->bBuildFree && !GameRuleConfig::bInfiniteMats)
     {
         auto PayBuildableClassPlacementCost = (int (*)(AFortPlayerControllerAthena*, FBuildingClassData))PayBuildableClassPlacementCost_;
 

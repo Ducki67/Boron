@@ -367,7 +367,7 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::StartNewSafeZonePhase(i
             SafeZoneIndicator->NextNextMegaStormGridCellThickness = NextPhaseInfo.MegaStormGridCellThickness;
         }
 
-        SafeZoneIndicator->SafeZoneStartShrinkTime = FConfiguration::bLateGame && FConfiguration::bLateGameLongZone ? 676767.f : TimeSeconds + PhaseInfo.WaitTime;
+        SafeZoneIndicator->SafeZoneStartShrinkTime = LategameConfig::bLateGame && LategameConfig::bLateGameLongZone ? 676767.f : TimeSeconds + PhaseInfo.WaitTime;
         SafeZoneIndicator->SafeZoneFinishShrinkTime = SafeZoneIndicator->SafeZoneStartShrinkTime + PhaseInfo.ShrinkTime;
 
         SafeZoneIndicator->CurrentDamageInfo = PhaseInfo.DamageInfo;
@@ -414,11 +414,11 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::StartAircraftPhase()
                         ? (GameMode->GameState->HasCurrentPlaylistInfo() ? GameMode->GameState->CurrentPlaylistInfo.BasePlaylist : GameMode->GameState->CurrentPlaylistData)
                         : nullptr;
 
-    if constexpr (FConfiguration::WebhookURL && *FConfiguration::WebhookURL)
+    if constexpr (DiscordWebhookConfig::WebhookURL && *DiscordWebhookConfig::WebhookURL)
     {
         auto curl = curl_easy_init();
 
-        curl_easy_setopt(curl, CURLOPT_URL, FConfiguration::WebhookURL);
+        curl_easy_setopt(curl, CURLOPT_URL, DiscordWebhookConfig::WebhookURL);
         curl_slist* headers = curl_slist_append(NULL, "Content-Type: application/json");
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
@@ -447,7 +447,7 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::StartAircraftPhase()
               VersionInfo.FortniteVersion, VersionInfo.EngineVersion);
     SetConsoleTitleA(GUI::windowTitle);
 
-    if (FConfiguration::bJoinInProgress || (Playlist && Playlist->bAllowJoinInProgress))
+    if (GameRuleConfig::bJoinInProgress || (Playlist && Playlist->bAllowJoinInProgress))
         *(bool*)(uint64_t(&GameMode->WarmupRequiredPlayerCount) - 4) = false;
 
     if (bSkipAircraft)
@@ -466,7 +466,7 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::StartAircraftPhase()
         // TArray<TWeakObjectPtr<AFortAthenaAircraft>> Aircrafts;
         auto& FlightInfo = GameState->MapInfo->FlightInfos[0];
 
-        if (FConfiguration::bLateGame)
+        if (LategameConfig::bLateGame)
         {
             /*if (VersionInfo.FortniteVersion < 16)
             {
@@ -479,12 +479,12 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::StartAircraftPhase()
 
             GenerateStormCircles(GameState->MapInfo);
 
-            if (StormCircles.size() < FConfiguration::LateGameZone)
+            if (StormCircles.size() < LategameConfig::LateGameZone)
             {
                 printf("LateGame is not supported on this version!\n");
                 return;
             }
-            FVector Loc = StormCircles[FConfiguration::LateGameZone + 2].Center;
+            FVector Loc = StormCircles[LategameConfig::LateGameZone + 2].Center;
             Loc.Z = 17500.f;
 
             FlightInfo.FlightSpeed = 0.f;
@@ -627,7 +627,7 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Tick()
                             GameState->GamePhaseStep = EAthenaGamePhaseStep::StormHolding;
                             GameState->OnRep_GamePhase(EAthenaGamePhase::Aircraft);
                     }*/
-                    if (FConfiguration::bLateGame)
+                    if (LategameConfig::bLateGame)
                         SafeZonesStartTime = (float)Time;
                     else
                         SafeZonesStartTime = (float)Time + 60.f;
@@ -676,7 +676,7 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Tick()
                 {
                     formedZone = true;
                     auto SafeZoneIndicator = SetupSafeZoneIndicator();
-                    StartNewSafeZonePhase(FConfiguration::bLateGame ? FConfiguration::LateGameZone + 3 : 1, true);
+                    StartNewSafeZonePhase(LategameConfig::bLateGame ? LategameConfig::LateGameZone + 3 : 1, true);
                     return;
                 }
             }

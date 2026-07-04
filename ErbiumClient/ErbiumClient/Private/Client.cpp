@@ -88,7 +88,7 @@ void Client::Init()
 {
     UEngine::GetEngine()->GameViewport->ViewportConsole = UGameplayStatics::SpawnObject(UEngine::GetEngine()->ConsoleClass, UEngine::GetEngine()->GameViewport);
 
-    if (VersionInfo.FortniteVersion >= 10 || FConfiguration::bForceRespawns)
+    if (VersionInfo.FortniteVersion >= 10 || GameRuleConfig::bForceRespawns)
     {
         auto PrimarySlot = uint8_t(EPlaylistUIExtensionSlot::StaticEnum() ? EPlaylistUIExtensionSlot::GetPrimary() : EUIExtensionSlot::GetPrimary());
 
@@ -134,7 +134,7 @@ void Client::Init()
             {
                 auto Playlist = (UFortPlaylistAthena*)Object;
 
-                if (FConfiguration::bForceRespawns)
+                if (GameRuleConfig::bForceRespawns)
                 {
                     if (Playlist->HasbRespawnInAir())
                         Playlist->bRespawnInAir = true;
@@ -142,13 +142,13 @@ void Client::Init()
                     {
                         Playlist->RespawnHeight.Curve.CurveTable = nullptr;
                         Playlist->RespawnHeight.Curve.RowName = FName();
-                        Playlist->RespawnHeight.Value = 20000;
+                        Playlist->RespawnHeight.Value = GameRuleConfig::RespawnHightClient;
                     }
                     if (Playlist->HasRespawnTime())
                     {
                         Playlist->RespawnTime.Curve.CurveTable = nullptr;
                         Playlist->RespawnTime.Curve.RowName = FName();
-                        Playlist->RespawnTime.Value = 3;
+                        Playlist->RespawnTime.Value = GameRuleConfig::RespawnTimeClient;
                     }
                     Playlist->RespawnType = 1; // InfiniteRespawnExceptStorm
                     if (Playlist->HasbAllowJoinInProgress())
