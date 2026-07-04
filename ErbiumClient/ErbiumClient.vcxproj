@@ -40,6 +40,7 @@
     <ProjectGuid>{67dc4b26-c7e7-465e-b81e-31a2ff16372c}</ProjectGuid>
     <RootNamespace>ErbiumClient</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>BoronClient</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
