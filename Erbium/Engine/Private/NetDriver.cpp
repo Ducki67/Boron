@@ -187,7 +187,7 @@ void ServerReplicateActors(UNetDriver* Driver, float DeltaSeconds)
 
     auto TimeSeconds = UGameplayStatics::GetTimeSeconds(UWorld::GetWorld());
 
-    auto Scale = Driver->NetServerMaxTickRate / FConfiguration::MaxTickRate;
+    auto Scale = Driver->NetServerMaxTickRate / FConfig::MaxTickRate;
     FFrame FakeStack;
     for (auto& ActorInfo : ActiveNetworkObjects)
     {
@@ -503,7 +503,7 @@ void UNetDriver::TickFlush(UNetDriver* Driver, float DeltaSeconds)
         }
     }
     else if (GUI::gsStatus == StartedMatch &&
-             (FConfiguration::bAutoRestart || (FConfiguration::WebhookURL && *FConfiguration::WebhookURL) || (VersionInfo.FortniteVersion >= 18 && VersionInfo.FortniteVersion < 25.20)))
+             (GameRuleConfig::bAutoRestart || (DiscordWebhookConfig::WebhookURL && *DiscordWebhookConfig::WebhookURL) || (VersionInfo.FortniteVersion >= 18 && VersionInfo.FortniteVersion < 25.20)))
     {
         auto WorldNetDriver = UWorld::GetWorld()->NetDriver;
         auto GameMode = (AFortGameMode*)UWorld::GetWorld()->AuthorityGameMode;
@@ -515,11 +515,11 @@ void UNetDriver::TickFlush(UNetDriver* Driver, float DeltaSeconds)
             {
                 stopped = true;
 
-                if constexpr (FConfiguration::WebhookURL && *FConfiguration::WebhookURL)
+                if constexpr (DiscordWebhookConfig::WebhookURL && *DiscordWebhookConfig::WebhookURL)
                 {
                     auto curl = curl_easy_init();
 
-                    curl_easy_setopt(curl, CURLOPT_URL, FConfiguration::WebhookURL);
+                    curl_easy_setopt(curl, CURLOPT_URL, DiscordWebhookConfig::WebhookURL);
                     curl_slist* headers = curl_slist_append(NULL, "Content-Type: application/json");
                     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
@@ -544,7 +544,7 @@ void UNetDriver::TickFlush(UNetDriver* Driver, float DeltaSeconds)
                     curl_easy_cleanup(curl);
                 }
 
-                if (FConfiguration::bAutoRestart)
+                if (GameRuleConfig::bAutoRestart)
                     TerminateProcess(GetCurrentProcess(), 0);
             }
         }
@@ -593,7 +593,7 @@ void UNetDriver::TickFlush__RepGraph(UNetDriver* Driver, float DeltaSeconds)
                 UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"startaircraft"), nullptr);
             }
         }
-        else if (GUI::gsStatus == StartedMatch && (FConfiguration::bAutoRestart || (FConfiguration::WebhookURL && *FConfiguration::WebhookURL) || VersionInfo.FortniteVersion >= 18))
+        else if (GUI::gsStatus == StartedMatch && (GameRuleConfig::bAutoRestart || (DiscordWebhookConfig::WebhookURL && *DiscordWebhookConfig::WebhookURL) || VersionInfo.FortniteVersion >= 18))
         {
             auto WorldNetDriver = UWorld::GetWorld()->NetDriver;
             auto GameMode = (AFortGameMode*)UWorld::GetWorld()->AuthorityGameMode;
@@ -605,11 +605,11 @@ void UNetDriver::TickFlush__RepGraph(UNetDriver* Driver, float DeltaSeconds)
                 {
                     stopped = true;
 
-                    if constexpr (FConfiguration::WebhookURL && *FConfiguration::WebhookURL)
+                    if constexpr (DiscordWebhookConfig::WebhookURL && *DiscordWebhookConfig::WebhookURL)
                     {
                         auto curl = curl_easy_init();
 
-                        curl_easy_setopt(curl, CURLOPT_URL, FConfiguration::WebhookURL);
+                        curl_easy_setopt(curl, CURLOPT_URL, DiscordWebhookConfig::WebhookURL);
                         curl_slist* headers = curl_slist_append(NULL, "Content-Type: application/json");
                         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
@@ -634,7 +634,7 @@ void UNetDriver::TickFlush__RepGraph(UNetDriver* Driver, float DeltaSeconds)
                         curl_easy_cleanup(curl);
                     }
 
-                    if (FConfiguration::bAutoRestart)
+                    if (GameRuleConfig::bAutoRestart)
                         TerminateProcess(GetCurrentProcess(), 0);
                 }
             }
@@ -739,7 +739,7 @@ void UNetDriver::TickFlush__Iris(UNetDriver* Driver, float DeltaSeconds)
             UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"startaircraft"), nullptr);
         }
     }
-    else if (GUI::gsStatus == StartedMatch && (FConfiguration::bAutoRestart || (FConfiguration::WebhookURL && *FConfiguration::WebhookURL) || VersionInfo.FortniteVersion < 25.20))
+    else if (GUI::gsStatus == StartedMatch && (GameRuleConfig::bAutoRestart || (DiscordWebhookConfig::WebhookURL && *DiscordWebhookConfig::WebhookURL) || VersionInfo.FortniteVersion < 25.20))
     {
         auto WorldNetDriver = UWorld::GetWorld()->NetDriver;
         auto GameMode = (AFortGameMode*)UWorld::GetWorld()->AuthorityGameMode;
@@ -751,11 +751,11 @@ void UNetDriver::TickFlush__Iris(UNetDriver* Driver, float DeltaSeconds)
             {
                 stopped = true;
 
-                if constexpr (FConfiguration::WebhookURL && *FConfiguration::WebhookURL)
+                if constexpr (DiscordWebhookConfig::WebhookURL && *DiscordWebhookConfig::WebhookURL)
                 {
                     auto curl = curl_easy_init();
 
-                    curl_easy_setopt(curl, CURLOPT_URL, FConfiguration::WebhookURL);
+                    curl_easy_setopt(curl, CURLOPT_URL, DiscordWebhookConfig::WebhookURL);
                     curl_slist* headers = curl_slist_append(NULL, "Content-Type: application/json");
                     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
 
@@ -780,7 +780,7 @@ void UNetDriver::TickFlush__Iris(UNetDriver* Driver, float DeltaSeconds)
                     curl_easy_cleanup(curl);
                 }
 
-                if (FConfiguration::bAutoRestart)
+                if (GameRuleConfig::bAutoRestart)
                     TerminateProcess(GetCurrentProcess(), 0);
             }
         }
@@ -954,7 +954,7 @@ void UNetDriver::PostLoadHook()
 
     if (!FindServerReplicateActors())
     {
-        if (VersionInfo.EngineVersion >= 5.3 && FConfiguration::bEnableIris)
+        if (VersionInfo.EngineVersion >= 5.3 && FConfig::bEnableIris)
         {
             FindSendClientAdjustment();
             FindUpdateIrisReplicationViews();
