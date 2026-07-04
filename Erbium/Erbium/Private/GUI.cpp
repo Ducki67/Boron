@@ -40,9 +40,9 @@ LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 
     return DefWindowProc(hWnd, msg, wParam, lParam);
 }
-
-auto WindowWidth = 533;
-auto WindowHeight = 400;
+// GUI SIZE
+auto WindowWidth = 770;
+auto WindowHeight = 640;
 
 void GUI::Init()
 {
@@ -258,17 +258,31 @@ void GUI::Init()
                 }
             }
 
+            if (ImGui::BeginTabItem("Misc"))
+            {
+                SelectedUI = 3;
+                ImGui::EndTabItem();
+            }
+
             if (ImGui::BeginTabItem("Dump"))
             {
                 SelectedUI = 4;
                 ImGui::EndTabItem();
             }
 
-            if (ImGui::BeginTabItem("Misc"))
+
+            if (LategameConfig::bLateGame)
             {
-                SelectedUI = 3;
-                ImGui::EndTabItem();
-            }
+                if (ImGui::BeginTabItem("LateGame"))
+                {
+                    SelectedUI = 5;
+                    ImGui::EndTabItem();
+                }
+            };
+
+
+
+            
 
             // do not remove
             if (ImGui::TabItemButton("Made by Sarah (@ustruct on Discord)"))
@@ -288,7 +302,7 @@ void GUI::Init()
             if (gsStatus >= Joinable)
             {
                 ImGui::Text((std::string("Player Count: ") + std::to_string(GameMode->HasAlivePlayers() ? GameMode->AlivePlayers.Num() : 0)).c_str());
-                ImGui::Text((std::string("Port: ") + std::to_string(FConfiguration::Port)).c_str());
+                ImGui::Text((std::string("Port: ") + std::to_string(FConfig::Port)).c_str());
 
                 auto Playlist = VersionInfo.FortniteVersion >= 3.5 && GameMode->HasWarmupRequiredPlayerCount()
                                     ? (GameMode->GameState->HasCurrentPlaylistInfo() ? GameMode->GameState->CurrentPlaylistInfo.BasePlaylist : GameMode->GameState->CurrentPlaylistData)
@@ -308,7 +322,13 @@ void GUI::Init()
             }
 
             if (gsStatus <= Joinable)
-                ImGui::Checkbox("Lategame", &FConfiguration::bLateGame);
+                if (FConfig::Playlist == L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2")
+                {
+                    ImGui::Text("Lategame is disabled due to the Creative playlist!!!");
+                    LategameConfig::bLateGame = false; // froce it ig cuz then ppl dont have fucking strom issue on creative
+                }
+                else
+                    ImGui::Checkbox("Lategame", &LategameConfig::bLateGame);
 
             if (gsStatus == Joinable && ImGui::Button("Start Bus Early"))
             {
@@ -399,12 +419,12 @@ void GUI::Init()
 
             break;
         case 3:
-            ImGui::Checkbox("Infinite Materials", &FConfiguration::bInfiniteMats);
-            ImGui::Checkbox("Infinite Ammo", &FConfiguration::bInfiniteAmmo);
-            ImGui::Checkbox("Keep Inventory", &FConfiguration::bKeepInventory);
+            ImGui::Checkbox("Infinite Materials", &GameRuleConfig::bInfiniteMats);
+            ImGui::Checkbox("Infinite Ammo", &GameRuleConfig::bInfiniteAmmo);
+            ImGui::Checkbox("Keep Inventory", &GameRuleConfig::bKeepInventory);
 
-            ImGui::SliderInt("Siphon Amount:", &FConfiguration::SiphonAmount, 0, 200);
-            ImGui::SliderInt("Tick Rate:", &FConfiguration::MaxTickRate, 30, 120);
+            ImGui::SliderInt("Siphon Amount:", &GameRuleConfig::SiphonAmount, 0, 200);
+            ImGui::SliderInt("Tick Rate:", &FConfig::MaxTickRate, 30, 120);
 
             if (ImGui::Button("Reset Builds"))
             {
@@ -515,7 +535,106 @@ void GUI::Init()
             }
 
             break;
+
+        case 5:
+        {
+            ImGui::Checkbox("Versionized Lootpool", &LategameConfig::bLateGameVersionized);
+            if (LategameConfig::bLateGameVersionized)
+            {
+                LategameConfig::bLateGameCustom = false;
+                
+            }
+
+            ImGui::Checkbox("Custom Late Game loadout  (Not fully done yet!!!)", &LategameConfig::bLateGameCustom);
+            if (LategameConfig::bLateGameCustom)
+            {
+
+                LategameConfig::bLateGameVersionized = false;
+
+                
+                // ImGui::SetNextWindowContentSize(ImVec2(150, 300));
+                ImGui::BeginChild("LGc", ImVec2(500, 200), true, ImGuiWindowFlags_HorizontalScrollbar);
+
+                ImGui::Text("Item Slots:");
+
+                // 1. Shotgun
+                char bufShotgun[500];
+                sprintf_s(bufShotgun, "%ls", LategameConfig::CustomShotgunItem);
+                if (ImGui::InputText("Shotgun", bufShotgun, 500))
+                {
+                    swprintf_s(LategameConfig::CustomShotgunItem, L"%hs", bufShotgun);
+                }
+
+                // 2. Assault Rifle
+                char bufAssault[500];
+                sprintf_s(bufAssault, "%ls", LategameConfig::CustomAssaultRifleItem);
+                if (ImGui::InputText("Assault Rifle", bufAssault, 500))
+                {
+                    swprintf_s(LategameConfig::CustomAssaultRifleItem, L"%hs", bufAssault);
+                }
+
+                // 3. Sniper
+                char bufSniper[500];
+                sprintf_s(bufSniper, "%ls", LategameConfig::CustomSniperItem);
+                if (ImGui::InputText("Sniper", bufSniper, 500))
+                {
+                    swprintf_s(LategameConfig::CustomSniperItem, L"%hs", bufSniper);
+                }
+
+                // 4. Utility
+                char bufUtil[500];
+                sprintf_s(bufUtil, "%ls", LategameConfig::CustomUtilItem);
+                if (ImGui::InputText("Utility", bufUtil, 500))
+                {
+                    swprintf_s(LategameConfig::CustomUtilItem, L"%hs", bufUtil);
+                }
+
+                ImGui::Spacing();
+                ImGui::Text("Item Count configs:");
+
+                ImGui::SliderInt("Utility Item count", &LategameConfig::CustomUtilItemCount, 1, 99);
+
+                ImGui::EndChild();
+            }
+
+            ImGui::Text("Zone Phase settings:");
+            ImGui::Spacing();
+            ImGui::SliderInt("Zone phase", &LategameConfig::LateGameZone, 3, 7); // pahse 7 is playeble ig
+            // fix / not use Long Zones for pre-s13 so from 11.00 to 13.30
+            if (VersionInfo.FortniteVersion < 11 || VersionInfo.FortniteVersion > 13.30)
+            {
+                ImGui::Spacing();
+                ImGui::Spacing();
+                ImGui::Text("LateGame Zone Type:");
+                ImGui::Spacing();
+                ImGui::Checkbox("Long Zone", &LategameConfig::bLateGameLongZone);
+            }
+
+            ImGui::Separator();
+            ImGui::Spacing();
+            ImGui::Text("Quick Notes:");
+            ImGui::BulletText("LG Zone Phase: Phases can be 3 - 7 !!!");
+            ImGui::BulletText("Long Zone: A zone doesnt close for a long time.");
+            ImGui::BulletText("Custom loadout: This option makes only 1 Loadout for everyone in the game. You can add your own WID's to it.");
         }
+        break;
+        }
+        /*
+        case 6:
+        {
+        }
+        break;
+
+        case 7:
+        {
+        }
+        break;
+        case 8:
+        {
+        }
+        break;
+        */
+
 
         ImGui::End();
 
