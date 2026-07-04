@@ -2,6 +2,8 @@
 #include "../Public/FortAthenaCreativePortal.h"
 #include "../Public/FortGameStateAthena.h"
 
+#include "../Erbium/Erbium/Public/Configuration.h"
+
 void AFortMinigameSettingsBuilding::BeginPlay(AFortMinigameSettingsBuilding* Settings)
 {
     if (Settings->HasSettingsVolume())
@@ -65,7 +67,15 @@ AFortAthenaCreativePortal* AFortAthenaCreativePortal::Create(AFortPlayerControll
     Portal->bPortalOpen = true;
     Portal->OnRep_PortalOpen();
 
-    auto RestrictedPlotDefinition = FindObject<UFortCreativeRealEstatePlotItemDefinition>(L"/Game/Playgrounds/Items/Plots/Temperate_Medium.Temperate_Medium");
+    if (!FConfig::CreativeModeConfig::bCustomMap)
+    {
+        auto RestrictedPlotDefinition = FindObject<UFortCreativeRealEstatePlotItemDefinition>(L"/Game/Playgrounds/Items/Plots/Temperate_Medium.Temperate_Medium");
+    }
+    else if (FConfig::CreativeModeConfig::bCustomMap)
+        ;
+
+    auto RestrictedPlotDefinition = FindObject<UFortCreativeRealEstatePlotItemDefinition>(FConfig::CreativeModeConfig::CustomMapDefinition);
+
 
     if (!RestrictedPlotDefinition)
         RestrictedPlotDefinition = FindObject<UFortCreativeRealEstatePlotItemDefinition>(L"/CR_Legacy/Playgrounds/Items/Plots/Temperate_Medium.Temperate_Medium");
