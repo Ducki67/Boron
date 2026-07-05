@@ -22,7 +22,7 @@ A modifiyed/forked Erbium gameserver with my own features and fixes
 - [ ] **GUI**
   - [ ] Player manager tab.
   - [ ] Calendar tab. (e.g: full snow map on s11)
-  - [ ] LateGame tab. **10% done**
+  - [ ] LateGame tab. **23% done**
   - [ ] Playlist tab. (for manual server setup mode)
   
 - [ ] **Gameplay**
@@ -34,7 +34,7 @@ A modifiyed/forked Erbium gameserver with my own features and fixes
   - [ ] Fix autorestart (maybe)
 
 - [ ] **Commands**
-  - [ ] Server message.
+  - [ ] Server message. **50% done**
   - [ ] Faster item give.
   - [ ] POI tp commands (hopefully on every season)
 
