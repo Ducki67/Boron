@@ -11,11 +11,12 @@ struct LategameConfig
     // loot settings
     static inline auto bLateGameVersionized = true;
     static inline auto bLateGameCustom = false;
-    static inline wchar_t CustomShotgunItem[500] = L"/Game/Athena/Items/Weapons/WID_Shotgun_Standard_Athena_SR_Ore_T03.WID_Shotgun_Standard_Athena_SR_Ore_T03";
-    static inline wchar_t CustomAssaultRifleItem[500] = L"/Game/Items/Weapons/Ranged/Assault/Auto/WID_OB_Assault_Auto_C_Ore_T01.WID_OB_Assault_Auto_C_Ore_T01"; // scar i think / added so the godl AK on  som seasons If not exist wont crash ur game
-    static inline wchar_t CustomSniperItem[500] = L"/Game/Athena/Items/Weapons/WID_Sniper_Heavy_Athena_SR_Ore_T03.WID_Sniper_Heavy_Athena_SR_Ore_T03";
-    static inline wchar_t CustomUtilItem[500] = L"/Game/Athena/Items/Consumables/ShockwaveGrenade/Athena_ShockGrenade.Athena_ShockGrenade";
-    static inline int CustomUtilItemCount = 1;
+    static inline wchar_t CustomSlot1Item[500] = L"/Game/Athena/Items/Weapons/WID_Shotgun_Standard_Athena_SR_Ore_T03.WID_Shotgun_Standard_Athena_SR_Ore_T03";
+    static inline int CustomSlot1ItemCount = 1;
+    static inline wchar_t CustomSlot2Item[500] = L"/Game/Athena/Items/Weapons/WID_Assault_AutoHigh_Athena_SR_Ore_T03.WID_Assault_AutoHigh_Athena_SR_Ore_T03"; // scar i think / added so the godl AK on  som seasons If not exist wont crash ur game
+    static inline int CustomSlot2ItemCount = 1;
+    static inline wchar_t CustomSlot3Item[500] = L"/Game/Athena/Items/Consumables/ShockwaveGrenade/Athena_ShockGrenade.Athena_ShockGrenade";
+    static inline int CustomSlot3ItemCount = 1;
 
     // zones
     static inline auto bLateGame = false;

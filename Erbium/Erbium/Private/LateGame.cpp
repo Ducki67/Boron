@@ -180,7 +180,7 @@ FLateGameItem LateGame::GetShotgun()
         /* soon */
         Shotguns =
         {
-            FLateGameItem(1, FindObject<UFortItemDefinition>(LategameConfig::CustomShotgunItem)),
+            FLateGameItem(1, FindObject<UFortItemDefinition>(LategameConfig::CustomSlot1Item)),
         };
     }
 
@@ -389,7 +389,7 @@ FLateGameItem LateGame::GetAssaultRifle()
         /* soon */
         AssaultRifles =
         {
-            FLateGameItem(1, FindObject<UFortItemDefinition>(LategameConfig::CustomAssaultRifleItem)),
+            FLateGameItem(1, FindObject<UFortItemDefinition>(LategameConfig::CustomSlot2Item)),
         };
 
     }
@@ -580,8 +580,8 @@ FLateGameItem LateGame::GetUtility()
         /* soon */
         Snipers =
         {
-            FLateGameItem(1, FindObject<UFortItemDefinition>(LategameConfig::CustomSniperItem)),
-            FLateGameItem(LategameConfig::CustomUtilItemCount, FindObject<UFortItemDefinition>(LategameConfig::CustomUtilItem)),
+           
+            FLateGameItem(LategameConfig::CustomSlot3ItemCount, FindObject<UFortItemDefinition>(LategameConfig::CustomSlot3Item)),
 
         };
     }

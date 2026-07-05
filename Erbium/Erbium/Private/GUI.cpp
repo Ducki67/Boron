@@ -559,41 +559,35 @@ void GUI::Init()
 
                 // 1. Shotgun
                 char bufShotgun[500];
-                sprintf_s(bufShotgun, "%ls", LategameConfig::CustomShotgunItem);
-                if (ImGui::InputText("Shotgun", bufShotgun, 500))
+                sprintf_s(bufShotgun, "%ls", LategameConfig::CustomSlot1Item);
+                if (ImGui::InputText("Slot 1", bufShotgun, 500))
                 {
-                    swprintf_s(LategameConfig::CustomShotgunItem, L"%hs", bufShotgun);
+                    swprintf_s(LategameConfig::CustomSlot1Item, L"%hs", bufShotgun);
                 }
 
                 // 2. Assault Rifle
                 char bufAssault[500];
-                sprintf_s(bufAssault, "%ls", LategameConfig::CustomAssaultRifleItem);
-                if (ImGui::InputText("Assault Rifle", bufAssault, 500))
+                sprintf_s(bufAssault, "%ls", LategameConfig::CustomSlot2Item);
+                if (ImGui::InputText("Slot 2", bufAssault, 500))
                 {
-                    swprintf_s(LategameConfig::CustomAssaultRifleItem, L"%hs", bufAssault);
+                    swprintf_s(LategameConfig::CustomSlot2Item, L"%hs", bufAssault);
                 }
 
                 // 3. Sniper
                 char bufSniper[500];
-                sprintf_s(bufSniper, "%ls", LategameConfig::CustomSniperItem);
-                if (ImGui::InputText("Sniper", bufSniper, 500))
+                sprintf_s(bufSniper, "%ls", LategameConfig::CustomSlot3Item);
+                if (ImGui::InputText("Slot 3", bufSniper, 500))
                 {
-                    swprintf_s(LategameConfig::CustomSniperItem, L"%hs", bufSniper);
-                }
-
-                // 4. Utility
-                char bufUtil[500];
-                sprintf_s(bufUtil, "%ls", LategameConfig::CustomUtilItem);
-                if (ImGui::InputText("Utility", bufUtil, 500))
-                {
-                    swprintf_s(LategameConfig::CustomUtilItem, L"%hs", bufUtil);
+                    swprintf_s(LategameConfig::CustomSlot3Item, L"%hs", bufSniper);
                 }
 
                 ImGui::Spacing();
                 ImGui::Text("Item Count configs:");
 
-                ImGui::SliderInt("Utility Item count", &LategameConfig::CustomUtilItemCount, 1, 99);
-
+                ImGui::SliderInt("Slot 1 item count", &LategameConfig::CustomSlot1ItemCount, 1, 99);
+                ImGui::SliderInt("Slot 2 item count", &LategameConfig::CustomSlot2ItemCount, 1, 99);
+                ImGui::SliderInt("Slot 3 item count", &LategameConfig::CustomSlot3ItemCount, 1, 99);
+                
                 ImGui::EndChild();
             }
 
