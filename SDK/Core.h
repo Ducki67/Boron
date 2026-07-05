@@ -626,7 +626,7 @@ namespace SDK
         ProcessEvent(Function, Mem);
 
         i = 0;
-        ([&]
+        ([&] // server send message crashes here wtf? HOWW??  | fixed already :PP
         {
             if (i >= Params.NameOffsetMap.size())
                 return;

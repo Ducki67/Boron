@@ -1,4 +1,7 @@
 #include "pch.h"
+
+#include <iostream>
+
 #include "../Public/FortPlayerControllerAthena.h"
 #include "../../Erbium/Public/Configuration.h"
 #include "../../Erbium/Public/Events.h"
@@ -13,6 +16,8 @@
 #include "../Public/FortLootPackage.h"
 #include "../Public/FortPhysicsPawn.h"
 #include "../Public/FortWeapon.h"
+
+//#include "../Public/FortPlayerPawnAthena.h"
 
 void AFortPlayerControllerAthena::GetPlayerViewPoint(AFortPlayerControllerAthena* PlayerController, FVector& Loc, FRotator& Rot)
 {
@@ -1673,12 +1678,14 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
     cheat spawnactor <class/path> - Spawns an actor at your location + 5 meters)"),
                                         FName(), 1);
     }
+
+
     else
     {
         auto& command = args[0];
         std::transform(command.begin(), command.end(), command.begin(), tolower);
 
-        if (command == "startaircraft")
+        if (command == "startaircraft" || command == "startbus" || command == "bus")
         {
             if (UFortGameStateComponent_BattleRoyaleGamePhaseLogic::GetDefaultObj())
             {
@@ -1693,7 +1700,31 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
                 PlayerController->ClientMessage(FString(L"Started the aircraft!"), FName(), 1.f);
             }
         }
-        else if (command == "resumesafezone")
+
+        else if (command == "sendmessage" || command == "sendmsg")
+        {
+            // TODO: Implement sendmessage command
+            /*
+            needed shi:
+            FString
+            ClientSendConfirmationMessage()
+            ConvStringToText()
+            */
+            
+            // FINALLY  FUCKING WORKS
+
+            FString shit("djahdanjohech");
+
+            auto Text1 = UKismetTextLibrary::Conv_StringToText(shit);
+            PlayerController->ClientSendConfirmationMessage(Text1, false); // dont set it to "true"  cuz it will crash the gs and kicks the pawn :rofl:
+
+
+            return; // stop execution
+            
+
+        }
+
+        else if (command == "resumesafezone" || command == "r_zone")
         {
             UFortGameStateComponent_BattleRoyaleGamePhaseLogic::bPausedZone = false;
             if (GameMode->HasbSafeZonePaused())
@@ -1709,7 +1740,7 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
             UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"pausesafezone"), nullptr);
             PlayerController->ClientMessage(FString(L"Paused the safe zone."), FName(), 1.f);
         }
-        else if (command == "skipsafezone")
+        else if (command == "skipsafezone" || command == "skipzone")
         {
             if (GameMode->HasSafeZoneIndicator())
             {
@@ -1733,7 +1764,7 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
             PlayerController->ClientMessage(FString(L"Currently skipping the zone."), FName(), 1.f);
             // UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"skipsafezone"), nullptr);
         }
-        else if (command == "startshrinksafezone")
+        else if (command == "startshrinksafezone" || command == "startzone")
         {
             auto GameMode = (AFortGameMode*)UWorld::GetWorld()->AuthorityGameMode;
             if (GameMode->HasSafeZoneIndicator())
@@ -1753,10 +1784,17 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
 
             // UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"startshrinksafezone"), nullptr);
         }
-        else if (command == "infiniteammo")
+        else if (command == "infiniteammo" || command == "infammo")
             GameRuleConfig::bInfiniteAmmo ^= 1;
-        else if (command == "infinitemats")
+        else if (command == "infinitemats" || command == "infmats")
             GameRuleConfig::bInfiniteMats ^= 1;
+
+        else if (command == "infiniteall" || command == "infall")
+        {
+            GameRuleConfig::bInfiniteAmmo ^= 1;
+            GameRuleConfig::bInfiniteMats ^= 1;
+        }
+
         else if (command == "demospeed")
         {
             if (args.size() != 2)
@@ -1912,7 +1950,7 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
 
             PlayerController->ClientMessage(FString(L"Changed the player's name!"), FName(), 1.f);
         }
-        else if (command == "pausetimeofday" || command == "pausetime" || command == "pt")
+        else if (command == "pausetimeofday" || command == "pausetime" || command == "pt" || command == "ptime")
         {
             static bool bIsPaused = false;
 
@@ -2010,7 +2048,7 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
             UFortKismetLibrary::SetTimeOfDay(UWorld::GetWorld(), NewTOD);
             PlayerController->ClientMessage(FString(L"Set time of day!"), FName(), 1.f);
         }
-        else if (command == "spawnbot")
+        else if (command == "spawnbot" || command == "bot")
         {
             if (!PlayerController->Pawn)
                 return;
@@ -2175,12 +2213,34 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
                 // CallerController->ClientMessage(FString(L"Spawned a player bot!"), FName(), 1.f); // todo: fix
             }
         }
-        else if (command == "startevent")
+
+        else if (command == "spawnai" || command == "ai")
+        {
+            PlayerController->ClientMessage(FString(L"TODO: Spawn AI pawn with brain knoledge :P"), FName(), 1.f);
+        }
+
+        else if (command == "startevent" || command == "event")
         {
             Events::StartEvent();
             PlayerController->ClientMessage(FString(L"Event started!"), FName(), 1);
         }
-        else if (command == "bugitgo" || command == "tp")
+
+        else if (command == "teleport" || command == "tp")
+        {
+            PlayerController->CheatManager;
+
+            if (!PlayerController->CheatManager)
+            {
+                PlayerController->ClientMessage(FString(L"CheatManager is null!"), FName(), 1.f);
+                return;
+            }
+
+            PlayerController->CheatManager->Teleport();
+            PlayerController->CheatManager= nullptr;
+            PlayerController->ClientMessage(FString(L"Teleported where you looked at!"), FName(), 1.f);
+        }
+
+        else if (command == "bugitgo" || command == "tpgo")
         {
             if (args.size() != 4)
             {
@@ -2216,11 +2276,11 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
 
             if (PlayerController->Pawn)
             {
-                PlayerController->Pawn->LaunchCharacterJump(FVector(X, Y, Z), false, nullptr, true);
+                PlayerController->Pawn->LaunchCharacterJump(FVector(X, Y, Z), false, nullptr, true);  // this one doesnt kill the palyer i think?? idk bro :sob:
                 PlayerController->ClientMessage(FString(L"Launched player!"), FName(), 1.f);
             }
         }
-        else if (command == "savewaypoint" || command == "s")
+        else if (command == "savewaypoint" || command == "savelocation" || command == "saveloc" || command == "s") // i like ts
         {
             if (args.size() < 2)
             {
@@ -2271,7 +2331,7 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
                 PlayerController->ClientMessage(FString(L"Waypoint saved! Use \" cheat waypoint (phrase) \" to teleport to that location!"), FName(), 1);
             }
         }
-        else if (command == "waypoint" || command == "w")
+        else if (command == "waypoint" || command == "w" || command == "loc" || command == "location") // i like the name better
         {
             if (args.size() < 2)
             {
@@ -2338,7 +2398,7 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
                 }
             }
         }
-        else if (command == "giveitem")
+        else if (command == "giveitem" || command == "grantitem")  // no "give"  cuz thats gonna be a diff shit
         {
             if (args.size() != 2 && args.size() != 3)
             {
@@ -2418,7 +2478,7 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
                 PlayerController->ClientMessage(FString(L"Spawned pickup!"), FName(), 1.f);
             }
         }
-        else if (command == "spawnactor" || command == "summon")
+        else if (command == "spawnactor" || command == "summon" || command == "summonactor")
         {
             if (args.size() != 2)
             {
@@ -2466,7 +2526,7 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
             for (auto& Build : Builds)
                 if (Build->bPlayerPlaced)
                     Build->K2_DestroyActor();
-
+              // TODO: we need a way to play and not player the breaking animation woild be good for ch4+ builds cuz of the new grapics they tank ur fps :sob:
             Builds.Free();
         }
         else if (command == "fly")
@@ -2476,8 +2536,9 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
             auto MovementComp = PlayerController->MyFortPawn->CharacterMovement;
 
             MovementComp->bCheatFlying ^= 1;
-            MovementComp->SetMovementMode(MovementComp->bCheatFlying ? 5 : 3, 67);
+            MovementComp->SetMovementMode(MovementComp->bCheatFlying ? 5 : 3, 67);  
             PlayerController->ClientMessage(MovementComp->bCheatFlying ? FString(L"Flying is now enabled!") : FString("Flying is now disabled!"), FName(), 1.f);
+            PlayerController->ClientMessage(FString(L"Use 'flyspeed <n>' to change the flying speed!"), FName(), 1.f);
         }
         else if (command == "flyspeed")
         {
@@ -2619,7 +2680,7 @@ void AFortPlayerControllerAthena::ServerAttemptInteract_(UObject* Context, FFram
                     else
                         RepWeaponInfo->HostVehicleCachedActor = Vehicle;
                     RepWeaponInfo->HostVehicleSeatIndexCached = SeatIdx;
-
+                    // is this shit suposed to be the Nitro Cars  guns? WTF
                     static auto DualClass = FindClass("FortWeaponRangedDualForVehicle");
 
                     if (Weapon->IsA(DualClass))
@@ -3059,7 +3120,7 @@ inline std::string CleanupString(std::string& s)
     }
     return s;
 }
-
+// i think this is some stw shit  i wont touch it but intresting
 void AFortPlayerControllerAthena::ServerCraftSchematic(UObject* Context, FFrame& Stack)
 {
     FString ItemId;

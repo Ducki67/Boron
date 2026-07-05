@@ -65,9 +65,9 @@ struct FConfig
 
     static inline auto bGameSessions = false; // GSS  for GSSMMs and backends (TDOD: wayy more later tho but ill add it)
 
-    // static inline auto Playlist = L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo";
+    static inline auto Playlist = L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo";
     // static inline auto Playlist = L"/Game/Athena/Playlists/Showdown/Playlist_ShowdownAlt_Solo.Playlist_ShowdownAlt_Solo";
-    static inline auto Playlist = L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2";  // creative
+    // static inline auto Playlist = L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2";  // creative
    
     // static inline auto Playlist = L"/Game/Athena/Playlists/Playground/Playlist_Playground.Playlist_Playground"; // playfround
     

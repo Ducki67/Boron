@@ -338,6 +338,7 @@ public:
     DEFINE_FUNC(ClientNotifyWon, void);
     DEFINE_FUNC(ClientNotifyTeamWon, void);
     DEFINE_FUNC(ClientMessage, void);
+    DEFINE_FUNC(ClientSendConfirmationMessage, void)  // send server message 
     DEFINE_FUNC(ClientGotoState, void);
     DEFINE_FUNC(IsInAircraft, bool);
     DEFINE_FUNC(ServerSetTeam, void);
