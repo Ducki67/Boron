@@ -22,7 +22,7 @@ A modifiyed/forked Erbium gameserver with my own features and fixes
 - [ ] **GUI**
   - [ ] Player manager tab.
   - [ ] Calendar tab. (e.g: full snow map on s11)
-  - [ ] LateGame tab.
+  - [ ] LateGame tab. **10% done**
   - [ ] Playlist tab. (for manual server setup mode)
   
 - [ ] **Gameplay**
