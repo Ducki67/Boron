@@ -138,7 +138,7 @@ public:
     DEFINE_FUNC(GetVehicleActor, AActor*);
 
     DefUHookOg(ServerHandlePickup_);
-    DefUHookOg(ServerHandlePickupInfo);
+    DefUHookOg(ServerHandlePickupInfo); //TODO: needs a fix for crash on 16.xx builds (confirmed a crash on 16.40)
     DefHookOg(bool, FinishedTargetSpline, void*);
     DefUHookOg(ServerSendZiplineState);
     DefUHookOg(OnCapsuleBeginOverlap_);
