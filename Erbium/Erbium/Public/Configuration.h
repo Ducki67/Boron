@@ -5,6 +5,9 @@
 
 #define MANUAL_SERVER_SETUP // if defined then the gameserver WONT set up the playlist automatically  You HAVE TO click on the "Setup server" Button on the GUI
 #define HITSCAN_WEAPONS // some hitscan weapons shit for ch5 (will be removed later on)
+///#define AUTOHOSTER_CONFIGURATOR // this will be for autohoster exes so the exe it self can change all configs even if the dll is compiled  (Coming later)
+
+
 
 struct LategameConfig
 {
