@@ -69,8 +69,8 @@ struct FConfig
 
     static inline auto bGameSessions = false; // GSS  for GSSMMs and backends (TDOD: wayy more later tho but ill add it)
 
-    static inline auto Playlist = L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo";
-    // static inline auto Playlist = L"/Game/Athena/Playlists/Showdown/Playlist_ShowdownAlt_Solo.Playlist_ShowdownAlt_Solo";
+    // static inline auto Playlist = L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo";
+    static inline auto Playlist = L"/Game/Athena/Playlists/Showdown/Playlist_ShowdownAlt_Solo.Playlist_ShowdownAlt_Solo";
     // static inline auto Playlist = L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2";  // creative
    
     // static inline auto Playlist = L"/Game/Athena/Playlists/Playground/Playlist_Playground.Playlist_Playground"; // playfround
@@ -106,4 +106,14 @@ struct FConfig
         static inline auto CustomMapDefinition = L"/Game/Playgrounds/Items/Plots/TheBlock_Season7"; //  The Block map | see at FortCreativePortal.cpp line: 76 what it does
         // default map: L"/Game/Playgrounds/Items/Plots/Temperate_Medium.Temperate_Medium"
     };
+
+
+
+
+
+    struct GuiShit
+    {
+        static inline auto bPlayBuildsResetAnimation = true; // on some builds might crash  (later ill add it)
+    };
+
 };

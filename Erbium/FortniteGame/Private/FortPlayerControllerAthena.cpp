@@ -2525,8 +2525,17 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
 
             for (auto& Build : Builds)
                 if (Build->bPlayerPlaced)
-                    Build->K2_DestroyActor();
-              // TODO: we need a way to play and not player the breaking animation woild be good for ch4+ builds cuz of the new grapics they tank ur fps :sob:
+                
+                    if (FConfig::GuiShit::bPlayBuildsResetAnimation)
+                    {
+                        Build->K2_DestroyActor();
+                    }
+                    /* else
+                    {  // crashes for no reason idk ill fix later
+                        Build->SilentDie();
+                    }*/
+                    // TODO: (DONE!) we need a way to play and not player the breaking animation woild be good for ch4+ builds cuz of the new grapics they tank ur fps :sob:
+                
             Builds.Free();
         }
         else if (command == "fly")

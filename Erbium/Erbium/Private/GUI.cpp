@@ -297,7 +297,7 @@ void GUI::Init()
         {
         case 0:
             if (gsStatus >= Joinable)
-                ImGui::BeginChild("ServerInfo", ImVec2(245 * main_scale, 130 * main_scale), ImGuiChildFlags_Borders /*, ImGuiWindowFlags_ChildWindow | ImGuiWindowFlags_AlwaysHorizontallScrollbar */);
+                ImGui::BeginChild("ServerInfo", ImVec2(300 * main_scale, 230 * main_scale), ImGuiChildFlags_Borders);
             ImGui::Text((std::string("Status: ") + (gsStatus == NotReady ? "Setting up the server..." : (gsStatus == Joinable ? "Joinable!" : "Match Started"))).c_str());
             if (gsStatus >= Joinable)
             {
@@ -313,7 +313,35 @@ void GUI::Init()
                     FString Name = UKismetTextLibrary::Conv_TextToString(Playlist->UIDisplayName);
                     ImGui::Text((UEAllocatedString("Playlist: ") + Name.ToString()).c_str());
                 }
+                // some better shit yo
                 ImGui::Text((std::string("Running for ") + std::to_string((int)floor(UGameplayStatics::GetTimeSeconds(GameMode))) + "s").c_str());
+
+                if (FConfig::bEnableIris)
+                {
+                    ImGui::Text("Replication: bEnableIris=true (Iris replication)");
+                }
+                else
+                {
+                    ImGui::Text("Replication: bEnableIris=false (Legacy replication)");
+                }
+                ImGui::Text((std::string("Playlist Short ID: ") + std::to_string(GameMode->HasCurrentPlaylistId() ? GameMode->CurrentPlaylistId : 0)).c_str());
+                std::wstring wPlaylist = FConfig::Playlist;
+                std::string sPlaylist(wPlaylist.begin(), wPlaylist.end());
+                //ImGui::Text("Playlist ID Path: %s", sPlaylist.c_str());
+
+
+                // this crashes it for now
+               /* int GamePhaseEnum = 0;
+                if (auto FortGameState = GameMode->GetGameState())
+                {
+                    // ig ?
+                    GamePhaseEnum = (int)FortGameState->GetGamePhase();
+                }
+
+                std::string sGamePhase = "Game Phase: " + std::to_string(GamePhaseEnum);
+                ImGui::Text("%s", sGamePhase.c_str());
+                */
+                
             }
             if (gsStatus >= Joinable)
             {
@@ -426,6 +454,8 @@ void GUI::Init()
             ImGui::SliderInt("Siphon Amount:", &GameRuleConfig::SiphonAmount, 0, 200);
             ImGui::SliderInt("Tick Rate:", &FConfig::MaxTickRate, 30, 120);
 
+            
+            
             if (ImGui::Button("Reset Builds"))
             {
                 TArray<ABuildingSMActor*> Builds;
@@ -433,10 +463,22 @@ void GUI::Init()
 
                 for (auto& Build : Builds)
                     if (Build->bPlayerPlaced)
-                        Build->K2_DestroyActor();
+                    
+                        if (FConfig::GuiShit::bPlayBuildsResetAnimation)
+                        {
+                            Build->K2_DestroyActor();
+                        }
+                        /* else if (VersionInfo.FortniteVersion <= 26.30)   // crashes for now wtf :(
+                        {
+                            Build->SilentDie();
+                        }*/
+                    
+                        
 
                 Builds.Free();
             }
+            ImGui::Checkbox("Play Builds Reset Animation (On some builds it might crash)", &FConfig::GuiShit::bPlayBuildsResetAnimation);
+
 
             if (ImGui::Button("Destroy Floor Loot"))
             {
@@ -444,6 +486,7 @@ void GUI::Init()
                 Utils::GetAll<AFortPickupAthena>(Pickups);
 
                 for (auto& Pickup : Pickups)
+                    
                     Pickup->K2_DestroyActor();
 
                 Pickups.Free();
