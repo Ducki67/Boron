@@ -1,6 +1,9 @@
 #include "pch.h"
 
 #include <iostream>
+#include <thread>
+#include <chrono>
+
 
 #include "../Public/FortPlayerControllerAthena.h"
 #include "../../Erbium/Public/Configuration.h"
@@ -2507,17 +2510,54 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
                 return PlayerController->ClientMessage(FString(L"Failed to find class! Try passing it as a path or check your spelling & casing"), FName(), 1);
             }
         }
-        else if (command == "skydive")
+
+        // we fucking lobe this shit
+        auto CustomShit = [&](bool bForceSkyDiveThePalyer)
         {
             auto Pawn = PlayerController->Pawn;
             if (!Pawn)
                 return;
 
+            Pawn->SetInVortex(bForceSkyDiveThePalyer);
+            if (bForceSkyDiveThePalyer)
+            {
+                std::thread([=]() {
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
+                    if (PlayerController && PlayerController->Pawn)
+                    {
+                        PlayerController->Pawn->SetInVortex(false);
+                    }
+                }).detach();
+            }
+        };
+
+        if (command == "skydive")
+        {
+            
+            auto Pawn = PlayerController->Pawn;
+            if (!Pawn)
+                return;
+            
             static bool bInVortex = false;
             bInVortex ^= 1;
 
             Pawn->SetInVortex(bInVortex);
         }
+
+        else if (command == "test1")
+        {
+
+             FVector TargetLocation = FVector(0.0f, 0.0f, 10000.0f);
+             FRotator TargetRotation{};
+
+
+            PlayerController->Pawn->K2_TeleportTo(TargetLocation, TargetRotation);
+            CustomShit(true);
+            PlayerController->ClientMessage(FString(L"Teleported in the Sky at: X=0 Y=0"), FName(), 1.f);
+
+        }
+
+
         else if (command == "resetbuilds" || command == "reset")
         {
             TArray<ABuildingSMActor*> Builds;
