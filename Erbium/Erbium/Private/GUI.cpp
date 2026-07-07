@@ -280,13 +280,28 @@ void GUI::Init()
                 }
             };
 
+            /*
+            if (ImGui::BeginTabItem("Players"))
+            {  // soon
+                SelectedUI = 6;
+                ImGui::EndTabItem();
+            }
 
-
+            if (ImGui::BeginTabItem("Bots"))
+            {
+                SelectedUI = 7;
+                ImGui::EndTabItem();
+            }
+            */
             
 
             // do not remove
-            if (ImGui::TabItemButton("Made by Sarah (@ustruct on Discord)"))
+            if (ImGui::BeginTabItem("Made by Sarah (@ustruct on Discord)"))
+            {
+                
+                SelectedUI = 61;
                 ImGui::EndTabItem();
+            }
 
             ImGui::EndTabBar();
         }
@@ -297,7 +312,7 @@ void GUI::Init()
         {
         case 0:
             if (gsStatus >= Joinable)
-                ImGui::BeginChild("ServerInfo", ImVec2(300 * main_scale, 230 * main_scale), ImGuiChildFlags_Borders);
+                ImGui::BeginChild("ServerInfo", ImVec2(340 * main_scale, 150 * main_scale), ImGuiChildFlags_Borders);
             ImGui::Text((std::string("Status: ") + (gsStatus == NotReady ? "Setting up the server..." : (gsStatus == Joinable ? "Joinable!" : "Match Started"))).c_str());
             if (gsStatus >= Joinable)
             {
@@ -358,7 +373,7 @@ void GUI::Init()
                 else
                     ImGui::Checkbox("Lategame", &LategameConfig::bLateGame);
 
-            if (gsStatus == Joinable && ImGui::Button("Start Bus Early"))
+            if (gsStatus == Joinable && ImGui::Button("    Start Bus Early   "))
             {
                 if (UFortGameStateComponent_BattleRoyaleGamePhaseLogic::GetDefaultObj())
                 {
@@ -456,7 +471,7 @@ void GUI::Init()
 
             
             
-            if (ImGui::Button("Reset Builds"))
+            if (ImGui::Button("   Reset Builds   "))
             {
                 TArray<ABuildingSMActor*> Builds;
                 Utils::GetAll<ABuildingSMActor>(Builds);
@@ -477,10 +492,12 @@ void GUI::Init()
 
                 Builds.Free();
             }
+            ImGui::SameLine();
             ImGui::Checkbox("Play Builds Reset Animation (On some builds it might crash)", &FConfig::GuiShit::bPlayBuildsResetAnimation);
 
+            ImGui::Spacing();
 
-            if (ImGui::Button("Destroy Floor Loot"))
+            if (ImGui::Button("   Destroy Floor Loot   "))
             {
                 TArray<AFortPickupAthena*> Pickups;
                 Utils::GetAll<AFortPickupAthena>(Pickups);
@@ -495,7 +512,7 @@ void GUI::Init()
         case 4:
             static auto PlaylistClass = UFortPlaylistAthena::StaticClass();
 
-            if (ImGui::Button("Dump Items"))
+            if (ImGui::Button("   Dump Items   "))
             {
                 std::stringstream ss;
 
@@ -543,7 +560,7 @@ void GUI::Init()
                 of << ss.str();
                 of.close();
             }
-            else if (PlaylistClass && ImGui::Button("Dump Playlists"))
+            else if (PlaylistClass && ImGui::Button("   Dump Playlists   "))
             {
                 std::stringstream ss;
 
@@ -655,22 +672,33 @@ void GUI::Init()
             ImGui::BulletText("Custom loadout: This option makes only 1 Loadout for everyone in the game. You can add your own WID's to it.");
         }
         break;
-        }
-        /*
-        case 6:
-        {
-        }
-        break;
 
-        case 7:
+        case 61:
         {
+
+            ImGui::Text("Base / Erbium");
+            ImGui::BulletText("Sarah (@ustruct on Discord)");
         }
-        break;
-        case 8:
-        {
+
+
+        /*
+            case 6:
+            {
+            }
+            break;
+
+            case 7:
+            {
+            }
+            break;
+            case 8:
+            {
+            }
+            break;
+            */
+
         }
-        break;
-        */
+        
 
 
         ImGui::End();
