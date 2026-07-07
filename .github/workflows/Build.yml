@@ -12,26 +12,26 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
         
-      - name: Compile Erbium
+      - name: Compile Boron
         working-directory: ${{env.GITHUB_WORKSPACE}}
         run: msbuild . /t:Build /p:Configuration=Release
 
-      - name: Upload Compiled Erbium DLL
+      - name: Upload Compiled Boron DLL
         uses: actions/upload-artifact@v4
         with:
-          name: Erbium
+          name: Boron
           path: |
-            ./x64/Release/Erbium.dll
-            ./x64/Release/Erbium.pdb
+            ./x64/Release/Boron.dll
+            ./x64/Release/Boron.pdb
           if-no-files-found: warn
           retention-days: 90
 
-      - name: Upload Compiled ErbiumClient DLL
+      - name: Upload Compiled BoronClient DLL
         uses: actions/upload-artifact@v4
         with:
-          name: ErbiumClient
+          name: BoronClient
           path: |
-            ./x64/Release/ErbiumClient.dll
-            ./x64/Release/ErbiumClient.pdb
+            ./x64/Release/BoronClient.dll
+            ./x64/Release/BoronClient.pdb
           if-no-files-found: warn
           retention-days: 90
