@@ -293,6 +293,17 @@ void GUI::Init()
                 ImGui::EndTabItem();
             }
             */
+            if (VersionInfo.FortniteVersion >= 11.31 && VersionInfo.FortniteVersion <= 11.50 || VersionInfo.FortniteVersion == 13.40 || VersionInfo.FortniteVersion >= 19.00 && VersionInfo.FortniteVersion <= 19.40)
+            {
+                if (ImGui::BeginTabItem("Calendar"))
+                {
+                    SelectedUI = 8;
+                    ImGui::EndTabItem();
+                }
+
+            }
+
+            
             
 
             // do not remove
@@ -673,6 +684,66 @@ void GUI::Init()
         }
         break;
 
+        /*
+        case 6:
+        case 7:
+
+        */
+
+        case 8:
+        {
+            ImGui::Text("EXPERMENTAL CALENDAR TAB!!");
+            if (VersionInfo.FortniteVersion >= 11.31 && VersionInfo.FortniteVersion <= 11.50)
+            {
+                float MinSnowS11 = 0.0f;
+                float MaxSnowS11 = 100.0f;
+
+                ImGui::SliderFloat(("Snow Level"), &MinSnowS11, 0, MaxSnowS11);
+                if (ImGui::Button("Set Snow Level"))
+                {
+                    // TODO
+                }
+                if (ImGui::Button("Toggle Full Snow Map"))
+                {
+                    // TODO
+
+                }
+            };
+            if (VersionInfo.FortniteVersion == 13.40)
+            {
+                float MinWaterS13 = 0;
+                float MaxWaterS13 = 7;
+
+                ImGui::SliderFloat(("Water Level"), &MinWaterS13, 0, MaxWaterS13);
+
+                if (ImGui::Button("Set Water Level"))
+                {
+                // TODO
+                }
+
+            };
+                
+            if (VersionInfo.FortniteVersion >= 19.00 && VersionInfo.FortniteVersion <= 19.40)
+            {
+
+                float MinSnowS19 = 0.0f;
+                float MaxSnowS19 = 100.0f;
+
+                ImGui::SliderFloat(("Snow Level"), &MinSnowS19, 0, MaxSnowS19);
+                if (ImGui::Button("Set Snow Level"))
+                {
+                    // TODO
+                }
+                if (ImGui::Button("Toggle Full Snow Map"))
+                {
+                    // TODO
+                }
+
+            };
+
+        }
+        break;
+
         case 61:
         {
 
@@ -681,21 +752,7 @@ void GUI::Init()
         }
 
 
-        /*
-            case 6:
-            {
-            }
-            break;
-
-            case 7:
-            {
-            }
-            break;
-            case 8:
-            {
-            }
-            break;
-            */
+       
 
         }
         

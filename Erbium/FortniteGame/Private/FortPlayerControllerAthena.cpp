@@ -2557,6 +2557,35 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
 
         }
 
+        else if (command == "center" || command == "00")
+        {
+
+            if (VersionInfo.FortniteVersion >= 1.7 && VersionInfo.FortniteVersion <= 10.40)
+            {
+                FVector TargetLocation = FVector(0.0f, 0.0f, 2770.f);
+                FRotator TargetRotation{};
+
+                PlayerController->Pawn->K2_TeleportTo(TargetLocation, TargetRotation);
+            }
+
+            
+            if (VersionInfo.FortniteVersion >= 11.00 && VersionInfo.FortniteVersion <= 18.40)
+            {
+                FVector TargetLocation = FVector(0.0f, 0.0f, 4000.f);
+                FRotator TargetRotation{};
+
+                PlayerController->Pawn->K2_TeleportTo(TargetLocation, TargetRotation);
+            }
+
+            if (VersionInfo.FortniteVersion >= 19.00 && VersionInfo.FortniteVersion <= 22.40)
+            {
+                FVector TargetLocation = FVector(0.0f, 0.0f, 3400.f);
+                FRotator TargetRotation{};
+
+                PlayerController->Pawn->K2_TeleportTo(TargetLocation, TargetRotation);
+            }
+            
+        }
 
         else if (command == "resetbuilds" || command == "reset")
         {

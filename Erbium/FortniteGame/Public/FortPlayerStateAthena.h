@@ -29,6 +29,7 @@ public:
     DEFINE_STRUCT_PROP(bInitialized, bool);
     DEFINE_STRUCT_PROP(FinisherOrDownerTags, FGameplayTagContainer);
     DEFINE_STRUCT_PROP(VictimTags, FGameplayTagContainer);
+
 };
 
 struct FFortRespawnData

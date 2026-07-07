@@ -228,6 +228,17 @@
     <ClInclude Include="Erbium\Public\Hooking.hpp">
       <Filter>Erbium\Public</Filter>
     </ClInclude>
+    <ClInclude Include="libcurl\curl.h" />
+    <ClInclude Include="libcurl\curlver.h" />
+    <ClInclude Include="libcurl\easy.h" />
+    <ClInclude Include="libcurl\header.h" />
+    <ClInclude Include="libcurl\mprintf.h" />
+    <ClInclude Include="libcurl\multi.h" />
+    <ClInclude Include="libcurl\options.h" />
+    <ClInclude Include="libcurl\stdcheaders.h" />
+    <ClInclude Include="libcurl\system.h" />
+    <ClInclude Include="libcurl\typecheck-gcc.h" />
+    <ClInclude Include="libcurl\urlapi.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Erbium\Private\dllmain.cpp">
@@ -329,5 +340,10 @@
     <ClCompile Include="Erbium\Private\Hooking.cpp">
       <Filter>Erbium\Private</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Library Include="minhook.lib" />
+    <Library Include="libcurl\libcurl.lib" />
+    <Library Include="libcurl\zlib.lib" />
   </ItemGroup>
 </Project>
