@@ -125,23 +125,34 @@ void AFortPlayerPawnAthena::ServerHandlePickupInfo(UObject* Context, FFrame& Sta
         PlayerController->bTryPickupSwap = true;
     }
 
+    if (VersionInfo.FortniteVersion >= 16 && VersionInfo.FortniteVersion < 17)
+    {
+        Pickup->SetLifeSpan(5.f);
+        if (Pickup->PickupLocationData.HasbPlayPickupSound())
+            Pickup->PickupLocationData.bPlayPickupSound = bPlayPickupSound;
+        Pickup->PickupLocationData.PickupTarget = Pawn;
+        if (Pickup->PickupLocationData.HasItemOwner())
+            Pickup->PickupLocationData.ItemOwner = Pawn;
+        if (Pickup->PickupLocationData.HasPickupGuid())
+            Pickup->PickupLocationData.PickupGuid = bUseRequestedSwap ? SwapWithItem : Pickup->PrimaryPickupItemEntry.ItemGuid;
+        Pickup->PickupLocationData.FlyTime = 0.4f;
+        if (Pickup->PickupLocationData.HasStartDirection())
+            Pickup->PickupLocationData.StartDirection = Direction;
+        Pickup->OnRep_PickupLocationData();
+
+        Pickup->bPickedUp = true;
+        Pickup->OnRep_bPickedUp();
+
+        if (Pawn->HasIncomingPickups())
+            Pawn->IncomingPickups.Add(Pickup);
+
+        return;
+    }
+
     auto SetPickupTarget = (void (*&)(AFortPickupAthena*, AFortPlayerPawnAthena*, float, FVector&, bool))SetPickupTarget_;
 
     SetPickupTarget(Pickup, Pawn, FlyTime / (Pawn->HasPickupSpeedMultiplier() ? Pawn->PickupSpeedMultiplier : 1), Direction, bPlayPickupSound);
-    /*Pickup->SetLifeSpan(5.f);
-    Pickup->PickupLocationData.bPlayPickupSound = bPlayPickupSound;
-    Pickup->PickupLocationData.PickupGuid = Pickup->PrimaryPickupItemEntry.ItemGuid;
-    Pickup->PickupLocationData.PickupTarget = Pawn;
-    Pickup->PickupLocationData.FlyTime /= Pawn->PickupSpeedMultiplier;
-    //Pickup->PickupLocationData.StartDirection = Params.Direction.QuantizeNormal();
-    Pickup->OnRep_PickupLocationData();
-
-    Pickup->bPickedUp = true;
-    Pickup->OnRep_bPickedUp();
-
-
-    Pawn->IncomingPickups.Add(Pickup);*/
-} // CRASH ON this line  16.40 tested!
+}
 
 void AFortPlayerPawnAthena::ServerHandlePickupWithRequestedSwap(UObject* Context, FFrame& Stack)
 {
