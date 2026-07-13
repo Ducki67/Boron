@@ -14,6 +14,29 @@ int Misc::GetNetMode()
     return 1;
 }
 
+void Misc::RestartServer()
+{
+    wchar_t ExePath[MAX_PATH];
+    GetModuleFileNameW(nullptr, ExePath, MAX_PATH);
+
+    auto CmdLine = GetCommandLineW();
+    auto CmdCopy = _wcsdup(CmdLine);
+
+    STARTUPINFOW StartupInfo{};
+    StartupInfo.cb = sizeof(StartupInfo);
+    PROCESS_INFORMATION ProcessInfo{};
+
+    if (CreateProcessW(ExePath, CmdCopy, nullptr, nullptr, FALSE, CREATE_NEW_CONSOLE, nullptr, nullptr, &StartupInfo, &ProcessInfo))
+    {
+        CloseHandle(ProcessInfo.hThread);
+        CloseHandle(ProcessInfo.hProcess);
+    }
+
+    free(CmdCopy);
+
+    TerminateProcess(GetCurrentProcess(), 0);
+}
+
 void* Misc::SendRequestNow(void* Arg1, void* MCPData, int)
 {
     if (VersionInfo.EngineVersion < 4.23)

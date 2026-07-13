@@ -14,6 +14,7 @@ public:
     static uint32 CheckCheckpointHeartBeat();
     DefHookOg(void, ApplyHomebaseEffectsOnPlayerSetup, __int64*, __int64, __int64, __int64, UObject*, char, unsigned __int8);
     static void InitClient();
+    static void RestartServer();
 
     InitHooks;
 };

@@ -9,6 +9,7 @@
 #include "../../Erbium/Public/Configuration.h"
 #include "../../Erbium/Public/Events.h"
 #include "../../Erbium/Public/GUI.h"
+#include "../../Erbium/Public/ItemAliases.h"
 #include "../../Erbium/Public/LateGame.h"
 #include "../Public/BattleRoyaleGamePhaseLogic.h"
 #include "../Public/BuildingItemCollectorActor.h"
@@ -2428,70 +2429,12 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
                 return;
             }
 
-            static const std::unordered_map<std::string, std::wstring> WeaponCodes = {
-                { "pump", L"Shotgun_Standard" },
-                { "tacshotgun", L"Shotgun_SemiAuto" },
-                { "tacshotty", L"Shotgun_SemiAuto" },
-                { "heavyshotgun", L"Shotgun_HighSemiAuto" },
-                { "db", L"Shotgun_DoubleBarrel" },
-                { "doublebarrel", L"Shotgun_DoubleBarrel" },
-                { "ar", L"Assault_Auto" },
-                { "m4", L"Assault_Auto" },
-                { "scar", L"Assault_AutoHigh" },
-                { "burst", L"Assault_Burst" },
-                { "scopedar", L"Assault_Surgical" },
-                { "scoped", L"Assault_Surgical" },
-                { "thermal", L"Assault_Thermal" },
-                { "bolt", L"Sniper_BoltAction_Scope" },
-                { "heavysniper", L"Sniper_AMR" },
-                { "amr", L"Sniper_AMR" },
-                { "hunting", L"Sniper_NoScope" },
-                { "huntingrifle", L"Sniper_NoScope" },
-                { "deagle", L"Pistol_HandCannon" },
-                { "handcannon", L"Pistol_HandCannon" },
-                { "tacsmg", L"Pistol_Scavenger" },
-                { "smg", L"Pistol_SMG" },
-                { "p90", L"Pistol_SMG" },
-                { "revolver", L"Pistol_SixShooter" },
-                { "sixshooter", L"Pistol_SixShooter" },
-                { "rpg", L"Launcher_Rocket" },
-                { "gl", L"Launcher_Grenade" },
-                { "grenadelauncher", L"Launcher_Grenade" }
-            };
-
-            static const std::unordered_map<std::string, std::vector<std::wstring>> DirectItems = {
-                { "minis", { L"/Game/Athena/Items/Consumables/ShieldSmall/Athena_ShieldSmall.Athena_ShieldSmall" } },
-                { "minishield", { L"/Game/Athena/Items/Consumables/ShieldSmall/Athena_ShieldSmall.Athena_ShieldSmall" } },
-                { "bigpot", { L"/Game/Athena/Items/Consumables/Shields/Athena_Shields.Athena_Shields" } },
-                { "shield", { L"/Game/Athena/Items/Consumables/Shields/Athena_Shields.Athena_Shields" } },
-                { "slurp", { L"/Game/Athena/Items/Consumables/PurpleStuff/Athena_PurpleStuff.Athena_PurpleStuff" } },
-                { "chugsplash", { L"/Game/Athena/Items/Consumables/ChillBronco/Athena_ChillBronco.Athena_ChillBronco" } },
-                { "chug", { L"/Game/Athena/Items/Consumables/ChugJug/Athena_ChugJug.Athena_ChugJug" } },
-                { "chugjug", { L"/Game/Athena/Items/Consumables/ChugJug/Athena_ChugJug.Athena_ChugJug" } },
-                { "medkit", { L"/Game/Athena/Items/Consumables/Medkit/Athena_Medkit.Athena_Medkit" } },
-                { "bandages", { L"/Game/Athena/Items/Consumables/Bandage/Athena_Bandage.Athena_Bandage", L"/Game/Athena/Items/Consumables/Bandages/Athena_Bandages.Athena_Bandages" } },
-                { "shockwave", { L"/Game/Athena/Items/Consumables/ShockwaveGrenade/Athena_ShockGrenade.Athena_ShockGrenade" } },
-                { "impulse", { L"/Game/Athena/Items/Consumables/ShockGrenade/Athena_ShockGrenade.Athena_ShockGrenade" } },
-                { "grenade", { L"/Game/Athena/Items/Consumables/Grenade/Athena_Grenade.Athena_Grenade" } },
-                { "boogie", { L"/Game/Athena/Items/Consumables/BoogieBomb/Athena_BoogieBomb.Athena_BoogieBomb" } },
-                { "wood", { L"/Game/Items/ResourcePickups/WoodItemData.WoodItemData" } },
-                { "stone", { L"/Game/Items/ResourcePickups/StoneItemData.StoneItemData" } },
-                { "brick", { L"/Game/Items/ResourcePickups/StoneItemData.StoneItemData" } },
-                { "metal", { L"/Game/Items/ResourcePickups/MetalItemData.MetalItemData" } },
-                { "light", { L"/Game/Athena/Items/Ammo/AthenaAmmoDataBulletsLight.AthenaAmmoDataBulletsLight" } },
-                { "medium", { L"/Game/Athena/Items/Ammo/AthenaAmmoDataBulletsMedium.AthenaAmmoDataBulletsMedium" } },
-                { "heavyammo", { L"/Game/Athena/Items/Ammo/AthenaAmmoDataBulletsHeavy.AthenaAmmoDataBulletsHeavy" } },
-                { "shells", { L"/Game/Athena/Items/Ammo/AthenaAmmoDataShells.AthenaAmmoDataShells" } },
-                { "rockets", { L"/Game/Athena/Items/Ammo/AmmoDataRockets.AmmoDataRockets" } }
-            };
-
-            static const std::unordered_map<std::string, std::wstring> Rarities = {
-                { "c", L"C" }, { "gray", L"C" }, { "uc", L"UC" }, { "green", L"UC" }, { "r", L"R" }, { "blue", L"R" },
-                { "vr", L"VR" }, { "epic", L"VR" }, { "sr", L"SR" }, { "gold", L"SR" }, { "ur", L"UR" }, { "mythic", L"UR" }
-            };
-
-            std::string alias = args[1].c_str();
-            std::transform(alias.begin(), alias.end(), alias.begin(), tolower);
+            std::string NameToken, RarityName;
+            if (!BoronItems::Resolve(std::string(args[1].c_str()), NameToken, RarityName))
+            {
+                PlayerController->ClientMessage(FString(L"Unknown alias! Try: pump, tac, scar, ar, burst, bolt, heavysniper, hunting, deagle, smg, rpg, gl, minis, shield, medkit..."), FName(), 1.f);
+                return;
+            }
 
             int32 Count = 1;
             if (args.size() == 3)
@@ -2501,62 +2444,64 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
                     Count = 1;
             }
 
-            std::vector<std::wstring> Candidates;
-
-            auto DirectIt = DirectItems.find(alias);
-            if (DirectIt != DirectItems.end())
-                Candidates = DirectIt->second;
-            else
+            int64 WantedRarity = -1;
+            if (!RarityName.empty())
             {
-                std::string base = alias;
-                std::wstring rarity = L"VR";
+                auto RarityEnum = EFortRarity::StaticEnum();
+                auto Names = *(TArray<TPair<FName, int64>>*)(__int64(RarityEnum) + 0x40);
 
-                auto usPos = alias.find_last_of('_');
-                if (usPos != std::string::npos)
+                for (int i = 0; i < Names.Num(); i++)
                 {
-                    auto RarityIt = Rarities.find(alias.substr(usPos + 1));
-                    if (RarityIt != Rarities.end())
+                    auto& Pair = Names[i];
+                    auto str = Pair.Key().ToString();
+                    auto colcolIdx = str.find_last_of("::");
+                    auto RealName = colcolIdx == -1 ? str : str.substr(colcolIdx + 1);
+
+                    if (BoronItems::ToLower(std::string(RealName.c_str())) == BoronItems::ToLower(RarityName))
                     {
-                        base = alias.substr(0, usPos);
-                        rarity = RarityIt->second;
+                        WantedRarity = Pair.Value();
+                        break;
                     }
                 }
-
-                if (base == "tac")
-                    base = "tacshotgun";
-                else if (base == "heavy")
-                    base = "heavyshotgun";
-
-                auto WeaponIt = WeaponCodes.find(base);
-
-                if (WeaponIt == WeaponCodes.end())
-                {
-                    PlayerController->ClientMessage(FString(L"Unknown alias! Try: pump, tacshotgun, scar, ar, burst, bolt, heavysniper, hunting, deagle, tacsmg, smg, rpg, gl, minis, bigpot, medkit..."), FName(), 1.f);
-                    return;
-                }
-
-                std::vector<std::wstring> Tiers = { L"_Ore_T03", L"_Ore_T02", L"_Ore_T01" };
-                if (rarity == L"C")
-                    Tiers = { L"_Ore_T01", L"_Ore_T02", L"_Ore_T03" };
-                else if (rarity == L"UC")
-                    Tiers = { L"_Ore_T02", L"_Ore_T01", L"_Ore_T03" };
-
-                for (auto& Tier : Tiers)
-                {
-                    auto Base = L"WID_" + WeaponIt->second + L"_Athena_" + rarity + Tier;
-                    Candidates.push_back(L"/Game/Athena/Items/Weapons/" + Base + L"." + Base);
-                }
             }
 
-            const UFortItemDefinition* ItemDefinition = nullptr;
-            for (auto& Candidate : Candidates)
+            auto TokenLower = BoronItems::ToLower(NameToken);
+            const UFortItemDefinition* Best = nullptr;
+            int BestScore = 0;
+
+            for (int i = 0; i < TUObjectArray::Num(); i++)
             {
-                ItemDefinition = FindObject<UFortItemDefinition>(UEAllocatedWString(Candidate.c_str()));
-                if (ItemDefinition)
-                    break;
+                auto Object = TUObjectArray::GetObjectByIndex(i);
+                if (!Object || !Object->Class || Object->IsDefaultObject() || !Object->IsA<UFortWorldItemDefinition>())
+                    continue;
+                auto Item = (UFortWorldItemDefinition*)Object;
+
+                if (WantedRarity != -1 && Item->Rarity != WantedRarity)
+                    continue;
+
+                FString Name = UKismetTextLibrary::Conv_TextToString(Item->HasDisplayName() ? Item->DisplayName : Item->ItemName);
+                std::string NameStr = Name.GetData() ? BoronItems::ToLower(std::string(Name.ToString().c_str())) : std::string();
+
+                int Score = 0;
+                if (NameStr == TokenLower)
+                    Score = 4;
+                else if (!NameStr.empty() && NameStr.find(TokenLower) != std::string::npos)
+                    Score = 2;
+                else
+                    continue;
+
+                auto Path = UKismetSystemLibrary::GetPathName(Item).ToString();
+                if (Path.find("Athena") != std::string::npos || Path.find("athena") != std::string::npos)
+                    Score += 1;
+
+                if (Score > BestScore)
+                {
+                    BestScore = Score;
+                    Best = (const UFortItemDefinition*)Item;
+                }
             }
 
-            if (!ItemDefinition)
+            if (!Best)
             {
                 PlayerController->ClientMessage(FString(L"Item does not exist on this build (or wrong rarity)!"), FName(), 1.f);
                 return;
@@ -2566,14 +2511,14 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
                 return;
 
             int ClipSize = 0;
-            auto UncastedDef = (UFortItemDefinition*)ItemDefinition;
+            auto UncastedDef = (UFortItemDefinition*)Best;
             if (auto Gadget = UncastedDef->Cast<UFortGadgetItemDefinition>())
                 UncastedDef = (UFortItemDefinition*)Gadget->GetWeaponItemDefinition();
             if (auto Weapon = UncastedDef->Cast<UFortWeaponItemDefinition>())
                 if (auto Stats = AFortInventory::GetStats(Weapon))
                     ClipSize = Stats->ClipSize;
 
-            PlayerController->WorldInventory->GiveItem(ItemDefinition, Count, ClipSize);
+            PlayerController->WorldInventory->GiveItem(Best, Count, ClipSize);
             PlayerController->ClientMessage(FString(L"Gave item!"), FName(), 1.f);
         }
         else if (command == "giveitem" || command == "grantitem")
