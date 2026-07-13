@@ -325,6 +325,13 @@ void GUI::Init()
 #ifdef MANUAL_SERVER_SETUP
             if (!GUI::bServerSetupRequested)
             {
+                char PlaylistBuf[9999];
+                sprintf_s(PlaylistBuf, "%ls", FConfig::Playlist);
+                if (ImGui::InputText("Playlist ID Path", PlaylistBuf, 999))
+                {
+                    swprintf_s(FConfig::Playlist, L"%hs", PlaylistBuf);
+                }
+                
                 if (ImGui::Button("   Setup server   "))
                     GUI::bServerSetupRequested = true;
                 ImGui::Separator();
