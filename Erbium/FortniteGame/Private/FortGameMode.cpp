@@ -235,6 +235,14 @@ void AFortGameMode::ReadyToStartMatch_(UObject* Context, FFrame& Stack, bool* Re
 
     auto GameState = GameMode->GameState;
 
+#ifdef MANUAL_SERVER_SETUP
+    if (FConfig::bGUI && !GUI::bServerSetupRequested)
+    {
+        *Ret = false;
+        return;
+    }
+#endif
+
     static bool setup = false;
     if (GameMode->HasWarmupRequiredPlayerCount() ? GameMode->WarmupRequiredPlayerCount != 1 : !setup)
     {
@@ -1420,33 +1428,51 @@ bool AFortGameMode::StartAircraftPhase(AFortGameMode* GameMode, char a2)
             GameState->DefaultParachuteDeployTraceForGroundDistance = 2500.f;
         }
 
+        float LGFlightSpeed = 0.f;
+        float LGFlightTime = 7.f;
+        FVector LGStartLoc = Loc;
+
+        if (LategameConfig::bLateGameMovingBus)
+        {
+            auto Forward = Aircraft->GetActorForwardVector();
+            Forward.Z = 0.f;
+            Forward.Normalize();
+
+            float LGRadius = 75000.f;
+            LGFlightTime = 35.f;
+            LGFlightSpeed = (LGRadius * 2.f) / LGFlightTime;
+
+            LGStartLoc = Loc - Forward * LGRadius;
+            LGStartLoc.Z = 17500.f;
+        }
+
         if (Aircraft->HasFlightInfo())
         {
-            Aircraft->FlightInfo.FlightSpeed = 0.f;
+            Aircraft->FlightInfo.FlightSpeed = LGFlightSpeed;
 
-            Aircraft->FlightInfo.FlightStartLocation = Loc;
+            Aircraft->FlightInfo.FlightStartLocation = LGStartLoc;
 
-            Aircraft->FlightInfo.TimeTillFlightEnd = 7.f;
-            Aircraft->FlightInfo.TimeTillDropEnd = 7.f;
+            Aircraft->FlightInfo.TimeTillFlightEnd = LGFlightTime;
+            Aircraft->FlightInfo.TimeTillDropEnd = LGFlightTime;
             Aircraft->FlightInfo.TimeTillDropStart = 0.f;
         }
         else
         {
-            Aircraft->FlightSpeed = 0.f;
+            Aircraft->FlightSpeed = LGFlightSpeed;
 
-            Aircraft->FlightStartLocation = Loc;
+            Aircraft->FlightStartLocation = LGStartLoc;
 
             if (Aircraft->HasTimeTillFlightEnd())
             {
-                Aircraft->TimeTillFlightEnd = 7.f;
-                Aircraft->TimeTillDropEnd = 7.f;
+                Aircraft->TimeTillFlightEnd = LGFlightTime;
+                Aircraft->TimeTillDropEnd = LGFlightTime;
                 Aircraft->TimeTillDropStart = 0.f;
             }
         }
         Aircraft->DropStartTime = (float)UGameplayStatics::GetTimeSeconds(UWorld::GetWorld());
-        Aircraft->DropEndTime = (float)UGameplayStatics::GetTimeSeconds(UWorld::GetWorld()) + 7.f;
+        Aircraft->DropEndTime = (float)UGameplayStatics::GetTimeSeconds(UWorld::GetWorld()) + LGFlightTime;
         Aircraft->FlightStartTime = (float)UGameplayStatics::GetTimeSeconds(UWorld::GetWorld());
-        Aircraft->FlightEndTime = (float)UGameplayStatics::GetTimeSeconds(UWorld::GetWorld()) + 7.f;
+        Aircraft->FlightEndTime = (float)UGameplayStatics::GetTimeSeconds(UWorld::GetWorld()) + LGFlightTime;
         // GameState->bAircraftIsLocked = false;
         // GameState->SafeZonesStartTime = (float)UGameplayStatics::GetTimeSeconds(UWorld::GetWorld()) + 7.6f;
     }

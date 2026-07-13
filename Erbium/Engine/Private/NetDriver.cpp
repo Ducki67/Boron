@@ -3,6 +3,7 @@
 #include "../../Erbium/Public/Configuration.h"
 #include "../../Erbium/Public/Finders.h"
 #include "../../Erbium/Public/GUI.h"
+#include "../../Erbium/Public/Misc.h"
 #include "../../FortniteGame/Public/BattleRoyaleGamePhaseLogic.h"
 #include "../../FortniteGame/Public/FortGameMode.h"
 
@@ -545,7 +546,7 @@ void UNetDriver::TickFlush(UNetDriver* Driver, float DeltaSeconds)
                 }
 
                 if (GameRuleConfig::bAutoRestart)
-                    TerminateProcess(GetCurrentProcess(), 0);
+                    Misc::RestartServer();
             }
         }
         else if (Driver == WorldNetDriver && VersionInfo.FortniteVersion >= 18 && VersionInfo.FortniteVersion < 25.20)
@@ -635,7 +636,7 @@ void UNetDriver::TickFlush__RepGraph(UNetDriver* Driver, float DeltaSeconds)
                     }
 
                     if (GameRuleConfig::bAutoRestart)
-                        TerminateProcess(GetCurrentProcess(), 0);
+                        Misc::RestartServer();
                 }
             }
             else if (Driver == WorldNetDriver && VersionInfo.FortniteVersion >= 18)
@@ -781,7 +782,7 @@ void UNetDriver::TickFlush__Iris(UNetDriver* Driver, float DeltaSeconds)
                 }
 
                 if (GameRuleConfig::bAutoRestart)
-                    TerminateProcess(GetCurrentProcess(), 0);
+                    Misc::RestartServer();
             }
         }
         else if (Driver == WorldNetDriver && VersionInfo.FortniteVersion < 25.20)

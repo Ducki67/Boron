@@ -24,7 +24,7 @@ public:
     static FLateGameItem GetShotgun();
     static FLateGameItem GetAssaultRifle();
     static FLateGameItem GetUtility();
-    static FLateGameItem GetHeal();
+    static FLateGameItem GetHeal(int Slot = 0);
 
     static const UFortItemDefinition* GetAmmo(EAmmoType);
     static const UFortItemDefinition* GetResource(EFortResourceType);

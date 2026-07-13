@@ -3,7 +3,7 @@
 // Dont ask why i made the configration like this i like it this way and its more pleasing to my eyes :sob:
 
 
-#define MANUAL_SERVER_SETUP // if defined then the gameserver WONT set up the playlist automatically  You HAVE TO click on the "Setup server" Button on the GUI
+//#define MANUAL_SERVER_SETUP // if defined then the gameserver WONT set up the playlist automatically  You HAVE TO click on the "Setup server" Button on the GUI
 #define HITSCAN_WEAPONS // some hitscan weapons shit for ch5 (will be removed later on)
 ///#define AUTOHOSTER_CONFIGURATOR // this will be for autohoster exes so the exe it self can change all configs even if the dll is compiled  (Coming later)
 
@@ -20,11 +20,16 @@ struct LategameConfig
     static inline int CustomSlot2ItemCount = 1;
     static inline wchar_t CustomSlot3Item[500] = L"/Game/Athena/Items/Consumables/ShockwaveGrenade/Athena_ShockGrenade.Athena_ShockGrenade";
     static inline int CustomSlot3ItemCount = 1;
+    static inline wchar_t CustomSlot4Item[500] = L"/Game/Athena/Items/Consumables/Shields/Athena_Shields.Athena_Shields";
+    static inline int CustomSlot4ItemCount = 3;
+    static inline wchar_t CustomSlot5Item[500] = L"/Game/Athena/Items/Consumables/ShieldSmall/Athena_ShieldSmall.Athena_ShieldSmall";
+    static inline int CustomSlot5ItemCount = 6;
 
     // zones
     static inline auto bLateGame = false;
     static inline auto LateGameZone = 3;          // starting zone
     static inline auto bLateGameLongZone = false; // zone does not close for a long time
+    static inline auto bLateGameMovingBus = false;
 
 
 };
@@ -46,6 +51,7 @@ struct GameRuleConfig
     static inline auto bJoinInProgress = false;
     static inline auto bAutoRestart = false;
     static inline auto bKeepInventory = false;
+    static inline auto bCreativeExtraAmmo = false;
 };
 
 struct DiscordWebhookConfig
@@ -69,7 +75,7 @@ struct FConfig
 
     static inline auto bGameSessions = false; // GSS  for GSSMMs and backends (TDOD: wayy more later tho but ill add it)
 
-    static inline auto Playlist = L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo";
+    static inline const wchar_t* Playlist = L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo";
     // static inline auto Playlist = L"/Game/Athena/Playlists/Showdown/Playlist_ShowdownAlt_Solo.Playlist_ShowdownAlt_Solo";
     // static inline auto Playlist = L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2";  // creative
    

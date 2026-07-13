@@ -12,6 +12,8 @@ class GUI
 public:
     static inline char windowTitle[67];
     static inline EGSStatus gsStatus = NotReady;
+    static inline bool bServerSetupRequested = false;
+    static inline wchar_t PlaylistBuffer[512] = L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo";
     static void Init();
 };
 

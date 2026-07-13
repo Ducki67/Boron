@@ -322,6 +322,14 @@ void GUI::Init()
         switch (SelectedUI)
         {
         case 0:
+#ifdef MANUAL_SERVER_SETUP
+            if (!GUI::bServerSetupRequested)
+            {
+                if (ImGui::Button("   Setup server   "))
+                    GUI::bServerSetupRequested = true;
+                ImGui::Separator();
+            }
+#endif
             if (gsStatus >= Joinable)
                 ImGui::BeginChild("ServerInfo", ImVec2(340 * main_scale, 150 * main_scale), ImGuiChildFlags_Borders);
             ImGui::Text((std::string("Status: ") + (gsStatus == NotReady ? "Setting up the server..." : (gsStatus == Joinable ? "Joinable!" : "Match Started"))).c_str());

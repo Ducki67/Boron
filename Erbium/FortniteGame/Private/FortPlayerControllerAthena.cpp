@@ -210,8 +210,8 @@ void AFortPlayerControllerAthena::ServerAcknowledgePossession(UObject* Context, 
         auto Shotgun = LateGame::GetShotgun();
         auto AssaultRifle = LateGame::GetAssaultRifle();
         auto Sniper = LateGame::GetUtility();
-        auto Heal = LateGame::GetHeal();
-        auto HealSlot2 = LateGame::GetHeal();
+        auto Heal = LateGame::GetHeal(0);
+        auto HealSlot2 = LateGame::GetHeal(1);
 
         int ShotgunClipSize = 0;
         int AssaultRifleClipSize = 0;
@@ -219,15 +219,15 @@ void AFortPlayerControllerAthena::ServerAcknowledgePossession(UObject* Context, 
         int HealClipSize = 0;
         int HealSlot2ClipSize = 0;
 
-        if (auto Weapon = Shotgun.Item->IsA<UFortGadgetItemDefinition>() ? ((UFortGadgetItemDefinition*)Shotgun.Item)->GetWeaponItemDefinition() : Shotgun.Item->Cast<UFortWeaponItemDefinition>())
+        if (auto Weapon = !Shotgun.Item ? nullptr : (Shotgun.Item->IsA<UFortGadgetItemDefinition>() ? ((UFortGadgetItemDefinition*)Shotgun.Item)->GetWeaponItemDefinition() : Shotgun.Item->Cast<UFortWeaponItemDefinition>()))
             ShotgunClipSize = AFortInventory::GetStats(Weapon)->ClipSize;
-        if (auto Weapon = AssaultRifle.Item->IsA<UFortGadgetItemDefinition>() ? ((UFortGadgetItemDefinition*)AssaultRifle.Item)->GetWeaponItemDefinition() : AssaultRifle.Item->Cast<UFortWeaponItemDefinition>())
+        if (auto Weapon = !AssaultRifle.Item ? nullptr : (AssaultRifle.Item->IsA<UFortGadgetItemDefinition>() ? ((UFortGadgetItemDefinition*)AssaultRifle.Item)->GetWeaponItemDefinition() : AssaultRifle.Item->Cast<UFortWeaponItemDefinition>()))
             AssaultRifleClipSize = AFortInventory::GetStats(Weapon)->ClipSize;
-        if (auto Weapon = Sniper.Item->IsA<UFortGadgetItemDefinition>() ? ((UFortGadgetItemDefinition*)Sniper.Item)->GetWeaponItemDefinition() : Sniper.Item->Cast<UFortWeaponItemDefinition>())
+        if (auto Weapon = !Sniper.Item ? nullptr : (Sniper.Item->IsA<UFortGadgetItemDefinition>() ? ((UFortGadgetItemDefinition*)Sniper.Item)->GetWeaponItemDefinition() : Sniper.Item->Cast<UFortWeaponItemDefinition>()))
             SniperClipSize = AFortInventory::GetStats(Weapon)->ClipSize;
-        if (auto Weapon = Heal.Item->IsA<UFortGadgetItemDefinition>() ? ((UFortGadgetItemDefinition*)Heal.Item)->GetWeaponItemDefinition() : Heal.Item->Cast<UFortWeaponItemDefinition>())
+        if (auto Weapon = !Heal.Item ? nullptr : (Heal.Item->IsA<UFortGadgetItemDefinition>() ? ((UFortGadgetItemDefinition*)Heal.Item)->GetWeaponItemDefinition() : Heal.Item->Cast<UFortWeaponItemDefinition>()))
             HealClipSize = AFortInventory::GetStats(Weapon)->ClipSize;
-        if (auto Weapon = HealSlot2.Item->IsA<UFortGadgetItemDefinition>() ? ((UFortGadgetItemDefinition*)HealSlot2.Item)->GetWeaponItemDefinition() : HealSlot2.Item->Cast<UFortWeaponItemDefinition>())
+        if (auto Weapon = !HealSlot2.Item ? nullptr : (HealSlot2.Item->IsA<UFortGadgetItemDefinition>() ? ((UFortGadgetItemDefinition*)HealSlot2.Item)->GetWeaponItemDefinition() : HealSlot2.Item->Cast<UFortWeaponItemDefinition>()))
             HealSlot2ClipSize = AFortInventory::GetStats(Weapon)->ClipSize;
 
         PlayerController->WorldInventory->GiveItem(LateGame::GetResource(EFortResourceType::Wood), 500);
@@ -240,11 +240,16 @@ void AFortPlayerControllerAthena::ServerAcknowledgePossession(UObject* Context, 
         PlayerController->WorldInventory->GiveItem(LateGame::GetAmmo(EAmmoType::Rocket), 6);
         PlayerController->WorldInventory->GiveItem(LateGame::GetAmmo(EAmmoType::Sniper), 20);
 
-        PlayerController->WorldInventory->GiveItem(Shotgun.Item, Shotgun.Count, ShotgunClipSize);
-        PlayerController->WorldInventory->GiveItem(AssaultRifle.Item, AssaultRifle.Count, AssaultRifleClipSize);
-        PlayerController->WorldInventory->GiveItem(Sniper.Item, Sniper.Count, SniperClipSize);
-        PlayerController->WorldInventory->GiveItem(Heal.Item, Heal.Count, HealClipSize);
-        PlayerController->WorldInventory->GiveItem(HealSlot2.Item, HealSlot2.Count, HealSlot2ClipSize);
+        if (Shotgun.Item)
+            PlayerController->WorldInventory->GiveItem(Shotgun.Item, Shotgun.Count, ShotgunClipSize);
+        if (AssaultRifle.Item)
+            PlayerController->WorldInventory->GiveItem(AssaultRifle.Item, AssaultRifle.Count, AssaultRifleClipSize);
+        if (Sniper.Item)
+            PlayerController->WorldInventory->GiveItem(Sniper.Item, Sniper.Count, SniperClipSize);
+        if (Heal.Item)
+            PlayerController->WorldInventory->GiveItem(Heal.Item, Heal.Count, HealClipSize);
+        if (HealSlot2.Item)
+            PlayerController->WorldInventory->GiveItem(HealSlot2.Item, HealSlot2.Count, HealSlot2ClipSize);
     }
 }
 
@@ -3467,6 +3472,29 @@ void AFortPlayerControllerAthena::ServerGiveCreativeItem(UObject* Context, FFram
         CreativeItem->LoadedAmmo = AFortInventory::GetStats(WeaponDef)->ClipSize;
 
     PlayerController->InternalPickup(CreativeItem);
+
+    if (GameRuleConfig::bCreativeExtraAmmo && PlayerController->WorldInventory)
+    {
+        if (auto RangedDef = CreativeItem->ItemDefinition->Cast<UFortWeaponRangedItemDefinition>())
+        {
+            static auto AmmoDataOffset = RangedDef->GetOffset("AmmoData");
+
+            if (AmmoDataOffset != -1)
+            {
+                auto& AmmoSoft = GetFromOffset<TSoftObjectPtr<UFortItemDefinition>>(RangedDef, AmmoDataOffset);
+                auto AmmoDef = AmmoSoft.Get();
+
+                if (AmmoDef && AmmoDef != (UFortItemDefinition*)RangedDef)
+                {
+                    auto Stats = AFortInventory::GetStats(RangedDef);
+                    int AmmoCount = Stats && Stats->ClipSize > 0 ? Stats->ClipSize * 5 : 30;
+
+                    PlayerController->WorldInventory->GiveItem(AmmoDef, AmmoCount);
+                }
+            }
+        }
+    }
+
     free(CreativeItem);
 }
 

@@ -18,7 +18,7 @@
 //#include "FortniteGame/Private/FortPlayerControllerAthena.cpp"
 
 // TODO: make  this look nicer :sob:
-/* amugy tényleg b#zdmeg! az sz#r! */
+/* amugy tï¿½nyleg b#zdmeg! az sz#r! */
 
 
 FLateGameItem LateGame::GetShotgun()
@@ -177,10 +177,9 @@ FLateGameItem LateGame::GetShotgun()
     // custom :)
     if (LategameConfig::bLateGameCustom)
     {
-        /* soon */
         Shotguns =
         {
-            FLateGameItem(1, FindObject<UFortItemDefinition>(LategameConfig::CustomSlot1Item)),
+            FLateGameItem((uint32)LategameConfig::CustomSlot1ItemCount, FindObject<UFortItemDefinition>(LategameConfig::CustomSlot1Item)),
         };
     }
 
@@ -386,10 +385,9 @@ FLateGameItem LateGame::GetAssaultRifle()
 
     if (LategameConfig::bLateGameCustom) // yea  custom
     {
-        /* soon */
         AssaultRifles =
         {
-            FLateGameItem(1, FindObject<UFortItemDefinition>(LategameConfig::CustomSlot2Item)),
+            FLateGameItem((uint32)LategameConfig::CustomSlot2ItemCount, FindObject<UFortItemDefinition>(LategameConfig::CustomSlot2Item)),
         };
 
     }
@@ -591,8 +589,16 @@ FLateGameItem LateGame::GetUtility()
 }
 
 // TOD: add ch5 heals
-FLateGameItem LateGame::GetHeal()
+FLateGameItem LateGame::GetHeal(int Slot)
 {
+    if (LategameConfig::bLateGameCustom)
+    {
+        auto CustomItem = FindObject<UFortItemDefinition>(Slot == 0 ? LategameConfig::CustomSlot4Item : LategameConfig::CustomSlot5Item);
+
+        if (CustomItem)
+            return FLateGameItem((uint32)(Slot == 0 ? LategameConfig::CustomSlot4ItemCount : LategameConfig::CustomSlot5ItemCount), CustomItem);
+    }
+
     static UEAllocatedVector<FLateGameItem> Heals
     {
         FLateGameItem(3, FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Consumables/Shields/Athena_Shields.Athena_Shields")), // big pots
