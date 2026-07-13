@@ -176,6 +176,7 @@
     <ClInclude Include="Erbium\Public\GUI.h" />
     <ClInclude Include="Erbium\Public\hde64.hpp" />
     <ClInclude Include="Erbium\Public\Hooking.hpp" />
+    <ClInclude Include="Erbium\Public\ItemAliases.h" />
     <ClInclude Include="Erbium\Public\LateGame.h" />
     <ClInclude Include="Erbium\Public\Misc.h" />
     <ClInclude Include="Erbium\Public\table64.hpp" />

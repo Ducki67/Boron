@@ -239,6 +239,7 @@
     <ClInclude Include="libcurl\system.h" />
     <ClInclude Include="libcurl\typecheck-gcc.h" />
     <ClInclude Include="libcurl\urlapi.h" />
+    <ClInclude Include="Erbium\Public\ItemAliases.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Erbium\Private\dllmain.cpp">
