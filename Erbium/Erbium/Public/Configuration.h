@@ -3,7 +3,7 @@
 // Dont ask why i made the configration like this i like it this way and its more pleasing to my eyes :sob:
 
 
-#define MANUAL_SERVER_SETUP // if defined then the gameserver WONT set up the playlist automatically  You HAVE TO click on the "Setup server" Button on the GUI
+//#define MANUAL_SERVER_SETUP // if defined then the gameserver WONT set up the playlist automatically  You HAVE TO click on the "Setup server" Button on the GUI
 #define HITSCAN_WEAPONS // some hitscan weapons shit for ch5 (will be removed later on)
 ///#define AUTOHOSTER_CONFIGURATOR // this will be for autohoster exes so the exe it self can change all configs even if the dll is compiled  (Coming later)
 
@@ -76,23 +76,23 @@ struct FConfig
     static inline auto bGameSessions = false; // GSS  for GSSMMs and backends (TDOD: wayy more later tho but ill add it)
 
     static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo";
-    // static inline auto Playlist = L"/Game/Athena/Playlists/Showdown/Playlist_ShowdownAlt_Solo.Playlist_ShowdownAlt_Solo";
-    // static inline auto Playlist = L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2";  // creative
+    // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Showdown/Playlist_ShowdownAlt_Solo.Playlist_ShowdownAlt_Solo";
+    // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2";  // creative
    
-    // static inline auto Playlist = L"/Game/Athena/Playlists/Playground/Playlist_Playground.Playlist_Playground"; // playfround
+    // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Playground/Playlist_Playground.Playlist_Playground"; // playfround
     
     
     /// LTMs (still working on them kinda) 
     
-    // static inline auto Playlist = L"/Game/Athena/Playlists/Sneaky/Playlist_Sneaky_Solo.Playlist_Sneaky_Solo"; // Fog of War  (works but no marking when dealing dmg to players)
-    // static inline auto Playlist = L"/Game/Athena/Playlists/Titanium/Playlist_Titanium_Solo.Playlist_Titanium_Solo"; // Rags to Riches (its s13 only and TODO: weapon uprgadas)
-    // static inline auto Playlist = L"/Game/Athena/Playlists/Tutorial/Playlist_Tutorial_1.Playlist_Tutorial_1"; // tutorial  (works lmao)
-    // static inline auto Playlist = L"/Game/Athena/Playlists/gg/Playlist_Gg_Reverse.Playlist_Gg_Reverse"; // gungame (maybe ill add this but dont ask bruh :/ )
+    // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Sneaky/Playlist_Sneaky_Solo.Playlist_Sneaky_Solo"; // Fog of War  (works but no marking when dealing dmg to players)
+    // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Titanium/Playlist_Titanium_Solo.Playlist_Titanium_Solo"; // Rags to Riches (its s13 only and TODO: weapon uprgadas)
+    // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Tutorial/Playlist_Tutorial_1.Playlist_Tutorial_1"; // tutorial  (works lmao)
+    // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/gg/Playlist_Gg_Reverse.Playlist_Gg_Reverse"; // gungame (maybe ill add this but dont ask bruh :/ )
 
 
-    /* static inline auto Playlist = L"";
-    static inline auto Playlist = L"";
-    static inline auto Playlist = L"";*/
+    /* static inline wchar_t Playlist[9999] = L"";
+    static inline wchar_t Playlist[9999] = L"";
+    static inline wchar_t Playlist[9999] = L"";*/
 
 
 
@@ -108,7 +108,7 @@ struct FConfig
     struct CreativeModeConfig
     {
         // Note: dont ask me to add Island slecting for the creative protal menu NO i wont give that to you skids hell no!
-        static inline auto bCustomMap = true;
+        static inline auto bCustomMap = false;
         static inline auto CustomMapDefinition = L"/Game/Playgrounds/Items/Plots/TheBlock_Season7"; //  The Block map | see at FortCreativePortal.cpp line: 76 what it does
         // default map: L"/Game/Playgrounds/Items/Plots/Temperate_Medium.Temperate_Medium"
     };

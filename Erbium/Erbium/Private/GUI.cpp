@@ -325,6 +325,8 @@ void GUI::Init()
 #ifdef MANUAL_SERVER_SETUP
             if (!GUI::bServerSetupRequested)
             {
+                ImGui::BeginChild("setupserver", ImVec2(410 * main_scale, 230 * main_scale), ImGuiChildFlags_Borders);
+
                 char PlaylistBuf[9999];
                 sprintf_s(PlaylistBuf, "%ls", FConfig::Playlist);
                 if (ImGui::InputText("Playlist ID Path", PlaylistBuf, 999))
@@ -332,10 +334,32 @@ void GUI::Init()
                     swprintf_s(FConfig::Playlist, L"%hs", PlaylistBuf);
                 }
                 
+                // not done
+                ImGui::Checkbox("Force Respawns (requires client dll!)", &GameRuleConfig::bForceRespawns);
+                if (GameRuleConfig::bForceRespawns)
+                {
+                /* // uh maybe i need this idfk bruh
+                    ImGui::SliderInt("Respawn Hight (Client)", &GameRuleConfig::RespawnHightClient, 10000, 999999);
+                    ImGui::SliderInt("Respawn Hight (GameMode)", &GameRuleConfig::RespawnHightGamemode, 10000, 999999);*/
+                    ImGui::SliderInt("Respawn Time (Client)", &GameRuleConfig::RespawnTimeClient, 1, 25);
+                    ImGui::SliderInt("Respawn Time (GameMode)", &GameRuleConfig::RespawnTimeGamemode, 1, 25);
+                }
+                
+                
+
                 if (ImGui::Button("   Setup server   "))
                     GUI::bServerSetupRequested = true;
+                ImGui::Spacing();
                 ImGui::Separator();
+
+
+                 ImGui::EndChild();
+                ImGui::Spacing();
             }
+
+            
+
+           
 #endif
             if (gsStatus >= Joinable)
                 ImGui::BeginChild("ServerInfo", ImVec2(340 * main_scale, 150 * main_scale), ImGuiChildFlags_Borders);
