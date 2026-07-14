@@ -12,34 +12,36 @@ A modifiyed/forked Erbium gameserver with my own features and fixes
   
 
 - [ ] **LateGame**
-  - [ ] Realisic mooving bus
+  - [ ] Realisic mooving bus  *(config + GUI toggle added, soon needs some more work)*
   - [ ] Custom lootpools.
   - [ ] Zone damage on older builds.
   
 - [ ] **Creative**
-  - [ ] Give "extra" ammo from menu.
+  - [ ] Give "extra" ammo from menu.  *(config flag added, currently bugs out inventory)*
   
 - [ ] **GUI**
-  - [ ] Player manager tab.
-  - [ ] Calendar tab. (e.g: full snow map on s11)
-  - [ ] LateGame tab. **23% done**
-  - [ ] Playlist tab. (for manual server setup mode)
+  - [ ] Player manager tab. (soon)
+  - [x] Calendar tab. (e.g: full snow map on s11)  *(s11 snow wired; s13 water + s19 snow still needs so work tho)*
+  - [x] LateGame tab. *(slots 1-5 + counts + moving-bus toggle should work)*
+  - [x] Pre-StartServer tab (Main tab's new feature). (for manual server setup mode)  *(MANUAL_SERVER_SETUP + "Setup server" button done)*
   
 - [ ] **Gameplay**
-  - [ ] Projectile guns on 28.xx and 29.xx versions.
+  - [ ] Projectile guns on 28.xx and 29.xx versions. **5% Done** *(scaffold in Misc.cpp, hook disabled at :658)*
   - [ ] Fix 16.xx crashes.
   - [ ] Some LTMs stuff.
   - [ ] Placement points for Arena.
-  - [ ] Bosses on 12.xx, 13.xx, 14.xx
-  - [ ] Fix autorestart (maybe)
+  - [ ] Bosses on 12.xx, 13.xx, 14.xx **20% Done** ( this is buggy rn and laggy a bit but tested on 13.40 a few)
+  - [ ] Fix autorestart (maybe in 6-7 weekls)
 
 - [ ] **Commands**
-  - [ ] Server message. **50% done**
-  - [ ] Faster item give.
-  - [ ] POI tp commands (hopefully on every season)
+  - [x] Server message. **100% done** (should work well on 1.8 - 21.00)
+  - [ ] Faster item give.  *(ItemAliases.h resolver added, needs some command wiring tho)*
+  - [ ] POI tp commands (hopefully on every season, later)
 
 - [ ] **Versions** (not decided yet)
-  - [ ] 30.20 (maybe if i feel like it)
+  - [ ] 30.20  *(version detection already handles >=30)*
+  - [ ] 31.41 *(maybe but it should be less fcked)*
+
 
 </details>
 
