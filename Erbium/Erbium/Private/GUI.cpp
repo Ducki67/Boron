@@ -344,7 +344,8 @@ void GUI::Init()
                     ImGui::SliderInt("Respawn Time (Client)", &GameRuleConfig::RespawnTimeClient, 1, 25);
                     ImGui::SliderInt("Respawn Time (GameMode)", &GameRuleConfig::RespawnTimeGamemode, 1, 25);
                 }
-                
+                ImGui::Checkbox("Creative Extra Ammo", &GameRuleConfig::bCreativeExtraAmmo);
+                ImGui::Checkbox("Boss AI (move + shoot)", &GameRuleConfig::bBossAI);
                 
 
                 if (ImGui::Button("   Setup server   "))
@@ -515,6 +516,7 @@ void GUI::Init()
             ImGui::Checkbox("Infinite Materials", &GameRuleConfig::bInfiniteMats);
             ImGui::Checkbox("Infinite Ammo", &GameRuleConfig::bInfiniteAmmo);
             ImGui::Checkbox("Keep Inventory", &GameRuleConfig::bKeepInventory);
+           
 
             ImGui::SliderInt("Siphon Amount:", &GameRuleConfig::SiphonAmount, 0, 200);
             ImGui::SliderInt("Tick Rate:", &FConfig::MaxTickRate, 30, 120);
@@ -691,12 +693,28 @@ void GUI::Init()
                     swprintf_s(LategameConfig::CustomSlot3Item, L"%hs", bufSniper);
                 }
 
+                char bufSlot4[500];
+                sprintf_s(bufSlot4, "%ls", LategameConfig::CustomSlot4Item);
+                if (ImGui::InputText("Slot 4", bufSlot4, 500))
+                {
+                    swprintf_s(LategameConfig::CustomSlot4Item, L"%hs", bufSlot4);
+                }
+
+                char bufSlot5[500];
+                sprintf_s(bufSlot5, "%ls", LategameConfig::CustomSlot5Item);
+                if (ImGui::InputText("Slot 5", bufSlot5, 500))
+                {
+                    swprintf_s(LategameConfig::CustomSlot5Item, L"%hs", bufSlot5);
+                }
+
                 ImGui::Spacing();
                 ImGui::Text("Item Count configs:");
 
                 ImGui::SliderInt("Slot 1 item count", &LategameConfig::CustomSlot1ItemCount, 1, 99);
                 ImGui::SliderInt("Slot 2 item count", &LategameConfig::CustomSlot2ItemCount, 1, 99);
                 ImGui::SliderInt("Slot 3 item count", &LategameConfig::CustomSlot3ItemCount, 1, 99);
+                ImGui::SliderInt("Slot 4 item count", &LategameConfig::CustomSlot4ItemCount, 1, 99);
+                ImGui::SliderInt("Slot 5 item count", &LategameConfig::CustomSlot5ItemCount, 1, 99);
                 
                 ImGui::EndChild();
             }
@@ -714,6 +732,9 @@ void GUI::Init()
                 ImGui::Checkbox("Long Zone", &LategameConfig::bLateGameLongZone);
             }
 
+            ImGui::Spacing();
+            ImGui::Checkbox("Realistic Moving Bus", &LategameConfig::bLateGameMovingBus);
+
             ImGui::Separator();
             ImGui::Spacing();
             ImGui::Text("Quick Notes:");
@@ -723,29 +744,101 @@ void GUI::Init()
         }
         break;
 
-        /*
         case 6:
-        case 7:
+        {
+            ImGui::Text("Player Manager");
+            ImGui::Separator();
+            ImGui::Spacing();
 
-        */
+            if (!GameMode || !GameMode->HasAlivePlayers() || GameMode->AlivePlayers.Num() == 0)
+            {
+                ImGui::Text("No players connected.");
+                break;
+            }
+
+            static char giveItemBuf[500] = "/Game/Athena/Items/Weapons/WID_Shotgun_Standard_Athena_VR_Ore_T03.WID_Shotgun_Standard_Athena_VR_Ore_T03";
+            ImGui::Text("Item definition path to give:");
+            ImGui::InputText("##giveitempath", giveItemBuf, 500);
+            ImGui::Spacing();
+            ImGui::Separator();
+
+            int idx = 0;
+            for (auto& UncastedPC : GameMode->AlivePlayers)
+            {
+                auto PlayerController = (AFortPlayerControllerAthena*)UncastedPC;
+                if (!PlayerController || !PlayerController->WorldInventory)
+                {
+                    idx++;
+                    continue;
+                }
+
+                ImGui::PushID(idx);
+                ImGui::Text("Player %d", idx);
+                ImGui::SameLine();
+                if (ImGui::Button("Give item"))
+                {
+                    wchar_t wPath[500];
+                    swprintf_s(wPath, L"%hs", giveItemBuf);
+                    auto ItemDef = FindObject<UFortItemDefinition>(wPath);
+                    if (ItemDef)
+                        PlayerController->WorldInventory->GiveItem(ItemDef);
+                }
+                ImGui::PopID();
+                idx++;
+            }
+        }
+        break;
+
+        case 7:
+        {
+            ImGui::Text("Bots");
+            ImGui::Separator();
+            ImGui::Spacing();
+            ImGui::Text("Bot controls coming soon.");
+        }
+        break;
 
         case 8:
         {
             ImGui::Text("EXPERMENTAL CALENDAR TAB!!");
+
+            auto SetApolloSnow = [](float amount, float falling)
+            {
+                auto SnowSetup = FindObject<UObject>(L"/Game/Athena/Apollo/Maps/Apollo_POI_Foundations.Apollo_POI_Foundations:PersistentLevel.BP_ApolloSnowSetup_2");
+                if (!SnowSetup)
+                    return false;
+
+                static auto SnowAmountOffset = SnowSetup->GetOffset("SnowAmount");
+                static auto SnowFallingOffset = SnowSetup->GetOffset("SnowFalling");
+                if (SnowAmountOffset == -1 || SnowFallingOffset == -1)
+                    return false;
+
+                GetFromOffset<float>(SnowSetup, SnowAmountOffset) = amount;
+                GetFromOffset<float>(SnowSetup, SnowFallingOffset) = falling;
+
+                bool HasAuthority = true;
+                if (auto AmountFn = SnowSetup->GetFunction("OnRep_Snow_Amount"))
+                    SnowSetup->ProcessEvent(AmountFn, &HasAuthority);
+                if (auto FallingFn = SnowSetup->GetFunction("OnRep_SnowFalling"))
+                    SnowSetup->ProcessEvent(FallingFn, &HasAuthority);
+
+                return true;
+            };
+
             if (VersionInfo.FortniteVersion >= 11.31 && VersionInfo.FortniteVersion <= 11.50)
             {
-                float MinSnowS11 = 0.0f;
-                float MaxSnowS11 = 100.0f;
+                static float SnowLevelS11 = 0.0f;
 
-                ImGui::SliderFloat(("Snow Level"), &MinSnowS11, 0, MaxSnowS11);
+                ImGui::SliderFloat("Snow Level", &SnowLevelS11, 0, 100.0f);
                 if (ImGui::Button("Set Snow Level"))
-                {
-                    // TODO
-                }
+                    SetApolloSnow(SnowLevelS11, SnowLevelS11);
+
                 if (ImGui::Button("Toggle Full Snow Map"))
                 {
-                    // TODO
-
+                    static bool bFullSnow = false;
+                    bFullSnow = !bFullSnow;
+                    SnowLevelS11 = bFullSnow ? 100.0f : 0.0f;
+                    SetApolloSnow(bFullSnow ? 100.0f : 0.0f, bFullSnow ? 69.0f : 0.0f);
                 }
             };
             if (VersionInfo.FortniteVersion == 13.40)

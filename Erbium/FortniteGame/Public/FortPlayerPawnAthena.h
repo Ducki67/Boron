@@ -115,6 +115,11 @@ public:
     DEFINE_FUNC(SetShield, void);
     DEFINE_FUNC(SetMaxHealth, void);
     DEFINE_FUNC(EquipWeaponDefinition, AActor*);
+    DEFINE_FUNC(PawnStartFire, void);
+    DEFINE_FUNC(PawnStopFire, void);
+    DEFINE_FUNC(AddMovementInput, void);
+    DEFINE_FUNC(OnRep_IsTargeting, void);
+    DEFINE_BITFIELD_PROP(bIsTargeting);
     DEFINE_FUNC(LaunchCharacterJump, void);
     DEFINE_FUNC(OnCapsuleBeginOverlap, void);
     DEFINE_FUNC(ServerHandlePickup, void);

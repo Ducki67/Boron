@@ -52,6 +52,7 @@ struct GameRuleConfig
     static inline auto bAutoRestart = false;
     static inline auto bKeepInventory = false;
     static inline auto bCreativeExtraAmmo = false;
+    static inline auto bBossAI = true; // universal boss/AI driver: move + shoot nearest player + native death drops
 };
 
 struct DiscordWebhookConfig
@@ -79,7 +80,7 @@ struct FConfig
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Showdown/Playlist_ShowdownAlt_Solo.Playlist_ShowdownAlt_Solo";
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2";  // creative
    
-    // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Playground/Playlist_Playground.Playlist_Playground"; // playfround
+    // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Playground/Playlist_Playground.Playlist_Playground"; // playground
     
     
     /// LTMs (still working on them kinda) 

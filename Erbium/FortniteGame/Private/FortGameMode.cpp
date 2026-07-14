@@ -260,11 +260,30 @@ void AFortGameMode::ReadyToStartMatch_(UObject* Context, FFrame& Stack, bool* Re
             UNetDriver* NetDriver = nullptr;
             if (VersionInfo.FortniteVersion >= 16.00)
             {
-                void* WorldCtx = ((void* (*)(UEngine*, UWorld*))FindGetWorldContext())(Engine, World);
-                World->NetDriver = NetDriver = ((UNetDriver * (*)(UEngine*, void*, FName, int)) FindCreateNetDriverWorldContext())(Engine, WorldCtx, NetDriverName, 0);
+                auto GetWorldContextFn = FindGetWorldContext();
+                auto CreateNetDriverFn = FindCreateNetDriverWorldContext();
+                if (!GetWorldContextFn || !CreateNetDriverFn)
+                {
+                    printf("[Boron] NetDriver setup aborted: GetWorldContext=0x%llX CreateNetDriverWorldContext=0x%llX missing for FN %.2f - add a signature in Finders.cpp\n", (unsigned long long)GetWorldContextFn, (unsigned long long)CreateNetDriverFn, VersionInfo.FortniteVersion);
+                    setup = false;
+                    *Ret = false;
+                    return;
+                }
+                void* WorldCtx = ((void* (*)(UEngine*, UWorld*))GetWorldContextFn)(Engine, World);
+                World->NetDriver = NetDriver = ((UNetDriver * (*)(UEngine*, void*, FName, int)) CreateNetDriverFn)(Engine, WorldCtx, NetDriverName, 0);
             }
             else
-                World->NetDriver = NetDriver = ((UNetDriver * (*)(UEngine*, UWorld*, FName)) FindCreateNetDriver())(Engine, World, NetDriverName);
+            {
+                auto CreateNetDriverFn = FindCreateNetDriver();
+                if (!CreateNetDriverFn)
+                {
+                    printf("[Boron] NetDriver setup aborted: CreateNetDriver missing for FN %.2f - add a signature in Finders.cpp\n", VersionInfo.FortniteVersion);
+                    setup = false;
+                    *Ret = false;
+                    return;
+                }
+                World->NetDriver = NetDriver = ((UNetDriver * (*)(UEngine*, UWorld*, FName)) CreateNetDriverFn)(Engine, World, NetDriverName);
+            }
             if (VersionInfo.FortniteVersion >= 20)
                 NetDriver->NetServerMaxTickRate = 30;
 

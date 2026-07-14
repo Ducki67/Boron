@@ -4,6 +4,7 @@
 #include "../../Erbium/Public/Finders.h"
 #include "../../Erbium/Public/GUI.h"
 #include "../../Erbium/Public/Misc.h"
+#include "../../Erbium/Public/Bots.h"
 #include "../../FortniteGame/Public/BattleRoyaleGamePhaseLogic.h"
 #include "../../FortniteGame/Public/FortGameMode.h"
 
@@ -481,6 +482,22 @@ void ServerReplicateActors(UNetDriver* Driver, float DeltaSeconds)
     ViewerMap.clear();
 }
 
+static void CheckAutoRestart()
+{
+    if (!GameRuleConfig::bAutoRestart || GUI::gsStatus < Joinable)
+        return;
+
+    static bool bHadClients = false;
+    auto World = UWorld::GetWorld();
+    auto ND = World ? (UNetDriver*)World->NetDriver : nullptr;
+    int Clients = ND ? ND->ClientConnections.Num() : 0;
+
+    if (Clients >= 1)
+        bHadClients = true;
+    else if (bHadClients)
+        Misc::RestartServer();
+}
+
 void UNetDriver::TickFlush(UNetDriver* Driver, float DeltaSeconds)
 {
     if (VersionInfo.FortniteVersion >= 25.20)
@@ -488,6 +505,9 @@ void UNetDriver::TickFlush(UNetDriver* Driver, float DeltaSeconds)
         auto GamePhaseLogic = UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Get(UWorld::GetWorld());
         GamePhaseLogic->Tick();
     }
+
+    BossAI::Tick();
+    CheckAutoRestart();
 
     if (Driver->ClientConnections.Num() > 0)
         ServerReplicateActors(Driver, DeltaSeconds);
@@ -577,6 +597,9 @@ void UNetDriver::TickFlush(UNetDriver* Driver, float DeltaSeconds)
 uint64_t ServerReplicateActors_;
 void UNetDriver::TickFlush__RepGraph(UNetDriver* Driver, float DeltaSeconds)
 {
+    BossAI::Tick();
+    CheckAutoRestart();
+
     if (Driver->ReplicationDriver)
     {
         // this is our main netdriver
@@ -711,6 +734,9 @@ void UNetDriver::TickFlush__Iris(UNetDriver* Driver, float DeltaSeconds)
         if (GamePhaseLogic)
             GamePhaseLogic->Tick();
     }
+
+    BossAI::Tick();
+    CheckAutoRestart();
 
     if (Driver->ClientConnections.Num() > 0)
     {
