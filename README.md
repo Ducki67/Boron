@@ -27,7 +27,7 @@ A modifiyed/forked Erbium gameserver with my own features and fixes
   
 - [ ] **Gameplay**
   - [ ] Projectile guns on 28.xx and 29.xx versions. **5% Done** *(scaffold in Misc.cpp, hook disabled at :658)*
-  - [ ] Fix 16.xx crashes.
+  - [x] Fix 16.xx crashes. (ServerHandlePickup was the issue nwo its fixed)
   - [ ] Some LTMs stuff.
   - [ ] Placement points for Arena.
   - [ ] Bosses on 12.xx, 13.xx, 14.xx **20% Done** ( this is buggy rn and laggy a bit but tested on 13.40 a few)
