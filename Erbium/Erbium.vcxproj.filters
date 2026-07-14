@@ -240,6 +240,7 @@
     <ClInclude Include="libcurl\typecheck-gcc.h" />
     <ClInclude Include="libcurl\urlapi.h" />
     <ClInclude Include="Erbium\Public\ItemAliases.h" />
+    <ClInclude Include="Erbium\Public\Bots.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Erbium\Private\dllmain.cpp">

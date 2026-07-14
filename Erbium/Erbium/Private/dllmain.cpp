@@ -11,12 +11,61 @@
 #include <chrono>
 #include <iostream>
 #include <thread>
+#include <io.h>
+#include <fcntl.h>
 #pragma comment(lib, "libcurl/libcurl.lib")
 #pragma comment(lib, "libcurl/zlib.lib")
 #pragma comment(lib, "Ws2_32.lib")
 #pragma comment(lib, "Wldap32.lib")
 #pragma comment(lib, "Crypt32.lib")
 #pragma comment(lib, "Normaliz.lib")
+
+static void SetupConsoleTee()
+{
+    if (_fileno(stdout) < 0)
+        return;
+
+    HANDLE realConsole = CreateFileA("CONOUT$", GENERIC_WRITE, FILE_SHARE_WRITE | FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+
+    HANDLE readPipe = nullptr, writePipe = nullptr;
+    SECURITY_ATTRIBUTES sa{ sizeof(sa), nullptr, TRUE };
+    if (!CreatePipe(&readPipe, &writePipe, &sa, 1 << 20))
+        return;
+
+    int fd = _open_osfhandle((intptr_t)writePipe, _O_TEXT);
+    if (fd == -1)
+    {
+        CloseHandle(readPipe);
+        CloseHandle(writePipe);
+        return;
+    }
+
+    _dup2(fd, _fileno(stdout));
+    _dup2(fd, _fileno(stderr));
+    setvbuf(stdout, nullptr, _IONBF, 0);
+    setvbuf(stderr, nullptr, _IONBF, 0);
+
+    struct TeeContext { HANDLE Read; HANDLE Console; };
+    auto ctx = new TeeContext{ readPipe, realConsole };
+
+    CreateThread(nullptr, 0, [](LPVOID param) -> DWORD {
+        auto c = (TeeContext*)param;
+        HANDLE logFile = CreateFileA("Boron_Console.txt", GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        char buffer[8192];
+        DWORD bytesRead = 0;
+        while (ReadFile(c->Read, buffer, sizeof(buffer), &bytesRead, nullptr) && bytesRead > 0)
+        {
+            DWORD written = 0;
+            if (c->Console && c->Console != INVALID_HANDLE_VALUE)
+                WriteFile(c->Console, buffer, bytesRead, &written, nullptr);
+            if (logFile != INVALID_HANDLE_VALUE)
+                WriteFile(logFile, buffer, bytesRead, &written, nullptr);
+        }
+        if (logFile != INVALID_HANDLE_VALUE)
+            CloseHandle(logFile);
+        return 0;
+    }, ctx, 0, nullptr);
+}
 
 void Main()
 {
@@ -33,6 +82,9 @@ void Main()
             freopen_s(&s, "CONIN$", "r", stdin);
         }
     }
+
+    if constexpr (FConfig::bSaveConsoleLog && !FConfig::bUseStdoutLog)
+        SetupConsoleTee();
 
     if constexpr (FConfig::bCustomCrashReporter)
         FCrashReporter::Register();

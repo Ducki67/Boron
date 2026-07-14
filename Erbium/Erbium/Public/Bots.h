@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <unordered_map>
+#include <vector>
 #include "Configuration.h"
 #include "Utils.h"
 #include "../../FortniteGame/Public/FortPlayerPawnAthena.h"
@@ -23,7 +24,78 @@ namespace BossAI
         float patrolYaw = -1.f;
         uint32 patrolTimer = 0;
         bool gaveWeapon = false;
+        bool targeting = false;
+        bool boss = false;
     };
+
+    // Curated loot pools, built once from the object array by name (no offsets/RE).
+    // Guns  = varied real weapons for henchmen; Mythics = boss weapons; KeyCard = vault key.
+    struct LootPools
+    {
+        bool built = false;
+        std::vector<UFortWorldItemDefinition*> Guns;
+        std::vector<UFortWorldItemDefinition*> Mythics;
+        UFortItemDefinition* KeyCard = nullptr;
+    };
+
+    inline LootPools& Loot()
+    {
+        static LootPools L;
+        return L;
+    }
+
+    inline void BuildLoot()
+    {
+        auto& L = Loot();
+        if (L.built)
+            return;
+        L.built = true;
+
+        for (int i = 0; i < TUObjectArray::Num(); i++)
+        {
+            auto Obj = TUObjectArray::GetObjectByIndex(i);
+            if (!Obj || !Obj->Class || Obj->IsDefaultObject())
+                continue;
+
+            auto Path = UKismetSystemLibrary::GetPathName(Obj).ToString();
+
+            if (!L.KeyCard && Obj->IsA<UFortItemDefinition>() &&
+                (Path.find("KeyCard") != std::string::npos || Path.find("Keycard") != std::string::npos || Path.find("Key_Card") != std::string::npos))
+                L.KeyCard = (UFortItemDefinition*)Obj;
+
+            if (!Obj->IsA<UFortWeaponRangedItemDefinition>())
+                continue;
+            if (Path.find("Grenade") != std::string::npos || Path.find("Consumable") != std::string::npos ||
+                Path.find("Athena_C_") != std::string::npos || Path.find("_Ammo") != std::string::npos)
+                continue;
+
+            auto Item = (UFortWorldItemDefinition*)Obj;
+            if (Path.find("Mythic") != std::string::npos)
+            {
+                L.Mythics.push_back(Item);
+                continue;
+            }
+            if (Path.find("WID_Assault") != std::string::npos || Path.find("WID_Shotgun") != std::string::npos ||
+                Path.find("WID_PDW") != std::string::npos || Path.find("WID_SMG") != std::string::npos ||
+                Path.find("WID_Pistol") != std::string::npos || Path.find("WID_Sniper") != std::string::npos)
+                L.Guns.push_back(Item);
+        }
+
+        printf("[BossAI] Loot pools: %d guns, %d mythics, keycard=%s\n", (int)L.Guns.size(), (int)L.Mythics.size(), L.KeyCard ? "yes" : "no");
+    }
+
+    inline void GiveAndEquip(AFortInventory* Inv, AFortPlayerPawnAthena* Bot, UFortWorldItemDefinition* Def)
+    {
+        if (!Inv || !Bot || !Def)
+            return;
+        auto Stats = AFortInventory::GetStats((UFortWeaponItemDefinition*)Def);
+        int Clip = (Stats && Stats->ClipSize > 0) ? Stats->ClipSize : 30;
+        if (auto Ammo = Def->GetAmmoWorldItemDefinition_BP())
+            if ((UFortWorldItemDefinition*)Ammo != Def)
+                Inv->GiveItem(Ammo, 999);
+        if (auto WItem = Inv->GiveItem(Def, 1, Clip))
+            Bot->EquipWeaponDefinition((UFortWeaponItemDefinition*)Def, WItem->ItemEntry.ItemGuid);
+    }
 
     inline std::unordered_map<void*, BotState>& States()
     {
@@ -44,6 +116,12 @@ namespace BossAI
     inline void Tick()
     {
         if (!GameRuleConfig::bBossAI)
+            return;
+        // some nerdy shit:
+        // Manual tick: run the AI at ~1/3 of the server tick rate (~10Hz) so the
+        // per-tick GetAllActorsOfClass scan + ProcessEvent calls don't tank the framerate.
+        static uint32 tickCount = 0;
+        if (++tickCount % 3 != 0)
             return;
 
         auto& St = States();
@@ -80,13 +158,44 @@ namespace BossAI
                 State.gaveWeapon = true;
                 static auto InvOffset = Bot->Controller->GetOffset("Inventory");
                 AFortInventory* Inv = (InvOffset != -1) ? GetFromOffset<AFortInventory*>(Bot->Controller, InvOffset) : nullptr;
+                if (!Inv && InvOffset != -1)
+                {
+                    Inv = UWorld::SpawnActor<AFortInventory>(AFortInventory::StaticClass(), FVector{ 0, 0, -99999 }, FRotator{}, Bot->Controller);
+                    if (Inv)
+                    {
+                        Inv->InventoryType = 0;
+                        if (auto OnRepOwnerFn = Inv->GetFunction("OnRep_Owner"))
+                            Inv->ProcessEvent(OnRepOwnerFn, nullptr);
+                        GetFromOffset<AFortInventory*>(Bot->Controller, InvOffset) = Inv;
+                    }
+                }
                 if (Inv)
                 {
-                    auto WeaponEntry = Inv->Inventory.ReplicatedEntries.Search([](FFortItemEntry& Entry) {
-                        return Entry.ItemDefinition && Entry.ItemDefinition->Cast<UFortWeaponRangedItemDefinition>();
-                    }, FFortItemEntry::Size());
-                    if (WeaponEntry)
-                        Bot->EquipWeaponDefinition(WeaponEntry->ItemDefinition, WeaponEntry->ItemGuid);
+                    BuildLoot();
+                    auto& L = Loot();
+
+                    
+                    State.boss = !L.Mythics.empty() && ((((uintptr_t)Bot) >> 5) % 5 == 0);
+
+                    if (State.boss)
+                    {
+                        GiveAndEquip(Inv, Bot, L.Mythics[rand() % L.Mythics.size()]);
+                        if (L.KeyCard)
+                            Inv->GiveItem(L.KeyCard, 1);
+                    }
+                    else if (!L.Guns.empty())
+                    {
+                        GiveAndEquip(Inv, Bot, L.Guns[rand() % L.Guns.size()]);
+                    }
+                    else
+                    {
+                        
+                        auto WeaponEntry = Inv->Inventory.ReplicatedEntries.Search([](FFortItemEntry& Entry) {
+                            return Entry.ItemDefinition && Entry.ItemDefinition->Cast<UFortWeaponRangedItemDefinition>();
+                        }, FFortItemEntry::Size());
+                        if (WeaponEntry)
+                            Bot->EquipWeaponDefinition(WeaponEntry->ItemDefinition, WeaponEntry->ItemGuid);
+                    }
                 }
             }
 
@@ -97,17 +206,18 @@ namespace BossAI
             if (DropOffset != -1)
                 GetFromOffset<bool>(Bot, DropOffset) = true;
 
-            if (Bot->IsDBNO() || Bot->GetHealth() <= 0.f)
+            if (Bot->IsDBNO())
             {
-                if (!State.dropped && State.lastWeaponDef)
-                {
-                    AFortInventory::SpawnPickup(State.lastLoc, State.lastWeaponDef, 1, 0);
-                    State.dropped = true;
-                }
                 if (State.firing)
                 {
                     Bot->PawnStopFire((uint8)0);
                     State.firing = false;
+                }
+                if (State.targeting)
+                {
+                    Bot->bIsTargeting = false;
+                    Bot->OnRep_IsTargeting();
+                    State.targeting = false;
                 }
                 continue;
             }
@@ -140,10 +250,16 @@ namespace BossAI
                     Bot->PawnStopFire((uint8)0);
                     State.firing = false;
                 }
+                if (State.targeting)
+                {
+                    Bot->bIsTargeting = false;
+                    Bot->OnRep_IsTargeting();
+                    State.targeting = false;
+                }
                 State.fireTimer = 0;
 
                 State.patrolTimer++;
-                if (State.patrolYaw < 0.f || State.patrolTimer % 150 == 0)
+                if (State.patrolYaw < 0.f || State.patrolTimer % 40 == 0)
                     State.patrolYaw = (float)(rand() % 360);
 
                 float prad = State.patrolYaw * 0.0174532925f;
@@ -202,27 +318,40 @@ namespace BossAI
 
             if (BestDist < FireRange && Bot->CurrentWeapon)
             {
-                Bot->bIsTargeting = true;
-                Bot->OnRep_IsTargeting();
+                if (!State.targeting)
+                {
+                    Bot->bIsTargeting = true;
+                    Bot->OnRep_IsTargeting();
+                    State.targeting = true;
+                }
 
                 State.fireTimer++;
-                uint32 phase = State.fireTimer % 80;
+                uint32 phase = State.fireTimer % 16; // ~1.6s cycle at 10Hz
                 if (phase == 1 && !State.firing)
                 {
                     Bot->PawnStartFire((uint8)0);
                     State.firing = true;
                 }
-                else if (phase == 40 && State.firing)
+                else if (phase == 10 && State.firing) // ~1.0s burst, ~0.6s pause
                 {
                     Bot->PawnStopFire((uint8)0);
                     State.firing = false;
                 }
             }
-            else if (State.firing)
+            else
             {
-                Bot->PawnStopFire((uint8)0);
-                State.firing = false;
-                State.fireTimer = 0;
+                if (State.targeting)
+                {
+                    Bot->bIsTargeting = false;
+                    Bot->OnRep_IsTargeting();
+                    State.targeting = false;
+                }
+                if (State.firing)
+                {
+                    Bot->PawnStopFire((uint8)0);
+                    State.firing = false;
+                    State.fireTimer = 0;
+                }
             }
         }
 
@@ -231,6 +360,8 @@ namespace BossAI
             if (!it->second.seen && !it->second.dropped && it->second.lastWeaponDef)
             {
                 AFortInventory::SpawnPickup(it->second.lastLoc, it->second.lastWeaponDef, 1, 0);
+                if (it->second.boss && Loot().KeyCard)
+                    AFortInventory::SpawnPickup(it->second.lastLoc, Loot().KeyCard, 1, 0);
                 it->second.dropped = true;
             }
             if (!it->second.seen)

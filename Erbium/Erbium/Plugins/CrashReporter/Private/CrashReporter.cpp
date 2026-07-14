@@ -2,6 +2,7 @@
 #include "../Public/CrashReporter.h"
 #include <TlHelp32.h>
 #include <sstream>
+#include <fstream>
 #include <winternl.h>
 #pragma comment(lib, "ntdll.lib")
 
@@ -198,6 +199,13 @@ LONG WINAPI ErbiumUnhandledExceptionFilter(LPEXCEPTION_POINTERS ExceptionInfo)
     }
     auto reportStr = reportStream.str();
     printf("%s", reportStr.c_str());
+
+    std::ofstream crashFile("Boron_Crash.txt", std::ios::trunc);
+    if (crashFile.is_open())
+    {
+        crashFile << reportStr;
+        crashFile.close();
+    }
 
     Memcury::Util::CopyToClipboard(reportStr);
     SymCleanup(currentPrc);

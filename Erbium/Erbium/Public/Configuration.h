@@ -52,7 +52,7 @@ struct GameRuleConfig
     static inline auto bAutoRestart = false;
     static inline auto bKeepInventory = false;
     static inline auto bCreativeExtraAmmo = false;
-    static inline auto bBossAI = true; // universal boss/AI driver: move + shoot nearest player + native death drops
+    static inline auto bBossAI = false; // VERY VERY experimental (might not be fixed later) - patrol/chase/shoot + mythic/keycard drops
 };
 
 struct DiscordWebhookConfig
@@ -105,9 +105,10 @@ struct FConfig
     static inline constexpr auto bGUI = true;
     static inline constexpr auto bCustomCrashReporter = true;
     static inline constexpr auto bUseStdoutLog = false;
+    static inline constexpr auto bSaveConsoleLog = true; // tee everything printed to the console into Boron_Console.txt (console stays live)
 
     struct CreativeModeConfig
-    {
+    {   // TODO: fix island not laoding on s7 creative  i swear its the same code but on s8+ works but not on s7 what thge helly :sob:
         // Note: dont ask me to add Island slecting for the creative protal menu NO i wont give that to you skids hell no!
         static inline auto bCustomMap = false;
         static inline auto CustomMapDefinition = L"/Game/Playgrounds/Items/Plots/TheBlock_Season7"; //  The Block map | see at FortCreativePortal.cpp line: 76 what it does

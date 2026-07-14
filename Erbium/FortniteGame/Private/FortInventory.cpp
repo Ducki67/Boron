@@ -612,9 +612,25 @@ bool RemoveInventoryItem(IInterface* Interface, FGuid& ItemGuid, int Count, bool
 
 void SetLoadedAmmo(UFortWorldItem* Item, int LoadedAmmo)
 {
+    if (!Item)
+        return;
+
     auto PlayerController = (AFortPlayerControllerAthena*)Item->GetOwningController();
+    if (!PlayerController || !PlayerController->WorldInventory)
+    {
+        Item->ItemEntry.LoadedAmmo = LoadedAmmo;
+        Item->ItemEntry.bIsDirty = true;
+        return;
+    }
+
     // PlayerController->WorldInventory->UpdateEntry(Item->ItemEntry);
     auto repEnt = PlayerController->WorldInventory->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& item) { return item.ItemGuid == Item->ItemEntry.ItemGuid; }, FFortItemEntry::Size());
+    if (!repEnt)
+    {
+        Item->ItemEntry.LoadedAmmo = LoadedAmmo;
+        Item->ItemEntry.bIsDirty = true;
+        return;
+    }
 
     repEnt->LoadedAmmo = LoadedAmmo;
     Item->ItemEntry.LoadedAmmo = LoadedAmmo;
@@ -624,9 +640,25 @@ void SetLoadedAmmo(UFortWorldItem* Item, int LoadedAmmo)
 
 void SetPhantomReserveAmmo(UFortWorldItem* Item, unsigned int PhantomReserveAmmo)
 {
+    if (!Item)
+        return;
+
     auto PlayerController = (AFortPlayerControllerAthena*)Item->GetOwningController();
+    if (!PlayerController || !PlayerController->WorldInventory)
+    {
+        Item->ItemEntry.PhantomReserveAmmo = PhantomReserveAmmo;
+        Item->ItemEntry.bIsDirty = true;
+        return;
+    }
+
     // PlayerController->WorldInventory->UpdateEntry(Item->ItemEntry);
     auto repEnt = PlayerController->WorldInventory->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& item) { return item.ItemGuid == Item->ItemEntry.ItemGuid; }, FFortItemEntry::Size());
+    if (!repEnt)
+    {
+        Item->ItemEntry.PhantomReserveAmmo = PhantomReserveAmmo;
+        Item->ItemEntry.bIsDirty = true;
+        return;
+    }
 
     repEnt->PhantomReserveAmmo = PhantomReserveAmmo;
     Item->ItemEntry.PhantomReserveAmmo = PhantomReserveAmmo;
