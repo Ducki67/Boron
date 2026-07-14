@@ -280,14 +280,14 @@ void GUI::Init()
                 }
             };
 
-            /*
+            
             if (ImGui::BeginTabItem("Players"))
-            {  // soon
+            {  
                 SelectedUI = 6;
                 ImGui::EndTabItem();
             }
-
-            if (ImGui::BeginTabItem("Bots"))
+            /*  // other maybe idfk just not bots tab plz"
+            if (ImGui::BeginTabItem("tab7"))
             {
                 SelectedUI = 7;
                 ImGui::EndTabItem();
@@ -322,7 +322,7 @@ void GUI::Init()
         switch (SelectedUI)
         {
         case 0:
-#ifdef MANUAL_SERVER_SETUP
+#ifdef MANUAL_SERVER_SETUP  // TODO: we need some palylist options and "custom" one like Reboot ultimate
             if (!GUI::bServerSetupRequested)
             {
                 ImGui::BeginChild("setupserver", ImVec2(410 * main_scale, 230 * main_scale), ImGuiChildFlags_Borders);
@@ -344,7 +344,7 @@ void GUI::Init()
                     ImGui::SliderInt("Respawn Time (Client)", &GameRuleConfig::RespawnTimeClient, 1, 25);
                     ImGui::SliderInt("Respawn Time (GameMode)", &GameRuleConfig::RespawnTimeGamemode, 1, 25);
                 }
-                ImGui::Checkbox("Creative Extra Ammo", &GameRuleConfig::bCreativeExtraAmmo);
+                ImGui::Checkbox("Creative Extra Ammo (currently bugs inventory out!!)", &GameRuleConfig::bCreativeExtraAmmo);
                 ImGui::Checkbox("Boss AI (move + shoot)", &GameRuleConfig::bBossAI);
                 
 
