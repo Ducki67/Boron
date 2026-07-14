@@ -78,21 +78,15 @@ namespace BossAI
             if (!State.gaveWeapon)
             {
                 State.gaveWeapon = true;
-                static auto BossWeapon = FindObject<UFortWorldItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Assault_AutoHigh_Athena_SR_Ore_T03.WID_Assault_AutoHigh_Athena_SR_Ore_T03");
-                if (BossWeapon)
+                static auto InvOffset = Bot->Controller->GetOffset("Inventory");
+                AFortInventory* Inv = (InvOffset != -1) ? GetFromOffset<AFortInventory*>(Bot->Controller, InvOffset) : nullptr;
+                if (Inv)
                 {
-                    static auto InvOffset = Bot->Controller->GetOffset("Inventory");
-                    AFortInventory* Inv = (InvOffset != -1) ? GetFromOffset<AFortInventory*>(Bot->Controller, InvOffset) : nullptr;
-                    if (Inv)
-                    {
-                        auto Stats = AFortInventory::GetStats((UFortWeaponItemDefinition*)BossWeapon);
-                        int Clip = (Stats && Stats->ClipSize > 0) ? Stats->ClipSize : 30;
-                        if (auto Ammo = BossWeapon->GetAmmoWorldItemDefinition_BP())
-                            if ((UFortWorldItemDefinition*)Ammo != BossWeapon)
-                                Inv->GiveItem(Ammo, 999);
-                        if (auto WItem = Inv->GiveItem(BossWeapon, 1, Clip))
-                            Bot->EquipWeaponDefinition((UFortWeaponItemDefinition*)BossWeapon, WItem->ItemEntry.ItemGuid);
-                    }
+                    auto WeaponEntry = Inv->Inventory.ReplicatedEntries.Search([](FFortItemEntry& Entry) {
+                        return Entry.ItemDefinition && Entry.ItemDefinition->Cast<UFortWeaponRangedItemDefinition>();
+                    }, FFortItemEntry::Size());
+                    if (WeaponEntry)
+                        Bot->EquipWeaponDefinition(WeaponEntry->ItemDefinition, WeaponEntry->ItemGuid);
                 }
             }
 
