@@ -569,26 +569,6 @@ void UNetDriver::TickFlush(UNetDriver* Driver, float DeltaSeconds)
                     Misc::RestartServer();
             }
         }
-        else if (Driver == WorldNetDriver && VersionInfo.FortniteVersion >= 18 && VersionInfo.FortniteVersion < 25.20)
-        {
-            for (auto& UncastedPlayer : GameMode->AlivePlayers)
-            {
-                auto Player = (AFortPlayerControllerAthena*)UncastedPlayer;
-                if (auto Pawn = Player->MyFortPawn)
-                {
-                    bool bInZone = GameMode->IsInCurrentSafeZone(Player->MyFortPawn->K2_GetActorLocation(), false);
-
-                    if (Pawn->bIsInsideSafeZone != bInZone || Pawn->bIsInAnyStorm != !bInZone)
-                    {
-                        printf("Pawn %s new storm status: %s\n", Pawn->Name.ToString().c_str(), bInZone ? "true" : "false");
-                        Pawn->bIsInAnyStorm = !bInZone;
-                        Pawn->OnRep_IsInAnyStorm();
-                        Pawn->bIsInsideSafeZone = bInZone;
-                        Pawn->OnRep_IsInsideSafeZone();
-                    }
-                }
-            }
-        }
     }
 
     return TickFlushOG(Driver, DeltaSeconds);
@@ -660,26 +640,6 @@ void UNetDriver::TickFlush__RepGraph(UNetDriver* Driver, float DeltaSeconds)
 
                     if (GameRuleConfig::bAutoRestart)
                         Misc::RestartServer();
-                }
-            }
-            else if (Driver == WorldNetDriver && VersionInfo.FortniteVersion >= 18)
-            {
-                for (auto& UncastedPlayer : GameMode->AlivePlayers)
-                {
-                    auto Player = (AFortPlayerControllerAthena*)UncastedPlayer;
-                    if (auto Pawn = Player->MyFortPawn)
-                    {
-                        bool bInZone = GameMode->IsInCurrentSafeZone(Player->MyFortPawn->K2_GetActorLocation(), false);
-
-                        if (Pawn->bIsInsideSafeZone != bInZone || Pawn->bIsInAnyStorm != !bInZone)
-                        {
-                            printf("Pawn %s new storm status: %s\n", Pawn->Name.ToString().c_str(), bInZone ? "true" : "false");
-                            Pawn->bIsInAnyStorm = !bInZone;
-                            Pawn->OnRep_IsInAnyStorm();
-                            Pawn->bIsInsideSafeZone = bInZone;
-                            Pawn->OnRep_IsInsideSafeZone();
-                        }
-                    }
                 }
             }
         }
@@ -998,26 +958,6 @@ void UNetDriver::TickFlush__Iris(UNetDriver* Driver, float DeltaSeconds)
 
                 if (GameRuleConfig::bAutoRestart)
                     Misc::RestartServer();
-            }
-        }
-        else if (Driver == WorldNetDriver && VersionInfo.FortniteVersion < 25.20)
-        {
-            for (auto& UncastedPlayer : GameMode->AlivePlayers)
-            {
-                auto Player = (AFortPlayerControllerAthena*)UncastedPlayer;
-                if (auto Pawn = Player->MyFortPawn)
-                {
-                    bool bInZone = GameMode->IsInCurrentSafeZone(Player->MyFortPawn->K2_GetActorLocation(), false);
-
-                    if (Pawn->bIsInsideSafeZone != bInZone || Pawn->bIsInAnyStorm != !bInZone)
-                    {
-                        printf("Pawn %s new storm status: %s\n", Pawn->Name.ToString().c_str(), bInZone ? "true" : "false");
-                        Pawn->bIsInAnyStorm = !bInZone;
-                        Pawn->OnRep_IsInAnyStorm();
-                        Pawn->bIsInsideSafeZone = bInZone;
-                        Pawn->OnRep_IsInsideSafeZone();
-                    }
-                }
             }
         }
     }

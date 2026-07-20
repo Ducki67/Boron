@@ -241,6 +241,9 @@
     <ClInclude Include="libcurl\urlapi.h" />
     <ClInclude Include="Erbium\Public\ItemAliases.h" />
     <ClInclude Include="Erbium\Public\Bots.h" />
+    <ClInclude Include="FortniteGame\Public\FortAthenaSpawningPolicyManager.h">
+      <Filter>FortniteGame\Public</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Erbium\Private\dllmain.cpp">

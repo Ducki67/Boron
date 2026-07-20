@@ -134,11 +134,6 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
                 AbilitySystemComponent->UpdateActiveGameplayEffectSetByCallerMagnitude(SpecHandle, FGameplayTag(FName(L"SetByCaller.StormCampingDamage")), 1.f);
             }
         }
-
-        FortPawn->bIsInAnyStorm = false;
-        FortPawn->OnRep_IsInAnyStorm();
-        FortPawn->bIsInsideSafeZone = true;
-        FortPawn->OnRep_IsInsideSafeZone();
     }
 
     auto Interface = PlayerController->PlayerState->GetInterface(IFortAbilitySystemInterface::StaticClass());
@@ -1976,7 +1971,7 @@ void AFortPlayerControllerAthena::InternalPickup(FFortItemEntry* PickupEntry)
         auto itemEntry = WorldInventory->Inventory.ReplicatedEntries.Search([PickupEntry, MaxStack](FFortItemEntry& entry) { return entry.ItemDefinition == PickupEntry->ItemDefinition && entry.Count < MaxStack; },
                                                                             FFortItemEntry::Size());
 
-        if (item)
+        if (item && *item)
         {
             bool bFound = false;
             /*for (int i = 0; i < itemEntry->StateValues.Num(); i++)

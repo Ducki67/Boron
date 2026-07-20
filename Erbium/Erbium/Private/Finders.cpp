@@ -368,6 +368,9 @@ uint64_t FindCreateNetDriverWorldContext()
             if (!CreateNetDriver_.Get())
                 CreateNetDriver_ = Memcury::Scanner::FindPattern("41 56 41 57 48 83 EC ? 4C 8B EA 4C 8B E1 48 81 C1");
 
+            if (!CreateNetDriver_.Get())
+                CreateNetDriver_ = Memcury::Scanner::FindPattern("41 56 41 57 48 83 EC ? 48 63 81 ? ? ? ? 4C 8D 35");
+
             auto StartOfFuncBefore = CreateNetDriver_.Get();
             if (CreateNetDriver_.Get())
             {
@@ -476,43 +479,47 @@ uint64_t FindSetWorld()
             if (!SetWorld)
                 SetWorld = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 41 56 41 57 48 83 EC ? 4C 8D B9 ? ? ? ? 48 8B FA").Get();
         }
-        else if (VersionInfo.FortniteVersion >= 19)
-            SetWorld = Memcury::Scanner::FindPattern("48 89 5C 24 ? 57 48 83 EC ? 48 8B FA 48 8B D9 48 8B 91 ? ? ? ? 48 85 D2 75").Get();
-        else if (VersionInfo.FortniteVersion > 13.20)
+        else
         {
-            auto Season = (int)floor(VersionInfo.FortniteVersion);
-            uint32 VftIdx = 0;
-            switch (Season)
-            {
-            case 13:
-                VftIdx = 0x70;
-                break;
-            case 18:
-                VftIdx = 0x73;
-                break;
-            case 19:
-                VftIdx = 0x7a;
-                break;
-            case 22:
-            case 23:
-            case 20:
-                VftIdx = 0x7b;
-                break;
-            case 21:
-                VftIdx = 0x7c;
-                break;
-            case 24:
-                VftIdx = 0x7d;
-                break;
-            default:
-                if (VersionInfo.FortniteVersion >= 14 && VersionInfo.FortniteVersion <= 15.2)
-                    VftIdx = 0x71;
-                else if (VersionInfo.FortniteVersion >= 15.3 && VersionInfo.FortniteVersion < 18)
-                    VftIdx = 0x72;
+            if (VersionInfo.FortniteVersion >= 19)
+                SetWorld = Memcury::Scanner::FindPattern("48 89 5C 24 ? 57 48 83 EC ? 48 8B FA 48 8B D9 48 8B 91 ? ? ? ? 48 85 D2 75").Get();
 
-                break;
+            if (!SetWorld && VersionInfo.FortniteVersion > 13.20)
+            {
+                auto Season = (int)floor(VersionInfo.FortniteVersion);
+                uint32 VftIdx = 0;
+                switch (Season)
+                {
+                case 13:
+                    VftIdx = 0x70;
+                    break;
+                case 18:
+                    VftIdx = 0x73;
+                    break;
+                case 19:
+                    VftIdx = 0x7a;
+                    break;
+                case 22:
+                case 23:
+                case 20:
+                    VftIdx = 0x7b;
+                    break;
+                case 21:
+                    VftIdx = 0x7c;
+                    break;
+                case 24:
+                    VftIdx = 0x7d;
+                    break;
+                default:
+                    if (VersionInfo.FortniteVersion >= 14 && VersionInfo.FortniteVersion <= 15.2)
+                        VftIdx = 0x71;
+                    else if (VersionInfo.FortniteVersion >= 15.3 && VersionInfo.FortniteVersion < 18)
+                        VftIdx = 0x72;
+
+                    break;
+                }
+                SetWorld = uintptr_t(DefaultObjImpl("NetDriver")->Vft[VftIdx]);
             }
-            SetWorld = uintptr_t(DefaultObjImpl("NetDriver")->Vft[VftIdx]);
         }
     }
 
@@ -1129,6 +1136,12 @@ uint64_t FindFinishedTargetSpline()
 
             if (!FinishedTargetSpline)
                 FinishedTargetSpline = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 74 24 ? 55 57 41 56 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 44 8B 89").Get();
+
+            if (!FinishedTargetSpline)
+                FinishedTargetSpline =
+                    Memcury::Scanner::FindPattern(
+                        "48 8B C4 48 89 58 ? 48 89 70 ? 48 89 78 ? 55 41 54 41 55 41 56 41 57 48 8D A8 ? ? ? ? 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 44 8B 89 ? ? ? ? 45 33 ED")
+                        .Get();
         }
         else if (VersionInfo.EngineVersion == 5.2)
             FinishedTargetSpline =
@@ -3190,7 +3203,7 @@ uint64 FindActivatePhase()
             break;
         }
     }
-    
+
     for (int i = 0; i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(ActivatePhasePart - i);
@@ -3342,6 +3355,46 @@ uint64 FindSelectAndSetupMyBuildingLevel()
     for (int i = 0; i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(SelectAndSetupMyBuildingLevelPart - i);
+
+        if (*Ptr == 0x48 && *(Ptr + 1) == 0x8B && *(Ptr + 2) == 0xC4)
+            return uint64_t(Ptr);
+        else if (*Ptr == 0x48 && *(Ptr + 1) == 0x89 && *(Ptr + 2) == 0x5C)
+            return uint64_t(Ptr);
+        else if (*Ptr == 0x40 && *(Ptr + 1) == 0x55)
+            return uint64_t(Ptr);
+    }
+
+    return 0;
+}
+
+
+uint64 FindStreamInMyBuilding()
+{
+    auto sRef = Memcury::Scanner::FindStringRef(L"%s.%s trying to load invalid level %s", false, 0, VersionInfo.FortniteVersion >= 19, false);
+
+    if (!sRef.IsValid())
+        return 0;
+
+    uint64_t StreamInMyBuildingPart = 0;
+    for (int i = 0; i < 0x10000; i++)
+    {
+        auto Ptr = (uint8_t*)(sRef.Get() - i);
+
+        if (*Ptr == 0x48 && *(Ptr + 1) == 0x83 && *(Ptr + 2) == 0xEC)
+        {
+            StreamInMyBuildingPart = uint64_t(Ptr);
+            break;
+        }
+        else if (*Ptr == 0x48 && *(Ptr + 1) == 0x81 && *(Ptr + 2) == 0xEC)
+        {
+            StreamInMyBuildingPart = uint64_t(Ptr);
+            break;
+        }
+    }
+
+    for (int i = 0; i < 2000; i++)
+    {
+        auto Ptr = (uint8_t*)(StreamInMyBuildingPart - i);
 
         if (*Ptr == 0x48 && *(Ptr + 1) == 0x8B && *(Ptr + 2) == 0xC4)
             return uint64_t(Ptr);
