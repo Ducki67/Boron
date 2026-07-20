@@ -704,6 +704,126 @@ struct FSendUpdateParams
 void SendClientMoveAdjustments(UNetDriver* Driver)
 {
     static auto SendClientAdjustment = (void (*)(AFortPlayerControllerAthena*))FindSendClientAdjustment();
+
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        UNetConnection* c0 = nullptr;
+        for (auto C : Driver->ClientConnections)
+            if (C)
+            {
+                c0 = C;
+                break;
+            }
+
+        auto TrackPC = c0 ? (AFortPlayerControllerAthena*)c0->PlayerController : nullptr;
+        if (TrackPC)
+        {
+            static AFortPlayerControllerAthena* lastPC = nullptr;
+            static UObject* iComp = nullptr;
+            static int iaOffT = -1;
+
+            if (TrackPC != lastPC)
+            {
+                lastPC = TrackPC;
+                static auto icls = FindClass("FortControllerComponent_Interaction");
+                iComp = icls ? TrackPC->GetComponentByClass((UClass*)icls) : nullptr;
+                if (iComp && iaOffT < 0)
+                    iaOffT = (int)iComp->GetOffset("InteractActor");
+            }
+
+            if (iComp && iaOffT >= 0)
+            {
+                auto ia = GetFromOffset<TWeakObjectPtr<AActor>>(iComp, iaOffT).Get();
+                static AActor* lastIA = nullptr;
+                static int iaChanges = 0;
+
+                if (ia != lastIA)
+                {
+                    lastIA = ia;
+                    if (iaChanges++ < 40)
+                        printf("[Boron][Interact] InteractActor -> %p (%s)\n", (void*)ia, ia && ia->Class ? ia->Class->Name.ToString().c_str() : "null");
+                }
+            }
+        }
+
+        static int netTick = 0;
+        if ((netTick++ % 300) == 0)
+        {
+            int withPC = 0, withVT = 0;
+            UNetConnection* first = nullptr;
+            for (auto C : Driver->ClientConnections)
+            {
+                if (!C)
+                    continue;
+                if (!first)
+                    first = C;
+                if (C->PlayerController)
+                    withPC++;
+                if (C->ViewTarget)
+                    withVT++;
+            }
+            printf("[Boron][Net] moveAck: SCA=0x%llX conns=%d withPC=%d withVT=%d firstPC=%p firstVT=%p\n",
+                   (unsigned long long)SendClientAdjustment, Driver->ClientConnections.Num(), withPC, withVT,
+                   (void*)(first ? first->PlayerController : nullptr), (void*)(first ? first->ViewTarget : nullptr));
+
+            if (first && first->PlayerController)
+            {
+                auto PC = (AFortPlayerControllerAthena*)first->PlayerController;
+                auto Pawn = PC->MyFortPawn ? PC->MyFortPawn : PC->Pawn;
+                if (Pawn)
+                {
+                    auto Loc = Pawn->K2_GetActorLocation();
+                    FVector Vel{};
+                    if (Pawn->CharacterMovement)
+                        Vel = Pawn->CharacterMovement->Velocity;
+                    int invEntries = -1;
+                    if (PC->WorldInventory)
+                        invEntries = PC->WorldInventory->Inventory.ReplicatedEntries.Num();
+
+                    float stam = -1.f, maxStam = -1.f;
+                    static auto GetStamFn = Pawn->GetFunction("GetStamina");
+                    static auto GetMaxStamFn = Pawn->GetFunction("GetMaxStamina");
+                    if (GetStamFn)
+                        Pawn->ProcessEvent(GetStamFn, &stam);
+                    if (GetMaxStamFn)
+                        Pawn->ProcessEvent(GetMaxStamFn, &maxStam);
+
+                    printf("[Boron][Net] pawnState: AckPawn=%p Pawn=%p MyFortPawn=%p Role=%d RemoteRole=%d Owner=%p loc=(%.1f,%.1f,%.1f) vel=(%.1f,%.1f,%.1f) invEntries=%d stamina=%.1f/%.1f\n",
+                           (void*)PC->AcknowledgedPawn, (void*)PC->Pawn, (void*)PC->MyFortPawn,
+                           (int)Pawn->Role, (int)Pawn->RemoteRole, (void*)Pawn->Owner,
+                           Loc.X, Loc.Y, Loc.Z, Vel.X, Vel.Y, Vel.Z, invEntries, stam, maxStam);
+
+                    static auto InteractCompCls = FindClass("FortControllerComponent_Interaction");
+                    auto InteractComp = InteractCompCls ? PC->GetComponentByClass((UClass*)InteractCompCls) : nullptr;
+                    if (InteractComp)
+                    {
+                        static int iaOff = -2, ciOff = -2;
+                        if (iaOff == -2)
+                            iaOff = (int)InteractComp->GetOffset("InteractActor");
+                        if (ciOff == -2)
+                            ciOff = (int)InteractComp->GetOffset("PossibleInteractContextInfo");
+
+                        AActor* ia = iaOff >= 0 ? GetFromOffset<TWeakObjectPtr<AActor>>(InteractComp, iaOff).Get() : nullptr;
+                        UObject* ci = ciOff >= 0 ? GetFromOffset<UObject*>(InteractComp, ciOff) : nullptr;
+
+                        printf("[Boron][Interact] comp=%p iaOff=0x%X ciOff=0x%X InteractActor=%p (%s) ctxInfo=%p\n",
+                               (void*)InteractComp, iaOff, ciOff, (void*)ia,
+                               ia ? ia->Name.ToString().c_str() : "null", (void*)ci);
+                    }
+                    else
+                    {
+                        printf("[Boron][Interact] comp=null (cls=%p)\n", (void*)InteractCompCls);
+                    }
+                }
+                else
+                {
+                    printf("[Boron][Net] pawnState: AckPawn=%p Pawn=%p MyFortPawn=%p (no pawn)\n",
+                           (void*)PC->AcknowledgedPawn, (void*)PC->Pawn, (void*)PC->MyFortPawn);
+                }
+            }
+        }
+    }
+
     if (SendClientAdjustment)
     {
         for (UNetConnection* Connection : Driver->ClientConnections)
@@ -735,23 +855,92 @@ void UNetDriver::TickFlush__Iris(UNetDriver* Driver, float DeltaSeconds)
             GamePhaseLogic->Tick();
     }
 
+    if (VersionInfo.EngineVersion >= 5.4 && Driver->ClientConnections.Num() > 0)
+    {
+        static UWorld* forceStartWorld = nullptr;
+        auto World = UWorld::GetWorld();
+        if (forceStartWorld != World && World && Driver == World->NetDriver)
+        {
+            bool hasReadyConn = false;
+            for (auto Conn : Driver->ClientConnections)
+                if (Conn && Conn->PlayerController)
+                {
+                    hasReadyConn = true;
+                    break;
+                }
+
+            auto GameMode = (AFortGameMode*)World->AuthorityGameMode;
+            auto GameState = (AFortGameStateAthena*)World->GameState;
+
+            static auto WaitingToStart = FName(L"WaitingToStart");
+
+            if (hasReadyConn && GameMode && GameState && GameMode->HasWarmupRequiredPlayerCount() && GameMode->MatchState == WaitingToStart)
+            {
+                forceStartWorld = World;
+
+                GameMode->WarmupRequiredPlayerCount = 1;
+
+                auto GamePhaseLogic = UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Get(World);
+                printf("[Boron][ForceStart] PlayerController present, MatchState=WaitingToStart -> forcing match start (GamePhaseLogic=%p)\n", (void*)GamePhaseLogic);
+
+                GameMode->MatchState = FName(L"InProgress");
+
+                if (GamePhaseLogic)
+                {
+                    auto Time = (float)UGameplayStatics::GetTimeSeconds(World);
+                    auto WarmupDuration = 60.f;
+                    GamePhaseLogic->WarmupCountdownStartTime = Time;
+                    GamePhaseLogic->WarmupCountdownEndTime = Time + WarmupDuration;
+                    GamePhaseLogic->WarmupCountdownDuration = 10.f;
+                    GamePhaseLogic->WarmupEarlyCountdownDuration = WarmupDuration - 10.f;
+
+                    GamePhaseLogic->SetGamePhase(EAthenaGamePhase::Warmup);
+                    GamePhaseLogic->SetGamePhaseStep(EAthenaGamePhaseStep::Warmup);
+                    printf("[Boron][ForceStart] GamePhase -> Warmup, warmup countdown armed\n");
+                }
+            }
+        }
+    }
+
     BossAI::Tick();
     CheckAutoRestart();
+    AFortGameMode::TickCH5FloorLoot();
+    AFortGameMode::TickCH5PickupDummies();
 
     if (Driver->ClientConnections.Num() > 0)
     {
-        auto ReplicationSystem = *(UObject**)(__int64(&Driver->ReplicationDriver) + 8);
+        auto RepDriverAddr = __int64(&Driver->ReplicationDriver);
+        auto RS8 = *(UObject**)(RepDriverAddr + 8);
+        auto RS10 = *(UObject**)(RepDriverAddr + 0x10);
+
+        if (VersionInfo.EngineVersion >= 5.4)
+        {
+            static bool rsLogged = false;
+            if (!rsLogged)
+            {
+                rsLogged = true;
+                printf("[Boron][Net] ReplicationSystem: +8=%p +0x10=%p (UE5.5/Remix uses +0x10)\n", (void*)RS8, (void*)RS10);
+            }
+        }
+
+        // 31.41 ReplicationSystem (+0x10 read garbage 0x100)
+        // do NOT use +0x10 on 31.41 btw.
+        auto ReplicationSystem = RS8;
 
         if (ReplicationSystem)
         {
             static void (*UpdateIrisReplicationViews)(UNetDriver*) = decltype(UpdateIrisReplicationViews)(FindUpdateIrisReplicationViews());
             static void (*PreSendUpdate)(UObject*, FSendUpdateParams&) = decltype(PreSendUpdate)(FindPreSendUpdate());
+            static void (*PostSendUpdate)(UObject*) = decltype(PostSendUpdate)(FindPostSendUpdate());
 
             UpdateIrisReplicationViews(Driver);
             SendClientMoveAdjustments(Driver);
             FSendUpdateParams Params;
             Params.DeltaSeconds = DeltaSeconds;
             PreSendUpdate(ReplicationSystem, Params);
+
+            
+            (void)PostSendUpdate;
         }
     }
 
@@ -839,11 +1028,29 @@ void UNetDriver::TickFlush__Iris(UNetDriver* Driver, float DeltaSeconds)
 void (*SetNetDormancyOG)(AActor* Actor, int NewDormancy);
 void SetNetDormancy(AActor* Actor, int NewDormancy)
 {
-    auto Driver = (UNetDriver*)UWorld::GetWorld()->NetDriver;
+    auto DormWorld = UWorld::GetWorld();
+    auto Driver = DormWorld ? (UNetDriver*)DormWorld->NetDriver : nullptr;
+
+// still not working good bruh :sob:
+    if (VersionInfo.EngineVersion >= 5.4 && NewDormancy > 1 && Actor)
+    {
+        static auto PickupClass = FindClass("FortPickupAthena");
+
+        if (PickupClass && Actor->IsA(PickupClass))
+        {
+            static bool dormLogged = false;
+            if (!dormLogged)
+            {
+                dormLogged = true;
+                printf("[Boron][Dormancy] CH5: forcing FortPickupAthena to stay awake (engine asked for dormancy=%d)\n", NewDormancy);
+            }
+            NewDormancy = 1; // DORM_Awake
+        }
+    }
 
     SetNetDormancyOG(Actor, NewDormancy);
 
-    if (Driver)
+    if (Driver && FindFlushDormancy())
         if (NewDormancy <= 1)
             for (auto& Conn : Driver->ClientConnections)
                 ((void (*)(UNetConnection*, AActor*))FindFlushDormancy())(Conn, Actor);
@@ -852,7 +1059,8 @@ void SetNetDormancy(AActor* Actor, int NewDormancy)
 void (*FlushNetDormancyOG)(AActor* Actor);
 void FlushNetDormancy(AActor* Actor)
 {
-    auto Driver = (UNetDriver*)UWorld::GetWorld()->NetDriver;
+    auto DormWorld = UWorld::GetWorld();
+    auto Driver = DormWorld ? (UNetDriver*)DormWorld->NetDriver : nullptr;
 
     FlushNetDormancyOG(Actor);
 
@@ -983,10 +1191,20 @@ void UNetDriver::PostLoadHook()
     {
         if (VersionInfo.EngineVersion >= 5.3 && FConfig::bEnableIris)
         {
-            FindSendClientAdjustment();
-            FindUpdateIrisReplicationViews();
-            FindPreSendUpdate();
+            printf("[Boron][Iris] SendClientAdjustment=0x%llX UpdateIrisReplicationViews=0x%llX PreSendUpdate=0x%llX TickFlush=0x%llX\n",
+                   (unsigned long long)FindSendClientAdjustment(), (unsigned long long)FindUpdateIrisReplicationViews(),
+                   (unsigned long long)FindPreSendUpdate(), (unsigned long long)FindTickFlush());
             Hooking::Hook(FindTickFlush(), TickFlush__Iris, TickFlushOG);
+
+            // PostLoadHook  ig?
+            {
+                auto SetDormFn = AActor::GetDefaultObj()->GetFunction("SetNetDormancy");
+                printf("[Boron][Dormancy] CH5: installing SetNetDormancy hook (fn=%p flushDormancy=0x%llX)\n",
+                       (void*)SetDormFn, (unsigned long long)FindFlushDormancy());
+                if (SetDormFn)
+                    Hooking::Hook(__int64(SetDormFn->GetImpl()), SetNetDormancy, SetNetDormancyOG);
+            }
+
             return;
         }
         // cache
@@ -1026,4 +1244,5 @@ void UNetDriver::PostLoadHook()
         Hooking::Hook(__int64(AActor::GetDefaultObj()->GetFunction("FlushNetDormancy")->GetImpl()), FlushNetDormancy, FlushNetDormancyOG);
         Hooking::Hook(__int64(AActor::GetDefaultObj()->GetFunction("SetNetDormancy")->GetImpl()), SetNetDormancy, SetNetDormancyOG);
     }
+    
 }

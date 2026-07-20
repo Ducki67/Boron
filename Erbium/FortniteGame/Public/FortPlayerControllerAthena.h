@@ -54,6 +54,7 @@ public:
     UCLASS_COMMON_MEMBERS(UAthenaCharacterItemDefinition);
 
     DEFINE_PROP(HeroDefinition, UFortHeroType*);
+    DEFINE_PROP(BaseCharacterParts, TArray<TSoftObjectPtr<UCustomCharacterPart>>);
 };
 
 struct FPartVariantDef
@@ -99,6 +100,53 @@ public:
     DEFINE_STRUCT_PROP(Backpack, UAthenaCharacterPartItemDefinition*);
     DEFINE_STRUCT_PROP(Pickaxe, UAthenaPickaxeItemDefinition*);
     DEFINE_STRUCT_PROP(CharacterVariantChannels, TArray<FMcpVariantChannelInfo>);
+};
+
+struct FCosmeticLoadoutActiveArchetype
+{
+public:
+    USCRIPTSTRUCT_COMMON_MEMBERS(FCosmeticLoadoutActiveArchetype);
+
+    DEFINE_STRUCT_PROP(ArchetypeGroupTag, FGameplayTag);
+    DEFINE_STRUCT_PROP(ArchetypeTag, FGameplayTag);
+};
+
+struct FCosmeticLoadoutSlot
+{
+public:
+    USCRIPTSTRUCT_COMMON_MEMBERS(FCosmeticLoadoutSlot);
+
+    DEFINE_STRUCT_PROP(SlotTemplate, UObject*);
+    DEFINE_STRUCT_PROP(EquippedItemDefinitionObject, UObject*);
+};
+
+struct FCosmeticLoadout
+{
+public:
+    USCRIPTSTRUCT_COMMON_MEMBERS(FCosmeticLoadout);
+
+    DEFINE_STRUCT_PROP(Slots, TArray<FCosmeticLoadoutSlot>);
+};
+
+class UFortCosmeticLoadoutComponent : public UObject
+{
+public:
+    UCLASS_COMMON_MEMBERS(UFortCosmeticLoadoutComponent);
+
+    DEFINE_FUNC(OnRep_CosmeticLoadout, void);
+};
+
+class UFortControllerComponent_CosmeticLoadout : public UObject
+{
+public:
+    UCLASS_COMMON_MEMBERS(UFortControllerComponent_CosmeticLoadout);
+
+    DEFINE_PROP(CosmeticLoadout, FCosmeticLoadout);
+    DEFINE_PROP(ActiveArchetypes, TArray<FCosmeticLoadoutActiveArchetype>);
+    DEFINE_PROP(CachedAthenaLoadout, FFortAthenaLoadout);
+
+    DEFINE_FUNC(OnRep_CosmeticLoadout, void);
+    DEFINE_FUNC(OnRep_ActiveArchetypes, void);
 };
 
 struct FFortPlayerDeathReport
@@ -374,9 +422,10 @@ public:
     DEFINE_FUNC(ServerPlayEmoteItem, void);
 
     static void ServerAcknowledgePossession(UObject*, FFrame&);
+    DefHookOg(void, ServerAcknowledgePossession_Native, AFortPlayerControllerAthena*, AActor*);
     DefHookOg(void, GetPlayerViewPoint, AFortPlayerControllerAthena*, FVector&, FRotator&);
     DefHookOg(void, ServerAttemptAircraftJump_, UObject*, FFrame&);
-    static void ServerExecuteInventoryItem_(UObject*, FFrame&);
+    DefUHookOg(ServerExecuteInventoryItem_);
     static void ServerExecuteInventoryWeapon(UObject*, FFrame&);
     static void ServerCreateBuildingActor(UObject*, FFrame&);
     static void ServerBeginEditingBuildingActor(UObject*, FFrame&);
@@ -401,6 +450,7 @@ public:
     static void ServerCreativeSetFlightSpeedIndex(UObject*, FFrame&);
     static void ServerCreativeSetFlightSprint(UObject*, FFrame&);
     DefUHookOg(ServerAwardVehicleTrickPoints_);
+    DefUHookOg(ServerSetMultiProductCosmeticLoadout_);
     static void ServerOnMaterialSelection(UObject*, FFrame&);
     static void ServerPlaySquadQuickChatMessage(UObject*, FFrame&);
 

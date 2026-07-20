@@ -8,6 +8,16 @@
 ///#define AUTOHOSTER_CONFIGURATOR // this will be for autohoster exes so the exe it self can change all configs even if the dll is compiled  (Coming later)
 
 
+/*
+S30+ exepermenttal support notes:
+set the Playlist id's path to start with "/BRPlaylists/..."
+set bSaveConsoleLog to true
+set bUseStdoutLog to true
+set bGUI to false (for now this is very needed)
+
+*/
+
+
 
 struct LategameConfig
 {
@@ -53,6 +63,8 @@ struct GameRuleConfig
     static inline auto bKeepInventory = false;
     static inline auto bCreativeExtraAmmo = false; // this is buggy btw! fuckes inventory up a bit (dont use it unless u wanna see the bug)
     static inline auto bBossAI = false; // VERY VERY experimental (might not be fixed later) - patrol/chase/shoot + mythic/keycard drops
+   
+    static inline auto bCH5AutoPickupWeapons = false; //temp shit dont use it its ass
 };
 
 struct DiscordWebhookConfig
@@ -76,6 +88,8 @@ struct FConfig
 
     static inline auto bGameSessions = false; // GSS  for GSSMMs and backends (TDOD: wayy more later tho but ill add it)
 
+    // NOTE:  /BRPlaylists/  is teh correct path AND "durian"  doesnt exist on s30+
+    //  also if u looking for playlist ids look at: https://github.com/Ducki67/OGFN-Build-Dumps  i have some ids there and might upload some more
     static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo";
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Showdown/Playlist_ShowdownAlt_Solo.Playlist_ShowdownAlt_Solo";
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2";  // creative
@@ -104,8 +118,8 @@ struct FConfig
     static inline auto bEnableIris = true;
     static inline constexpr auto bGUI = true;
     static inline constexpr auto bCustomCrashReporter = true;
-    static inline constexpr auto bUseStdoutLog = false;
-    static inline constexpr auto bSaveConsoleLog = true; // tee everything printed to the console into Boron_Console.txt (console stays live)
+    static inline constexpr auto bUseStdoutLog = true;
+    static inline constexpr auto bSaveConsoleLog = false; // for 31.41 use this to check for some logs Boron_Console.txt  btw) 
 
     struct CreativeModeConfig
     {   // TODO: fix island not laoding on s7 creative  i swear its the same code but on s8+ works but not on s7 what thge helly :sob:

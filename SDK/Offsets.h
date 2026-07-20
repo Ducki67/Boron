@@ -1,6 +1,7 @@
 #pragma once
 #include "Memcury.h"
 #include <array>
+#include <cstdio>
 
 namespace SDK
 {
@@ -472,6 +473,25 @@ namespace SDK
             else
                 Offsets::SpawnActor = sRef.ScanFor({ 0x4C, 0x8B, 0xDC }, false, 0, 1, 3000).Get();
         }
+
+        printf("[Boron][Init] EngineVersion=%.2f FortniteVersion=%.2f\n", VersionInfo.EngineVersion, VersionInfo.FortniteVersion);
+        auto BoronChk = [](const char* Name, uint64_t Val)
+        {
+            printf("[Boron][Init] %-22s %s  (0x%llx)\n", Name, Val ? "OK      " : "FAIL <<<", (unsigned long long)Val);
+        };
+        BoronChk("Realloc", Offsets::Realloc);
+        BoronChk("AppendString", Offsets::AppendString);
+        BoronChk("ToString", Offsets::ToString);
+        BoronChk("ProcessEvent(addr)", (uint64_t)addr);
+        BoronChk("GObjectsChunked", Offsets::GObjectsChunked);
+        BoronChk("GObjectsUnchunked", Offsets::GObjectsUnchunked);
+        BoronChk("Step", Offsets::Step);
+        BoronChk("StepExplicitProperty", Offsets::StepExplicitProperty);
+        BoronChk("GetInterfaceAddress", Offsets::GetInterfaceAddress);
+        BoronChk("StaticFindObject", Offsets::StaticFindObject);
+        BoronChk("StaticLoadObject", Offsets::StaticLoadObject);
+        BoronChk("FNameConstructor", Offsets::FNameConstructor);
+        BoronChk("SpawnActor", Offsets::SpawnActor);
 
         InitializeProcessEventVft(addr);
     }

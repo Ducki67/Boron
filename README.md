@@ -23,7 +23,7 @@ A modifiyed/forked Erbium gameserver with my own features and fixes
   - [ ] Player manager tab. (soon)
   - [x] Calendar tab. (e.g: full snow map on s11)  *(s11 snow wired; s13 water + s19 snow still needs so work tho)*
   - [x] LateGame tab. *(slots 1-5 + counts + moving-bus toggle should work)*
-  - [x] Pre-StartServer tab (Main tab's new feature). (for manual server setup mode)  *(MANUAL_SERVER_SETUP + "Setup server" button done)*
+  - [x] Pre-StartServer options (Main tab's new feature). (for manual server setup mode)  *(MANUAL_SERVER_SETUP + "Setup server" button done)*
   
 - [ ] **Gameplay**
   - [ ] Projectile guns on 28.xx and 29.xx versions. **5% Done** *(scaffold in Misc.cpp, hook disabled at :658)*
@@ -39,11 +39,32 @@ A modifiyed/forked Erbium gameserver with my own features and fixes
   - [ ] POI tp commands (hopefully on every season, later)
 
 - [ ] **Versions** (not decided yet)
-  - [ ] 30.20  *(version detection already handles >=30)*
-  - [ ] 31.41 *(maybe but it should be less fcked)*
+  - [ ] ~~ 30.20  *(version detection already handles >=30)* ~~
+  - [x] 31.41 *(maybe but it should be less fcked)* **9% Done**
 
 
 </details>
+
+### S30+ EXPERMENTAL Support info.
+
+<details>
+
+Currently the only version that is "supported" is **31.41** C5S4.
+
+Progress: **9% Done**
+
+**Features (currently a lot missing)**
+- Walking simulator
+- In-game (BR island)
+- MME stuff (hurdle still needs fix and sprint needs stamin fix)
+- Chest, Ammo box looting
+- No pickaxe (yet)
+- No proper NetMode (yet)
+- No building and editing (yet)
+
+
+</details>
+
 
 If any1 has any suggestions what commands, fixes, gui additions i should add let me know.
 

@@ -198,6 +198,109 @@ uint64_t FindGetWorldContext()
     return GetWorldContext;
 }
 
+// Version-robust net-driver create finder (CH5/UE5.4+ where the byte-pattern finder mis-hits).
+// UEngine::CreateNamedNetDriver_Local(Engine, Context, NetDriverName, NetDriverDefinition) -> bool
+// builds + registers the game net driver into Context->ActiveNetDrivers. We anchor on its stable
+// warning string, then back up to the function prologue (same technique as FinishWorldInitialization).
+uint64 FindCreateNamedNetDriverLocal()
+{
+    static uint64_t Addr = 0;
+    static bool bInitialized = false;
+
+    if (bInitialized)
+        return Addr;
+    bInitialized = true;
+
+    // CH5/UE5.5 (31.41): direct prologue pattern for UEngine::CreateNamedNetDriver_Local
+    // (Engine, Context, NetDriverName, NetDriverDefinition) -> bool, from the 31.41 dump (fmgnio).
+    // This lands right on the function start, so it sidesteps the string-anchored cold-block walk
+    // below. Gated to 5.4+ (this finder is only ever called from the 5.4+ listen path) so pre-5.4
+    // builds are untouched.
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        Addr = Memcury::Scanner::FindPattern("48 8B C4 48 89 58 ? 48 89 68 ? 48 89 70 ? 44 89 40 ? 57 41 54 41 55 41 56 41 57 48 83 EC ? 48 63 81").Get();
+        if (Addr)
+        {
+            printf("[Boron][Finder] CreateNamedNetDriver_Local (pattern) = 0x%llX (RVA 0x%llX)\n",
+                   (unsigned long long)Addr, (unsigned long long)(Addr - ImageBase));
+            return Addr;
+        }
+        printf("[Boron][Finder] CreateNamedNetDriver_Local pattern MISS -> trying string anchor\n");
+    }
+
+    // UE5.1+ string refs can go through an .rdata pointer indirection -> bIsInFunc follows it.
+    // Try the likely wording variants (5.0->5.5 differs) both ways; log what actually matches.
+    const wchar_t* candidates[] = {
+        L"CreateNamedNetDriver failed to create driver %s from definition %s",
+        L"CreateNamedNetDriver failed to create driver from definition %s",
+        L"CreateNamedNetDriver failed to create driver",
+    };
+
+    uint64_t refAddr = 0;
+    for (auto c : candidates)
+    {
+        auto r1 = Memcury::Scanner::FindStringRef(c, false, 0, true, false).Get();   // indirection
+        auto r2 = r1 ? 0 : Memcury::Scanner::FindStringRef(c, false, 0, false, false).Get(); // direct
+        printf("[Boron][Finder] CNND strref inFunc=0x%llX direct=0x%llX | %ls\n",
+               (unsigned long long)r1, (unsigned long long)r2, c);
+        if (r1 || r2) { refAddr = r1 ? r1 : r2; break; }
+    }
+
+    if (!refAddr)
+    {
+        printf("[Boron][Finder] CreateNamedNetDriver_Local: NO string ref found by any variant\n");
+        return Addr = 0;
+    }
+
+    // The log ref lives in an OUTLINED cold block far from the hot function (its RVA is ~40MB
+    // away from the body). The cold block ends with a jmp back into the hot function -> follow
+    // that E9 jmp, then back up to the hot function's int3-padded start.
+    // The cold block ends by jmp-ing BACK into the hot function, which lives ~40MB lower in .text.
+    // Small local E9s inside the cold block must be skipped -> take the first FAR-BACKWARD jmp.
+    uint64_t jmpBack = 0;
+    for (int i = 0; i < 0x1400; i++)
+    {
+        auto Ptr = (uint8_t*)(refAddr + i);
+        if (*Ptr == 0xE9)
+        {
+            int32_t rel = *(int32_t*)(Ptr + 1);
+            uint64_t target = uint64_t(Ptr) + 5 + (int64_t)rel;
+            if (target < refAddr && (refAddr - target) > 0x100000) // far backward = jmp-back to hot fn
+            {
+                jmpBack = target;
+                break;
+            }
+        }
+    }
+
+    uint64_t scanBase = jmpBack ? jmpBack : refAddr;
+    for (int i = 0; i < 0x4000; i++)
+    {
+        auto Ptr = (uint8_t*)(scanBase - i);
+        if (*Ptr == 0xCC && *(Ptr - 1) == 0xCC && *(Ptr - 2) == 0xCC) // int3 padding before the function
+        {
+            Addr = uint64_t(Ptr) + 1;
+            break;
+        }
+    }
+
+    if (Addr)
+    {
+        uint8_t b0 = *(uint8_t*)Addr, b1 = *(uint8_t*)(Addr + 1);
+        bool looksLikePrologue =
+            (b0 == 0x48 && (b1 == 0x89 || b1 == 0x83 || b1 == 0x81 || b1 == 0x8B)) ||   // rex.w mov/sub/lea ...
+            (b0 == 0x40 && (b1 == 0x53 || b1 == 0x55 || b1 == 0x56 || b1 == 0x57)) ||   // push rbx/rbp/rsi/rdi
+            (b0 == 0x4C && b1 == 0x8B) ||                                               // mov r11, rsp
+            (b0 == 0x53 || b0 == 0x55 || b0 == 0x56 || b0 == 0x57);                     // push
+        if (!looksLikePrologue)
+            Addr = 0;
+    }
+
+    printf("[Boron][Finder] CreateNamedNetDriver_Local: ref=0x%llX jmpBack=0x%llX start=0x%llX\n",
+           (unsigned long long)refAddr, (unsigned long long)jmpBack, (unsigned long long)Addr);
+    return Addr;
+}
+
 uint64_t FindCreateNetDriver()
 {
     static uint64_t CreateNetDriver = 0;
@@ -2377,6 +2480,23 @@ uint64 FindPreSendUpdate()
     }
 
     return PreSendUpdate;
+}
+
+uint64 FindPostSendUpdate()
+{
+    static uint64_t PostSendUpdate = 0;
+    static bool bInitialized = false;
+
+    if (!bInitialized)
+    {
+        bInitialized = true;
+
+        auto sRef = Memcury::Scanner::FindStringRef("ReplicationSystem_PostSendUpdate");
+        if (sRef.IsValid())
+            PostSendUpdate = sRef.ScanFor({ 0x48, 0x89, 0x5C }, false).Get();
+    }
+
+    return PostSendUpdate;
 }
 
 uint64_t FindHandleMatchHasStarted()

@@ -461,6 +461,23 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::StartAircraftPhase()
 
     auto GameState = (AFortGameStateAthena*)UWorld::GetWorld()->GameState;
 
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        printf("[Boron][Aircraft] StartAircraftPhase: MapInfo=%p FlightInfos=%d AircraftClass=%p\n",
+               (void*)GameState->MapInfo,
+               GameState->MapInfo ? GameState->MapInfo->FlightInfos.Num() : -1,
+               GameState->MapInfo ? (void*)GameState->MapInfo->AircraftClass.Get() : nullptr);
+
+        if (GameState->HasDefaultParachuteDeployTraceForGroundDistance())
+        {
+            printf("[Boron][Aircraft] CH5 parachute deploy trace: %.1f -> 10000\n",
+                   GameState->DefaultParachuteDeployTraceForGroundDistance);
+            GameState->DefaultParachuteDeployTraceForGroundDistance = 10000.f;
+        }
+        else
+            printf("[Boron][Aircraft] CH5 parachute deploy trace prop MISSING on this build\n");
+    }
+
     if (GameState->MapInfo->FlightInfos.Num() > 0)
     {
         // TArray<TWeakObjectPtr<AFortAthenaAircraft>> Aircrafts;
@@ -545,6 +562,52 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::StartAircraftPhase()
         Aircrafts_GameState.Add(Aircraft);
         // SetAircrafts(Aircrafts);
         // OnRep_Aircrafts();
+
+        if (VersionInfo.EngineVersion >= 5.4)
+            printf("[Boron][Aircraft] spawned bus=%p, Aircrafts_GameState.Num=%d\n", (void*)Aircraft, Aircrafts_GameState.Num());
+    }
+    else if (VersionInfo.EngineVersion >= 5.4)
+    {
+        // No flight path on this build (map's FlightInfos is empty; the proper bus needs the native
+        // InitializeFlightPath). CH5 drop-in fallback: skydive players onto the map from center and go
+        // straight to the storm, so the match is playable without a bus and never stalls in the empty
+        // Aircraft phase. Pre-5.4 / bus-spawned paths fall through to the normal Aircraft phase below.
+        printf("[Boron][Aircraft] NO bus (FlightInfos empty) -> CH5 drop-in: skydiving players onto the map\n");
+
+        auto Center = GameState->MapInfo->GetMapCenter();
+        auto GameMode = (AFortGameMode*)UWorld::GetWorld()->AuthorityGameMode;
+
+        int dropped = 0;
+        for (auto& P : GameMode->AlivePlayers)
+        {
+            auto Player = (AFortPlayerControllerAthena*)P;
+            auto Pawn = Player ? (AFortPlayerPawnAthena*)Player->Pawn : nullptr;
+            if (!Pawn)
+                continue;
+
+            FVector Loc = Center;
+            Loc.X += (float)(rand() % 16000) - 8000.f;
+            Loc.Y += (float)(rand() % 16000) - 8000.f;
+            Loc.Z = 15000.f;
+
+            if (Pawn->bIsInAnyStorm)
+            {
+                Pawn->bIsInAnyStorm = false;
+                Pawn->OnRep_IsInAnyStorm();
+            }
+            Pawn->bIsInsideSafeZone = true;
+            Pawn->OnRep_IsInsideSafeZone();
+
+            Pawn->K2_TeleportTo(Loc, FRotator());
+            Pawn->BeginSkydiving(false);
+            dropped++;
+        }
+
+        printf("[Boron][Aircraft] drop-in: %d players skydiving from center %.0f,%.0f\n", dropped, Center.X, Center.Y);
+
+        SetGamePhase(EAthenaGamePhase::SafeZones);
+        SetGamePhaseStep(EAthenaGamePhaseStep::StormForming);
+        return;
     }
 
     SetGamePhase(EAthenaGamePhase::Aircraft);
@@ -768,6 +831,10 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Hook()
 
     Reset_ = FindReset();
     SetGamePhase_ = FindSetGamePhase();
+
+    if (VersionInfo.EngineVersion >= 5.4)
+        printf("[Boron][PhaseLogic] Reset=0x%llX SetGamePhase=0x%llX HandleMatchHasStarted=0x%llX\n",
+               (unsigned long long)Reset_, (unsigned long long)SetGamePhase_, (unsigned long long)FindHandleMatchHasStarted());
 
     Hooking::Hook(FindHandleMatchHasStarted(), HandleMatchHasStarted, HandleMatchHasStartedOG);
 }

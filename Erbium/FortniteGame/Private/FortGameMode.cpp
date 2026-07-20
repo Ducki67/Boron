@@ -20,7 +20,11 @@
 #include "../Public/FortPlayerControllerAthena.h"
 #include "../Public/FortSafeZoneIndicator.h"
 #include "../Public/LevelStreamingDynamic.h"
+#include <cmath>
 #include <random>
+#include <string>
+#include <unordered_set>
+#include <vector>
 
 void ShowFoundation(const ABuildingFoundation* Foundation)
 {
@@ -52,12 +56,50 @@ void ShowFoundation(const ABuildingFoundation* Foundation)
 
 bool bIsLargeTeamGame = false;
 
+static UFortPlaylistAthena* FindLoadedPlaylist()
+{
+    std::wstring pathW = FConfig::Playlist;
+    auto slash = pathW.find_last_of(L'/');
+    auto dot = pathW.find_last_of(L'.');
+    std::wstring nameW = (dot != std::wstring::npos && (slash == std::wstring::npos || dot > slash))
+                             ? pathW.substr(slash + 1, dot - slash - 1)
+                             : (slash == std::wstring::npos ? pathW : pathW.substr(slash + 1));
+    auto WantIdx = FName(nameW.c_str()).ComparisonIndex;
+
+    TArray<UFortPlaylistAthena*> Playlists;
+    Utils::GetAll<UFortPlaylistAthena>(Playlists);
+    int found = Playlists.Num();
+
+    UFortPlaylistAthena* Result = nullptr;
+    for (int i = 0; i < Playlists.Num(); i++)
+    {
+        auto pl = Playlists[i];
+        if (!pl || !pl->HasPlaylistName())
+            continue;
+        if (!Result)
+            Result = pl;
+        if (pl->PlaylistName.ComparisonIndex == WantIdx)
+        {
+            Result = pl;
+            break;
+        }
+    }
+    printf("[Boron][Playlist] FindLoadedPlaylist: %d loaded, want '%ls' -> %p\n", found, nameW.c_str(), (void*)Result);
+    Playlists.Free();
+    return Result;
+}
+
 void SetupPlaylist(AFortGameMode* GameMode, AFortGameStateAthena* GameState)
 {
     auto Playlist = FindObject<UFortPlaylistAthena>(FConfig::Playlist);
 
     if (!Playlist)
         Playlist = FindObject<UFortPlaylistAthena>(L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo");
+
+    if (!Playlist)
+        Playlist = FindLoadedPlaylist();
+
+    printf("[Boron][Playlist] SetupPlaylist -> Playlist=%p\n", (void*)Playlist);
 
     if (Playlist)
     {
@@ -226,7 +268,23 @@ void AFortGameMode::ReadyToStartMatch_(UObject* Context, FFrame& Stack, bool* Re
     Stack.IncrementCode();
 
     static auto FrontendMode = FindClass("FortGameModeFrontend");
-    if (Context->IsA(FrontendMode))
+
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        static bool rtsmEnterLogged = false;
+        if (!rtsmEnterLogged)
+        {
+            rtsmEnterLogged = true;
+            printf("[Boron][RTSM] ENTER: Context=%p FrontendMode=%p IsFrontend=%d\n",
+                   (void*)Context,
+                   (void*)FrontendMode,
+                   (Context && FrontendMode) ? (int)Context->IsA(FrontendMode) : -1);
+        }
+    }
+
+    // If FindClass fails on this version (CH5 find-object quirks) FrontendMode is null;
+    // the guard keeps us from early-returning on a bad IsA. No-op where it's already valid.
+    if (FrontendMode && Context->IsA(FrontendMode))
     {
         *Ret = callOGWithRet(((AFortGameMode*)Context), Stack.GetCurrentNativeFunction(), ReadyToStartMatch);
         return;
@@ -244,13 +302,29 @@ void AFortGameMode::ReadyToStartMatch_(UObject* Context, FFrame& Stack, bool* Re
 #endif
 
     static bool setup = false;
-    if (GameMode->HasWarmupRequiredPlayerCount() ? GameMode->WarmupRequiredPlayerCount != 1 : !setup)
+
+    // CH5 (UE5.4+, 30.20/31.41/32.11): WarmupRequiredPlayerCount defaults to 1, so the
+    // original gate below never fires and the listen server is never created. Force the
+    // run-once path there. Pre-5.4 keeps the exact original gate -> older builds untouched.
+    bool shouldSetup = GameMode->HasWarmupRequiredPlayerCount() ? GameMode->WarmupRequiredPlayerCount != 1 : !setup;
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        if (!setup)
+            printf("[Boron][RTSM] first setup call: hasWarmupCount=%d warmupCount=%d\n",
+                   (int)GameMode->HasWarmupRequiredPlayerCount(),
+                   GameMode->HasWarmupRequiredPlayerCount() ? GameMode->WarmupRequiredPlayerCount : -1);
+        shouldSetup = !setup;
+    }
+
+    if (shouldSetup)
     {
         setup = true;
 
-        // if (!FindListenCall())
+        auto World = UWorld::GetWorld();
+        if (VersionInfo.EngineVersion >= 5.4 && World->NetDriver)
+            printf("[Boron][RTSM] NetDriver already exists (FWI listen path) -- skipping listen setup\n");
+        else
         {
-            auto World = UWorld::GetWorld();
             auto Engine = UEngine::GetEngine();
             auto NetDriverName = FName(L"GameNetDriver");
 
@@ -284,6 +358,14 @@ void AFortGameMode::ReadyToStartMatch_(UObject* Context, FFrame& Stack, bool* Re
                 }
                 World->NetDriver = NetDriver = ((UNetDriver * (*)(UEngine*, UWorld*, FName)) CreateNetDriverFn)(Engine, World, NetDriverName);
             }
+            if ((uintptr_t)NetDriver < 0x10000)
+            {
+                printf("[Boron] NetDriver setup aborted: create returned bad pointer %p for FN %.2f - wrong finder hit (see MEMORY.md CreateNamedNetDriver_Local gotcha)\n", (void*)NetDriver, VersionInfo.FortniteVersion);
+                World->NetDriver = nullptr;
+                setup = false;
+                *Ret = false;
+                return;
+            }
             if (VersionInfo.FortniteVersion >= 20)
                 NetDriver->NetServerMaxTickRate = 30;
 
@@ -309,15 +391,26 @@ void AFortGameMode::ReadyToStartMatch_(UObject* Context, FFrame& Stack, bool* Re
             memset((PBYTE)URL, 0, FURL::Size());
             URL->Port = FConfig::Port;
 
-            auto InitListen = (bool (*)(UNetDriver*, UWorld*, FURL*, bool, FString&))FindInitListen();
-            auto SetWorld = (void (*)(UNetDriver*, UWorld*))FindSetWorld();
+            auto InitListenFn = FindInitListen();
+            auto SetWorldFn = FindSetWorld();
 
-            SetWorld(NetDriver, World);
-            FString Err;
-            if (InitListen(NetDriver, World, URL, false, Err))
+            if (InitListenFn && SetWorldFn)
+            {
+                auto InitListen = (bool (*)(UNetDriver*, UWorld*, FURL*, bool, FString&))InitListenFn;
+                auto SetWorld = (void (*)(UNetDriver*, UWorld*))SetWorldFn;
+
                 SetWorld(NetDriver, World);
+                FString Err;
+                if (InitListen(NetDriver, World, URL, false, Err))
+                {
+                    printf("[Boron] InitListen OK -- GameNetDriver listening on port %d\n", FConfig::Port);
+                    SetWorld(NetDriver, World);
+                }
+                else
+                    printf("Failed to listen!\n");
+            }
             else
-                printf("Failed to listen!");
+                printf("[Boron] Listen aborted: InitListen=0x%llX SetWorld=0x%llX missing for FN %.2f - add a signature in Finders.cpp\n", (unsigned long long)InitListenFn, (unsigned long long)SetWorldFn, VersionInfo.FortniteVersion);
 
             free(URL);
         }
@@ -962,6 +1055,12 @@ void AFortGameMode::SpawnDefaultPawnFor(UObject* Context, FFrame& Stack, AActor*
     Stack.IncrementCode();
     auto GameMode = (AFortGameMode*)Context;
 
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        static bool once = false;
+        if (!once) { once = true; printf("[Boron][ExecProbe] SpawnDefaultPawnFor FIRED\n"); }
+    }
+
     if (!NewPlayer || !StartSpot)
         return;
 
@@ -1148,6 +1247,57 @@ void AFortGameMode::SpawnDefaultPawnFor(UObject* Context, FFrame& Stack, AActor*
     }
 }
 
+AActor* AFortGameMode::SpawnDefaultPawnFor_Native(AFortGameMode* GameMode, AFortPlayerControllerAthena* NewPlayer, AActor* StartSpot)
+{
+    static bool once = false;
+    if (!once)
+    {
+        once = true;
+        printf("[Boron][ExecProbe] SpawnDefaultPawnFor_Native FIRED (address hook)\n");
+    }
+
+    if (!GameMode || !NewPlayer)
+        return SpawnDefaultPawnFor_NativeOG ? SpawnDefaultPawnFor_NativeOG(GameMode, NewPlayer, StartSpot) : nullptr;
+
+    AFortPlayerPawnAthena* Pawn = nullptr;
+
+    if (SpawnDefaultPawnFor_NativeOG)
+        Pawn = (AFortPlayerPawnAthena*)SpawnDefaultPawnFor_NativeOG(GameMode, NewPlayer, StartSpot);
+
+    if (!Pawn)
+    {
+        auto PawnClass = GameMode->GetDefaultPawnClassForController(NewPlayer);
+
+        if (StartSpot)
+            Pawn = (AFortPlayerPawnAthena*)UWorld::SpawnActor(PawnClass, StartSpot->GetTransform(), NewPlayer, 3);
+
+        for (int tries = 0; !Pawn && tries < 8; tries++)
+        {
+            auto PlayerStart = GameMode->ChoosePlayerStart(NewPlayer);
+            if (!PlayerStart)
+                break;
+            Pawn = (AFortPlayerPawnAthena*)UWorld::SpawnActor(PawnClass, PlayerStart->GetTransform(), NewPlayer, 3);
+        }
+    }
+
+    if (VersionInfo.EngineVersion >= 5.4 && Pawn)
+    {
+        if (!NewPlayer->MyFortPawn)
+            NewPlayer->MyFortPawn = Pawn;
+
+        if (!NewPlayer->Pawn)
+            NewPlayer->Pawn = Pawn;
+
+        printf("[Boron][Cosmetics] pre-registered pawn at spawn: MyFortPawn=%p Pawn=%p\n",
+               (void*)NewPlayer->MyFortPawn, (void*)NewPlayer->Pawn);
+    }
+
+    printf("[Boron][Pawn] SpawnDefaultPawnFor_Native -> Pawn=%p StartSpot=%p native=%s\n",
+           (void*)Pawn, (void*)StartSpot, SpawnDefaultPawnFor_NativeOG ? "yes" : "no");
+
+    return Pawn;
+}
+
 void AFortGameMode::HandlePostSafeZonePhaseChanged(AFortGameMode* GameMode, int NewSafeZonePhase_Inp)
 {
     if (!GameMode->SafeZoneIndicator)
@@ -1269,12 +1419,8 @@ void AFortGameMode::HandlePostSafeZonePhaseChanged(AFortGameMode* GameMode, int 
 
 uint64_t NotifyGameMemberAdded_ = 0;
 int16_t WorldPlayerId = 0;
-void AFortGameMode::HandleStartingNewPlayer_(UObject* Context, FFrame& Stack)
+static void HandleStartingNewPlayer_Impl(AFortGameMode* GameMode, AFortPlayerControllerAthena* NewPlayer)
 {
-    AFortPlayerControllerAthena* NewPlayer;
-    Stack.StepCompiledIn(&NewPlayer);
-    Stack.IncrementCode();
-    auto GameMode = (AFortGameMode*)Context;
     auto GameState = (AFortGameStateAthena*)GameMode->GameState;
     AFortPlayerStateAthena* PlayerState = (AFortPlayerStateAthena*)NewPlayer->PlayerState;
 
@@ -1325,8 +1471,36 @@ void AFortGameMode::HandleStartingNewPlayer_(UObject* Context, FFrame& Stack)
         AFortAthenaCreativePortal::Create(NewPlayer);
 
     PlayerState->WorldPlayerId = WorldPlayerId;
+}
+
+void AFortGameMode::HandleStartingNewPlayer_(UObject* Context, FFrame& Stack)
+{
+    AFortPlayerControllerAthena* NewPlayer;
+    Stack.StepCompiledIn(&NewPlayer);
+    Stack.IncrementCode();
+    auto GameMode = (AFortGameMode*)Context;
+
+    HandleStartingNewPlayer_Impl(GameMode, NewPlayer);
 
     return callOG(GameMode, Stack.GetCurrentNativeFunction(), HandleStartingNewPlayer, NewPlayer);
+}
+
+void AFortGameMode::HandleStartingNewPlayer_Native(AFortGameMode* GameMode, AFortPlayerControllerAthena* NewPlayer)
+{
+    static bool once = false;
+    if (!once) { once = true; printf("[Boron][ExecProbe] HandleStartingNewPlayer_Native FIRED (address hook)\n"); }
+
+    if (!GameMode || !NewPlayer)
+    {
+        if (HandleStartingNewPlayer_NativeOG)
+            HandleStartingNewPlayer_NativeOG(GameMode, NewPlayer);
+        return;
+    }
+
+    HandleStartingNewPlayer_Impl(GameMode, NewPlayer);
+
+    if (HandleStartingNewPlayer_NativeOG)
+        HandleStartingNewPlayer_NativeOG(GameMode, NewPlayer);
 }
 
 uint8_t AFortGameMode::PickTeam(AFortGameMode* GameMode, uint8_t PreferredTeam, AFortPlayerControllerAthena* Controller)
@@ -1766,6 +1940,157 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
     printf("[GameMode] FinishWorldInitialization\n");
     FinishWorldInitializationOG(_this, WorldManager);
 
+    // CH5 (UE5.4+): ReadyToStartMatch is called natively and bypasses its ExecHook, so the
+    // listen setup there never runs. FinishWorldInitialization is an address-detour hook that
+    // DOES fire on CH5 (this Athena-specific function) -> bring the listen server up here, once.
+    // Pre-5.4 is untouched (still handled by ReadyToStartMatch_).
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        static UWorld* listenDoneWorld = nullptr;
+        auto CurWorld = UWorld::GetWorld();
+        if (listenDoneWorld != CurWorld && GameMode && CurWorld && !CurWorld->NetDriver)
+        {
+            listenDoneWorld = CurWorld;
+
+            auto Engine = UEngine::GetEngine();
+            auto NetDriverName = FName(L"GameNetDriver");
+
+            if (GameMode->HasbEnableReplicationGraph())
+                GameMode->bEnableReplicationGraph = true;
+
+            auto GetWorldContextFn = FindGetWorldContext();
+            auto CreateNamedLocalFn = FindCreateNamedNetDriverLocal();
+
+            printf("[Boron][FWI-Listen] World=%p Engine=%p GetWorldCtx=0x%llX CreateNamedNetDriver_Local=0x%llX\n",
+                   (void*)CurWorld, (void*)Engine,
+                   (unsigned long long)GetWorldContextFn, (unsigned long long)CreateNamedLocalFn);
+
+            if (!GetWorldContextFn || !CreateNamedLocalFn)
+            {
+                printf("[Boron][FWI-Listen] aborted: finders missing for FN %.2f (GetWorldCtx=%d CreateNamedLocal=%d)\n",
+                       VersionInfo.FortniteVersion, GetWorldContextFn != 0, CreateNamedLocalFn != 0);
+                listenDoneWorld = nullptr;
+            }
+            else
+            {
+                void* WorldCtx = ((void* (*)(UEngine*, UWorld*))GetWorldContextFn)(Engine, CurWorld);
+                printf("[Boron][FWI-Listen] WorldCtx=%p\n", WorldCtx);
+
+                UNetDriver* NetDriver = nullptr;
+                if ((uintptr_t)WorldCtx < 0x10000 || (uintptr_t)WorldCtx >= 0x7FFFFFFFFFFFull)
+                    printf("[Boron][FWI-Listen] aborted: GetWorldContext returned a bad pointer -> FindGetWorldContext sig wrong for FN %.2f\n", VersionInfo.FortniteVersion);
+                else
+                {
+                    // CreateNamedNetDriver_Local(Engine, Context, Name, Definition) builds + registers the
+                    // driver into Context->ActiveNetDrivers (returns bool). Then read the driver back out:
+                    // FWorldContext::ActiveNetDrivers @ 0x208 (TArray<FNamedNetDriver>); FNamedNetDriver{ UNetDriver* @ 0x0 } size 0x10.
+                    ((char (*)(UEngine*, void*, FName, FName))CreateNamedLocalFn)(Engine, WorldCtx, NetDriverName, NetDriverName);
+
+                    uint8_t* AndData = *(uint8_t**)((uint8_t*)WorldCtx + 0x208);
+                    int32_t AndNum = *(int32_t*)((uint8_t*)WorldCtx + 0x210);
+                    if (AndData)
+                        for (int i = AndNum - 1; i >= 0 && !NetDriver; i--)
+                            NetDriver = *(UNetDriver**)(AndData + (size_t)i * 0x10);
+
+                    printf("[Boron][FWI-Listen] CreateNamedNetDriver_Local -> ActiveNetDrivers.Num=%d NetDriver=%p\n", AndNum, (void*)NetDriver);
+                }
+
+                CurWorld->NetDriver = NetDriver;
+
+                if (!NetDriver)
+                {
+                    printf("[Boron][FWI-Listen] no NetDriver produced (WorldCtx=%p)\n", WorldCtx);
+                    listenDoneWorld = nullptr;
+                }
+                else
+                {
+                    if (VersionInfo.FortniteVersion >= 20)
+                        NetDriver->NetServerMaxTickRate = 30;
+
+                    NetDriver->NetDriverName = NetDriverName;
+                    NetDriver->World = CurWorld;
+
+                    if (VersionInfo.EngineVersion >= 5.3 && FConfig::bEnableIris)
+                        *(bool*)(__int64(&NetDriver->ReplicationDriver) + 0x11) = true;
+
+                    for (int i = 0; i < CurWorld->LevelCollections.Num(); i++)
+                    {
+                        auto& LevelCollection = CurWorld->LevelCollections.Get(i, FLevelCollection::Size());
+                        LevelCollection.NetDriver = NetDriver;
+                    }
+
+                    auto URL = (FURL*)malloc(FURL::Size());
+                    memset((PBYTE)URL, 0, FURL::Size());
+                    URL->Port = FConfig::Port;
+
+                    auto InitListenFn = FindInitListen();
+                    auto SetWorldFn = FindSetWorld();
+                    printf("[Boron][FWI-Listen] InitListen=0x%llX SetWorld=0x%llX\n",
+                           (unsigned long long)InitListenFn, (unsigned long long)SetWorldFn);
+
+                    if (!InitListenFn || !SetWorldFn)
+                        printf("[Boron][FWI-Listen] aborted: InitListen/SetWorld finder missing on FN %.2f\n", VersionInfo.FortniteVersion);
+                    else
+                    {
+                        auto InitListen = (bool (*)(UNetDriver*, UWorld*, FURL*, bool, FString&))InitListenFn;
+                        auto SetWorld = (void (*)(UNetDriver*, UWorld*))SetWorldFn;
+
+                        SetWorld(NetDriver, CurWorld);
+                        FString Err;
+                        if (InitListen(NetDriver, CurWorld, URL, false, Err))
+                        {
+                            printf("[Boron][FWI-Listen] InitListen OK -- GameNetDriver listening on port %d\n", FConfig::Port);
+                            SetWorld(NetDriver, CurWorld);
+                        }
+                        else
+                            printf("[Boron][FWI-Listen] Failed to listen!\n");
+                    }
+
+                    free(URL);
+                }
+            }
+        }
+    }
+
+    if (VersionInfo.EngineVersion >= 5.4 && GameState)
+    {
+        static UWorld* playlistDoneWorld = nullptr;
+        auto PlaylistWorld = UWorld::GetWorld();
+        if (playlistDoneWorld != PlaylistWorld && PlaylistWorld)
+        {
+            playlistDoneWorld = PlaylistWorld;
+
+            printf("[Boron][Playlist] CH5 FWI: calling SetupPlaylist (GameState=%p World=%p)\n", (void*)GameState, (void*)PlaylistWorld);
+            SetupPlaylist(GameMode, GameState);
+
+            auto PawnClass = FindObject<UClass>(L"/Game/Athena/PlayerPawn_Athena.PlayerPawn_Athena_C");
+            if (PawnClass && GameMode->HasDefaultPawnClass())
+                GameMode->DefaultPawnClass = PawnClass;
+
+            if (GameMode->HasbWorldIsReady())
+                GameMode->bWorldIsReady = true;
+
+            printf("[Boron][Playlist] CH5 FWI: DefaultPawnClass=%p bWorldIsReady=1 warmup-count deferred until first client\n", (void*)PawnClass);
+
+            // CH5: generate the flight path so the real Battle Bus can spawn (MapInfo->FlightInfos starts
+            // empty on CH5). No-op until FindInitializeFlightPath() returns a verified 31.41 address, in
+            // which case StartAircraftPhase spawns the bus instead of using the drop-in fallback.
+            auto InitFlightPathFn = FindInitializeFlightPath();
+            printf("[Boron][Aircraft] CH5 FWI: InitializeFlightPath finder=0x%llX MapInfo=%p\n", (unsigned long long)InitFlightPathFn, (void*)(GameState->HasMapInfo() ? GameState->MapInfo : nullptr));
+            if (InitFlightPathFn && GameState->HasMapInfo() && GameState->MapInfo)
+            {
+                auto GamePhaseLogic = UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Get(GameState);
+                if (GamePhaseLogic)
+                {
+                    ((void (*)(AFortAthenaMapInfo*, AFortGameStateAthena*, UFortGameStateComponent_BattleRoyaleGamePhaseLogic*, bool, double, float, float))InitFlightPathFn)(
+                        GameState->MapInfo, GameState, GamePhaseLogic, false, 0.0, 0.f, 360.f);
+                    UFortGameStateComponent_BattleRoyaleGamePhaseLogic::GenerateStormCircles(GameState->MapInfo);
+                    printf("[Boron][Aircraft] CH5 FWI: InitializeFlightPath + GenerateStormCircles done -> FlightInfos.Num=%d\n", GameState->MapInfo->FlightInfos.Num());
+                }
+            }
+        }
+    }
+
     auto AddToTierData = [&](const UDataTable* Table, TArray<FFortLootTierData*>& TempArr)
     {
         if (!Table)
@@ -1974,8 +2299,35 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
             }
         }
 
-    UFortLootPackage::SpawnFloorLootForContainer(FindObject<UClass>(L"/Game/Athena/Environments/Blueprints/Tiered_Athena_FloorLoot_Warmup.Tiered_Athena_FloorLoot_Warmup_C"));
-    UFortLootPackage::SpawnFloorLootForContainer(FindObject<UClass>(L"/Game/Athena/Environments/Blueprints/Tiered_Athena_FloorLoot_01.Tiered_Athena_FloorLoot_01_C"));
+    auto FloorLootWarmupC = FindObject<UClass>(L"/Game/Athena/Environments/Blueprints/Tiered_Athena_FloorLoot_Warmup.Tiered_Athena_FloorLoot_Warmup_C");
+    auto FloorLoot01C = FindObject<UClass>(L"/Game/Athena/Environments/Blueprints/Tiered_Athena_FloorLoot_01.Tiered_Athena_FloorLoot_01_C");
+
+    if (VersionInfo.EngineVersion >= 5.4)
+        printf("[Boron][Loot] tables: TierGroups=%zu LootPackages=%zu | FloorLoot BP: Warmup=%p Floor01=%p (null BP => path wrong for 31.41)\n",
+               TierDataMap.size(), LootPackageMap.size(), (void*)FloorLootWarmupC, (void*)FloorLoot01C);
+
+    UFortLootPackage::SpawnFloorLootForContainer(FloorLootWarmupC);
+    UFortLootPackage::SpawnFloorLootForContainer(FloorLoot01C);
+
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        bCH5FloorLootTickEnabled = true;
+        printf("[Boron][Loot] CH5 periodic floor-loot rescan armed (Floor01C=%p at init)\n", (void*)FloorLoot01C);
+
+        if (GameMode->GameState && GameMode->GameState->HasAllPlayerBuildableClassesIndexLookup())
+            for (auto& [BClass, BHandle] : GameMode->GameState->AllPlayerBuildableClassesIndexLookup)
+                AFortGameStateAthena::BuildingClassMap[BHandle] = BClass;
+
+        printf("[Boron][Build] FWI BuildingClassMap=%zu entries\n", AFortGameStateAthena::BuildingClassMap.size());
+    }
+
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        TArray<AFortPickupAthena*> Pickups;
+        Utils::GetAll<AFortPickupAthena>(Pickups);
+        printf("[Boron][Loot] after SpawnFloorLoot: %d pickups now in world\n", Pickups.Num());
+        Pickups.Free();
+    }
 
     TArray<ABGAConsumableSpawner*> ConsumableSpawners{};
     Utils::GetAll<ABGAConsumableSpawner>(ConsumableSpawners);
@@ -2175,6 +2527,215 @@ void PlayerCanRestart(UObject* Context, FFrame& Stack, bool* Ret)
     *Ret = true;
 }
 
+void AFortGameMode::TickCH5FloorLoot()
+{
+    if (VersionInfo.EngineVersion < 5.4 || !bCH5FloorLootTickEnabled)
+        return;
+
+    static int tick = 0;
+    if ((tick++ % 600) != 0)
+        return;
+
+    static std::vector<const UClass*> LootClasses;
+    static std::unordered_set<unsigned long long> DoneLocs;
+    static int wave = 0;
+    wave++;
+
+    static const UClass* Floor01C = nullptr;
+    if (!Floor01C)
+    {
+        Floor01C = FindObject<UClass>(L"/Game/Athena/Environments/Blueprints/Tiered_Athena_FloorLoot_01.Tiered_Athena_FloorLoot_01_C");
+        if (Floor01C)
+        {
+            LootClasses.push_back(Floor01C);
+            printf("[Boron][Loot] wave %d: resolved Tiered_Athena_FloorLoot_01_C=%p\n", wave, (void*)Floor01C);
+        }
+    }
+
+    if (wave <= 24 && (wave % 4) == 1)
+    {
+        static std::unordered_set<std::string> DiagSeen;
+
+        for (int i = 0; i < TUObjectArray::Num(); i++)
+        {
+            auto Obj = TUObjectArray::GetObjectByIndex(i);
+
+            if (!Obj || !Obj->IsA(UClass::StaticClass()))
+                continue;
+
+            auto nm = Obj->Name.ToString();
+
+            if (!strstr(nm.c_str(), "FloorLoot") || strstr(nm.c_str(), "Warmup"))
+            {
+                if ((strstr(nm.c_str(), "ItemSpawn") || strstr(nm.c_str(), "LootSpawn") || strstr(nm.c_str(), "GameModePickup") || strstr(nm.c_str(), "Forager")) &&
+                    DiagSeen.insert(std::string(nm.c_str())).second)
+                    printf("[Boron][Loot] loot-ish class loaded: %s\n", nm.c_str());
+
+                continue;
+            }
+
+            if (std::find(LootClasses.begin(), LootClasses.end(), (const UClass*)Obj) != LootClasses.end())
+                continue;
+
+            printf("[Boron][Loot] wave %d: new floor-loot class %s (%p)\n", wave, nm.c_str(), (void*)Obj);
+            LootClasses.push_back((const UClass*)Obj);
+        }
+
+        TArray<ABGAConsumableSpawner*> CSpawners;
+        Utils::GetAll<ABGAConsumableSpawner>(CSpawners);
+
+        static int lastCs = -1;
+        if (CSpawners.Num() != lastCs)
+        {
+            lastCs = CSpawners.Num();
+            printf("[Boron][Loot] BGAConsumableSpawner count=%d\n", lastCs);
+        }
+        CSpawners.Free();
+    }
+
+    {
+        TArray<ABuildingContainer*> AllContainers;
+        Utils::GetAll<ABuildingContainer>(AllContainers);
+
+        static std::unordered_set<const void*> SeenClasses;
+        static std::unordered_set<const void*> AnchorClasses;
+        for (auto& C : AllContainers)
+        {
+            if (!C || !C->Class)
+                continue;
+
+            if (SeenClasses.insert((const void*)C->Class).second)
+            {
+                auto cn = C->Class->Name.ToString();
+                printf("[Boron][Loot] container class seen: %s (containers now=%d)\n", cn.c_str(), AllContainers.Num());
+
+                if (strstr(cn.c_str(), "Tiered_Chest") || strstr(cn.c_str(), "Tiered_Ammo"))
+                    AnchorClasses.insert((const void*)C->Class);
+            }
+        }
+
+        static FName FloorTG{};
+        static bool tgTried = false;
+        if (!tgTried)
+        {
+            tgTried = true;
+            if (auto WarmupCDO = (const ABuildingContainer*)DefaultObjImpl("Tiered_Athena_FloorLoot_Warmup_C"))
+            {
+                FloorTG = WarmupCDO->SearchLootTierGroup;
+                printf("[Boron][Loot] synthetic tier group=%s idx=%d\n", FloorTG.ToString().c_str(), FloorTG.ComparisonIndex);
+            }
+            else
+                printf("[Boron][Loot] synthetic tier group: warmup CDO not found\n");
+        }
+
+        static std::unordered_set<unsigned long long> SynthDone;
+        int synth = 0;
+
+        if (FloorTG.ComparisonIndex)
+            for (auto& C : AllContainers)
+            {
+                if (synth >= 150)
+                    break;
+
+                if (!C || !AnchorClasses.count((const void*)C->Class))
+                    continue;
+
+                auto Loc = C->K2_GetActorLocation();
+                auto qx = (unsigned long long)(long long)llround(Loc.X / 100.) & 0x1FFFFF;
+                auto qy = (unsigned long long)(long long)llround(Loc.Y / 100.) & 0x1FFFFF;
+                auto qz = (unsigned long long)(long long)llround(Loc.Z / 100.) & 0x1FFFFF;
+                if (!SynthDone.insert((qx << 42) | (qy << 21) | qz).second)
+                    continue;
+
+                auto ang = (float)rand() * 0.00019175345f;
+                Loc.X += cosf(ang) * 250.f;
+                Loc.Y += sinf(ang) * 250.f;
+                Loc.Z += 40.f;
+
+                auto TG = FloorTG;
+                UFortLootPackage::SpawnLoot(TG, Loc);
+                synth++;
+            }
+
+        if (synth)
+            printf("[Boron][Loot] synthetic floor loot: +%d (total anchors done=%zu)\n", synth, SynthDone.size());
+
+        AllContainers.Free();
+    }
+
+    for (auto Cls : LootClasses)
+    {
+        TArray<ABuildingContainer*> Containers;
+        Utils::GetAll<ABuildingContainer>(Cls, Containers);
+
+        int fresh = 0;
+        for (auto& Container : Containers)
+        {
+            if (!Container)
+                continue;
+
+            auto Loc = Container->K2_GetActorLocation();
+            auto qx = (unsigned long long)(long long)llround(Loc.X / 100.) & 0x1FFFFF;
+            auto qy = (unsigned long long)(long long)llround(Loc.Y / 100.) & 0x1FFFFF;
+            auto qz = (unsigned long long)(long long)llround(Loc.Z / 100.) & 0x1FFFFF;
+            auto Key = (qx << 42) | (qy << 21) | qz;
+
+            if (!DoneLocs.insert(Key).second)
+                continue;
+
+            Container->K2_DestroyActor();
+            fresh++;
+        }
+        Containers.Free();
+
+        if (fresh)
+            printf("[Boron][Loot] wave %d: class=%s newContainers=%d totalDone=%zu\n",
+                   wave, Cls->Name.ToString().c_str(), fresh, DoneLocs.size());
+    }
+}
+
+void AFortGameMode::TickCH5PickupDummies()
+{
+    if (VersionInfo.EngineVersion < 5.4 || !bCH5FloorLootTickEnabled)
+        return;
+
+    static int tick = 0;
+    if ((tick++ % 300) != 150)
+        return;
+
+    TArray<AFortPickupAthena*> Pickups;
+    Utils::GetAll<AFortPickupAthena>(Pickups);
+
+    int fixed = 0;
+    AFortPickupAthena* firstFixed = nullptr;
+    for (auto& P : Pickups)
+    {
+        if (!P || !P->HasPrimaryPickupDummyItem() || P->PrimaryPickupDummyItem)
+            continue;
+
+        auto Def = (UFortItemDefinition*)P->PrimaryPickupItemEntry.ItemDefinition;
+        if (!Def)
+            continue;
+
+        auto Dummy = (UFortWorldItem*)Def->CreateTemporaryItemInstanceBP(P->PrimaryPickupItemEntry.Count, P->PrimaryPickupItemEntry.Level);
+        if (!Dummy)
+            continue;
+
+        Dummy->ItemEntry.LoadedAmmo = P->PrimaryPickupItemEntry.LoadedAmmo;
+        P->PrimaryPickupDummyItem = (UObject*)Dummy;
+        if (!firstFixed)
+            firstFixed = P;
+        fixed++;
+    }
+
+    static int logged = 0;
+    if (fixed && logged++ < 25)
+        printf("[Boron][Pickup] dummy fixup: %d dummies created, sample dummy now=%p\n",
+               fixed, firstFixed ? (void*)firstFixed->PrimaryPickupDummyItem : nullptr);
+
+    Pickups.Free();
+}
+
 void AFortGameMode::Hook()
 {
     Hooking::ExecHook(GetDefaultObj()->GetFunction("ReadyToStartMatch"), ReadyToStartMatch_, ReadyToStartMatch_OG);
@@ -2189,11 +2750,38 @@ void AFortGameMode::PostLoadHook()
     ApplyCharacterCustomization = FindApplyCharacterCustomization();
     NotifyGameMemberAdded_ = FindNotifyGameMemberAdded();
 
+    if (VersionInfo.EngineVersion >= 5.4)
+        printf("[Boron][Cosmetics] ApplyCharacterCustomization=0x%llX NotifyGameMemberAdded=0x%llX\n",
+               (unsigned long long)ApplyCharacterCustomization, (unsigned long long)NotifyGameMemberAdded_);
+
     auto spdf = GetDefaultObj()->GetFunction("SpawnDefaultPawnFor");
     SpawnDefaultPawnForIdx = spdf->GetVTableIndex();
 
-    Hooking::ExecHook(spdf, SpawnDefaultPawnFor);
-    Hooking::ExecHook(GetDefaultObj()->GetFunction("HandleStartingNewPlayer"), HandleStartingNewPlayer_, HandleStartingNewPlayer_OG);
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        auto AthenaCDO = AFortGameModeAthena::GetDefaultObj();
+        auto SpawnPawnAddr = (AthenaCDO && SpawnDefaultPawnForIdx != (uint32_t)-1) ? (uintptr_t)AthenaCDO->Vft[SpawnDefaultPawnForIdx] : 0;
+        printf("[Boron][Pawn] SpawnDefaultPawnFor: idx=%u athenaVftAddr=0x%llX (exec bypassed on 5.4+, using address hook)\n",
+               SpawnDefaultPawnForIdx, (unsigned long long)SpawnPawnAddr);
+        if (SpawnPawnAddr)
+            Hooking::Hook(SpawnPawnAddr, SpawnDefaultPawnFor_Native, SpawnDefaultPawnFor_NativeOG);
+    }
+    else
+        Hooking::ExecHook(spdf, SpawnDefaultPawnFor);
+
+    auto hsnp = GetDefaultObj()->GetFunction("HandleStartingNewPlayer");
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        auto AthenaCDO = AFortGameModeAthena::GetDefaultObj();
+        auto hsnpIdx = hsnp->GetVTableIndex();
+        auto HsnpAddr = (AthenaCDO && hsnpIdx != (uint32_t)-1) ? (uintptr_t)AthenaCDO->Vft[hsnpIdx] : 0;
+        printf("[Boron][Pawn] HandleStartingNewPlayer: idx=%u athenaVftAddr=0x%llX (address hook)\n",
+               hsnpIdx, (unsigned long long)HsnpAddr);
+        if (HsnpAddr)
+            Hooking::Hook(HsnpAddr, HandleStartingNewPlayer_Native, HandleStartingNewPlayer_NativeOG);
+    }
+    else
+        Hooking::ExecHook(hsnp, HandleStartingNewPlayer_, HandleStartingNewPlayer_OG);
     Hooking::Hook(FindPickTeam(), PickTeam, PickTeamOG);
     if (VersionInfo.FortniteVersion < 25.20)
     {

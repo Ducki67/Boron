@@ -2,6 +2,7 @@
 #include "../../../Erbium/Erbium/Public/Configuration.h"
 #include "../Public/Client.h"
 #include <thread>
+#include <cstdio>
 
 void ForceIris(uintptr_t IrisBool)
 {
@@ -24,12 +25,35 @@ void ForceIris(uintptr_t IrisBool)
     }
 }
 
+bool RetFalse()
+{
+    return false;
+}
+
 void Main()
 {
+    AllocConsole();
+    FILE* s;
+    freopen_s(&s, "CONOUT$", "w", stdout);
+    freopen_s(&s, "CONOUT$", "w+", stderr);
+    freopen_s(&s, "CONIN$", "r", stdin);
+    SetConsoleTitleA("BoronClient");
+
     SDK::Init();
 
-    if (wcscmp(FConfig::Playlist, L"/DurianPlaylist/Playlist/Playlist_Durian.Playlist_Durian") == 0)
+
+        if (wcscmp(FConfig::Playlist, L"/DurianPlaylist/Playlist/Playlist_Durian.Playlist_Durian") == 0);
         FConfig::bEnableIris = false;
+        if(wcscmp(FConfig::Playlist, L"/BRPlaylists/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo") == 0) // /BRPlaylists/  is teh correct path AND "durian"  doesnt exist on s31 :(
+        FConfig::bEnableIris = false;
+
+    // testing
+    if (VersionInfo.FortniteVersion == 31.41)
+    {
+        auto Address = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 48 83 EC ? 48 8B F9 40 32 F6 E8").Get();
+        Hooking::InternalHook(Address, RetFalse, 0);
+
+    }
 
     if (VersionInfo.EngineVersion >= 5.0)
     {
@@ -94,7 +118,18 @@ void Main()
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.TacticalSprint 0"), nullptr);
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Hurdle 0"), nullptr);
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Sliding 0"), nullptr);
+
+
         // UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Clambering 0"), nullptr);
+        /*
+        auto JoinGate = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 48 83 EC ? 48 8B F9 40 32 F6 E8").Get();
+        printf("[BoronClient] JoinGate = 0x%llX\n", (unsigned long long)JoinGate);
+        if (JoinGate)
+        {
+            Hooking::Patch<uint16_t>(JoinGate, 0xC031);
+            Hooking::Patch<uint8_t>(JoinGate + 2, 0xC3);
+            printf("[BoronClient] JoinGate patched -> ret 0 (xor eax,eax; ret)\n");
+        }*/
     }
 
     Client::Init();

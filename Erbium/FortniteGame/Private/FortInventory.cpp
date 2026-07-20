@@ -398,7 +398,6 @@ AFortPickupAthena* AFortInventory::SpawnPickup(FVector Loc, FFortItemEntry& Entr
     }
     else
         NewPickup->OnRep_PrimaryPickupItemEntry();
-    // NewPickup->OnRep_PrimaryPickupItemEntry();
     NewPickup->PawnWhoDroppedPickup = Pawn;
 
     auto FinalLocation = Loc;
@@ -468,7 +467,6 @@ AFortPickupAthena* AFortInventory::SpawnPickup(ABuildingContainer* Container, FF
     }
     else
         NewPickup->OnRep_PrimaryPickupItemEntry();
-    // NewPickup->OnRep_PrimaryPickupItemEntry();
 
     NewPickup->PawnWhoDroppedPickup = Pawn;
 
@@ -695,11 +693,61 @@ void SetInventoryStateValue()
     printf("Sup2\n");
 }
 
+static void (*GivePickupToOG)(AFortPickupAthena*, UObject*, bool) = nullptr;
+static void GivePickupTo(AFortPickupAthena* Pickup, UObject* OwnerInterface, bool bDestroyAfterPickup)
+{
+    static int n = 0;
+    int before = -1, after = -1;
+
+    AFortPlayerControllerAthena* PC = nullptr;
+
+    if (Pickup && Pickup->PickupLocationData.HasPickupTarget())
+    {
+        auto Target = Pickup->PickupLocationData.PickupTarget;
+
+        if (Target && Target->Controller)
+            PC = (AFortPlayerControllerAthena*)Target->Controller;
+    }
+
+    if (PC && PC->WorldInventory)
+        before = PC->WorldInventory->Inventory.ReplicatedEntries.Num();
+
+    if (PC && PC->WorldInventory && Pickup && !Pickup->bPickedUp && Pickup->PrimaryPickupItemEntry.ItemDefinition)
+    {
+        PC->WorldInventory->GiveItem(Pickup->PrimaryPickupItemEntry);
+        PC->WorldInventory->SetRequiresUpdate();
+        after = PC->WorldInventory->Inventory.ReplicatedEntries.Num();
+    }
+
+    if (n++ < 25)
+        printf("[Boron][Pickup] GivePickupTo #%d pickup=%p PC=%p def=%p count=%d entries %d -> %d\n",
+               n, (void*)Pickup, (void*)PC,
+               (void*)(Pickup ? Pickup->PrimaryPickupItemEntry.ItemDefinition : nullptr),
+               Pickup ? Pickup->PrimaryPickupItemEntry.Count : -1, before, after);
+
+    return GivePickupToOG(Pickup, OwnerInterface, bDestroyAfterPickup);
+}
+
 void AFortInventory::PostLoadHook()
 {
     SetPickupItems = FindSetPickupItems();
     OnItemInstanceAddedVft = FindOnItemInstanceAddedVft();
     ClearAbility_ = FindClearAbility();
+
+    if (VersionInfo.EngineVersion >= 5.4)
+        printf("[Boron][Pickup] SetPickupItems=0x%llX RemoveInventoryItem=0x%llX\n",
+               (unsigned long long)SetPickupItems, (unsigned long long)FindRemoveInventoryItem());
+
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        auto GivePickupToFn = AFortPickupAthena::GetDefaultObj()->GetFunction("GivePickupTo");
+
+        printf("[Boron][Pickup] GivePickupTo UFunction=%p vtIdx=%d\n", (void*)GivePickupToFn,
+               GivePickupToFn ? (int)GivePickupToFn->GetVTableIndex() : -1);
+
+        if (GivePickupToFn)
+            Hooking::Hook<AFortPickupAthena>(GivePickupToFn->GetVTableIndex(), GivePickupTo, GivePickupToOG);
+    }
 
     Hooking::Hook(FindRemoveInventoryItem(), RemoveInventoryItem);
     // need to see if these are used

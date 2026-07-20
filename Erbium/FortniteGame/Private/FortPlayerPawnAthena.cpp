@@ -1,4 +1,5 @@
 #include "pch.h"
+#include "../../Erbium/Public/Configuration.h"
 #include "../Public/FortPlayerPawnAthena.h"
 #include "../Public/FortInventory.h"
 #include "../Public/FortPhysicsPawn.h"
@@ -43,6 +44,70 @@ public:
 };
 
 uint64_t SetPickupTarget_ = 0;
+
+static void (*ServerHandlePickupProbeOG)(UObject*, FFrame&) = nullptr;
+static void ServerHandlePickupProbe(UObject* Context, FFrame& Stack)
+{
+    AFortPickupAthena* Pickup = nullptr;
+    float InFlyTime;
+    FVector InStartDirection;
+    bool bPlayPickupSound;
+
+    Stack.StepCompiledIn(&Pickup);
+    Stack.StepCompiledIn(&InFlyTime);
+    Stack.StepCompiledIn(&InStartDirection);
+    Stack.StepCompiledIn(&bPlayPickupSound);
+    Stack.IncrementCode();
+
+    auto Pawn = (AFortPlayerPawnAthena*)Context;
+    auto PC = (Pawn && Pawn->Controller) ? (AFortPlayerControllerAthena*)Pawn->Controller : nullptr;
+
+    int before = -1, after = -1;
+
+    if (PC && PC->WorldInventory)
+        before = PC->WorldInventory->Inventory.ReplicatedEntries.Num();
+
+    if (PC && PC->WorldInventory && Pickup && Pickup->PrimaryPickupItemEntry.ItemDefinition)
+    {
+        auto Inv = PC->WorldInventory;
+        auto Def = Pickup->PrimaryPickupItemEntry.ItemDefinition;
+        auto MaxStack = Def->GetMaxStackSize();
+
+        auto Existing = Inv->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& e) {
+            return e.ItemDefinition == Def && e.Count < MaxStack;
+        }, FFortItemEntry::Size());
+
+        if (Existing && MaxStack > 1)
+        {
+            auto Total = Existing->Count + Pickup->PrimaryPickupItemEntry.Count;
+            Existing->Count = Total > MaxStack ? MaxStack : Total;
+            Inv->Update(Existing);
+        }
+        else
+            Inv->GiveItem(Pickup->PrimaryPickupItemEntry);
+
+        Inv->SetRequiresUpdate();
+
+        after = PC->WorldInventory->Inventory.ReplicatedEntries.Num();
+
+        if (!Pickup->bPickedUp)
+        {
+            Pickup->bPickedUp = true;
+            Pickup->OnRep_bPickedUp();
+        }
+
+        Pickup->K2_DestroyActor();
+    }
+
+    static int n = 0;
+
+    if (n++ < 25)
+        printf("[Boron][Pickup] ServerHandlePickup #%d pickup=%p PC=%p def=%p count=%d entries %d -> %d\n",
+               n, (void*)Pickup, (void*)PC,
+               (void*)(Pickup ? Pickup->PrimaryPickupItemEntry.ItemDefinition : nullptr),
+               Pickup ? Pickup->PrimaryPickupItemEntry.Count : -1, before, after);
+}
+
 void AFortPlayerPawnAthena::ServerHandlePickup_(UObject* Context, FFrame& Stack)
 {
     AFortPickupAthena* Pickup;
@@ -55,6 +120,12 @@ void AFortPlayerPawnAthena::ServerHandlePickup_(UObject* Context, FFrame& Stack)
     Stack.StepCompiledIn(&bPlayPickupSound);
     Stack.IncrementCode();
     auto Pawn = (AFortPlayerPawnAthena*)Context;
+
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        static bool once = false;
+        if (!once) { once = true; printf("[Boron][RpcProbe] ServerHandlePickup exec FIRED\n"); }
+    }
     if (!Pawn || !Pickup || Pickup->bPickedUp)
         return;
 
@@ -114,6 +185,31 @@ void AFortPlayerPawnAthena::ServerHandlePickupInfo(UObject* Context, FFrame& Sta
 
     if (!Pawn || !Pickup || Pickup->bPickedUp)
         return;
+
+    // SetPickupTarget   stuff uhh  maybe
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        auto PC = Pawn->Controller ? (AFortPlayerControllerAthena*)Pawn->Controller : nullptr;
+
+        // pickup shit
+        static int pn = 0;
+        if (pn++ < 25)
+            printf("[Boron][Pickup] RPC #%d pickup=%p bPickedUp=%d def=%p count=%d PC=%p inv=%p\n",
+                   pn, (void*)Pickup, (int)Pickup->bPickedUp,
+                   (void*)Pickup->PrimaryPickupItemEntry.ItemDefinition, Pickup->PrimaryPickupItemEntry.Count,
+                   (void*)PC, (void*)(PC ? PC->WorldInventory : nullptr));
+
+        if (PC && PC->WorldInventory && Pickup->PrimaryPickupItemEntry.ItemDefinition)
+        {
+            auto& Entry = Pickup->PrimaryPickupItemEntry;
+            auto Given = PC->WorldInventory->GiveItem(Entry);
+            PC->WorldInventory->SetRequiresUpdate();
+            Pickup->bPickedUp = true;
+            Pickup->OnRep_bPickedUp();
+            Pickup->K2_DestroyActor();
+        }
+        return;
+    }
 
     if (bUseRequestedSwap && Pawn->CurrentWeapon && AFortInventory::IsPrimaryQuickbar(((AFortWeapon*)Pawn->CurrentWeapon)->WeaponData) &&
         AFortInventory::IsPrimaryQuickbar(Pickup->PrimaryPickupItemEntry.ItemDefinition))
@@ -334,6 +430,67 @@ void AFortPlayerPawnAthena::OnCapsuleBeginOverlap_(UObject* Context, FFrame& Sta
 
     auto Pawn = (AFortPlayerPawnAthena*)Context;
 
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        static auto ProbePickupCls = FindClass("FortPickupAthena");
+        static int ovl = 0;
+
+        if (ProbePickupCls && OtherActor && OtherActor->IsA(ProbePickupCls) && ovl++ < 20)
+        {
+            auto P = (AFortPickupAthena*)OtherActor;
+            bool hasPickedUp = P->HasbPickedUp();
+            uint8_t flagsByte = hasPickedUp ? *(uint8_t*)(__int64(P) + AFortPickupAthena::bPickedUp__Offset) : 0xFF;
+
+            struct
+            {
+                const AFortPlayerPawnAthena* FortPawn;
+                bool bOverride;
+                bool Ret;
+                char pad[6];
+            } ci{ Pawn, false, false, {} };
+            static auto CanInteractFn = P->GetFunction("BlueprintCanInteract");
+            if (CanInteractFn)
+                P->ProcessEvent(CanInteractFn, &ci);
+
+            struct
+            {
+                char Text[0x10];
+                bool Ret;
+                char pad[7];
+            } it{};
+            static auto GetTextFn = P->GetFunction("GetInteractText");
+            if (GetTextFn)
+                P->ProcessEvent(GetTextFn, &it);
+
+            struct
+            {
+                char Text[0x10];
+                uint32_t Tag;
+                bool Ret;
+                char pad[3];
+            } et{};
+            static auto ErrTextFn = P->GetFunction("GetInteractErrorText");
+            if (ErrTextFn)
+                P->ProcessEvent(ErrTextFn, &et);
+
+            FName etn{};
+            etn.ComparisonIndex = et.Tag;
+            printf("[Boron][Pickup] canInteract=%d ovr=%d hasText=%d hasErr=%d errTag=%s\n",
+                   (int)ci.Ret, (int)ci.bOverride, (int)it.Ret, (int)et.Ret,
+                   et.Tag ? etn.ToString().c_str() : "none");
+            printf("[Boron][Pickup] overlap #%d pickup=%p pawn=%p def=%p flagsByte=0x%02X stoppedSim=%d(has=%d) suppressWidget=%d useWidget=%d blockedAuto=%d dummyItem=%p moveComp=%p capsule=%p aimRadius=%.1f\n",
+                   ovl, (void*)OtherActor, (void*)Pawn,
+                   (void*)P->PrimaryPickupItemEntry.ItemDefinition,
+                   flagsByte,
+                   (int)P->bServerStoppedSimulation, (int)P->HasbServerStoppedSimulation(),
+                   (int)P->bSuppressInteractionWidget, (int)P->bUsePickupWidget, (int)P->bBlockedFromAutoPickup,
+                   P->HasPrimaryPickupDummyItem() ? (void*)P->PrimaryPickupDummyItem : (void*)(__int64)-1,
+                   P->HasMovementComponent() ? (void*)P->MovementComponent : (void*)(__int64)-1,
+                   P->HasTouchCapsule() ? (void*)P->TouchCapsule : (void*)(__int64)-1,
+                   P->HasOverrideInteractAimRadius() ? P->OverrideInteractAimRadius : -1.f);
+        }
+    }
+
     static auto FortPCClass = FindClass("FortPlayerController");
 
     if (!Pawn || !Pawn->Controller || !Pawn->Controller->IsA(FortPCClass))
@@ -347,6 +504,31 @@ void AFortPlayerPawnAthena::OnCapsuleBeginOverlap_(UObject* Context, FFrame& Sta
     auto itemEntry = ((AFortPlayerControllerAthena*)Pawn->Controller)->WorldInventory->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& entry) {
         return entry.ItemDefinition == Pickup->PrimaryPickupItemEntry.ItemDefinition && entry.Count <= MaxStack;
     }, FFortItemEntry::Size());
+
+    if (GameRuleConfig::bCH5AutoPickupWeapons && VersionInfo.EngineVersion >= 5.4 && Pickup && Pickup->PawnWhoDroppedPickup != Pawn &&
+        AFortInventory::IsPrimaryQuickbar(Pickup->PrimaryPickupItemEntry.ItemDefinition))
+    {
+        auto Inv = ((AFortPlayerControllerAthena*)Pawn->Controller)->WorldInventory;
+        int primaryCount = 0;
+
+        for (int i = 0; i < Inv->Inventory.ReplicatedEntries.Num(); i++)
+        {
+            auto& Item = Inv->Inventory.ReplicatedEntries.Get(i, FFortItemEntry::Size());
+
+            if (Item.ItemDefinition && AFortInventory::IsPrimaryQuickbar(Item.ItemDefinition))
+                primaryCount++;
+        }
+
+        static int wp = 0;
+        if (wp++ < 15)
+            printf("[Boron][Pickup] CH5 weapon overlap primaryCount=%d pickup=%p\n", primaryCount, (void*)Pickup);
+
+        if (primaryCount < 5)
+        {
+            Pawn->ServerHandlePickup(Pickup, Pickup->PickupLocationData.FlyTime, FVector(), true);
+            return callOG(Pawn, Stack.GetCurrentNativeFunction(), OnCapsuleBeginOverlap, OverlappedComp, OtherActor, OtherComp, OtherBodyIndex, bFromSweep, SweepResult);
+        }
+    }
 
     if (Pickup && Pickup->PawnWhoDroppedPickup != Pawn)
     {
@@ -603,6 +785,7 @@ void AFortPlayerPawnAthena::PostLoadHook()
 
     auto ServerHandlePickupInfoFn = GetDefaultObj()->GetFunction("ServerHandlePickupInfo");
 
+
     if (ServerHandlePickupInfoFn)
         Hooking::ExecHook(ServerHandlePickupInfoFn, ServerHandlePickupInfo);
     else
@@ -610,6 +793,9 @@ void AFortPlayerPawnAthena::PostLoadHook()
         Hooking::ExecHook(GetDefaultObj()->GetFunction("ServerHandlePickup"), ServerHandlePickup_);
         Hooking::ExecHook(GetDefaultObj()->GetFunction("ServerHandlePickupWithRequestedSwap"), ServerHandlePickupWithRequestedSwap);
     }
+
+    if (VersionInfo.EngineVersion >= 5.4 && ServerHandlePickupInfoFn)
+        Hooking::ExecHook(GetDefaultObj()->GetFunction("ServerHandlePickup"), ServerHandlePickupProbe, ServerHandlePickupProbeOG);
 
     Hooking::Hook(FindFinishedTargetSpline(), FinishedTargetSpline, FinishedTargetSplineOG);
     Hooking::ExecHook(GetDefaultObj()->GetFunction("OnCapsuleBeginOverlap"), OnCapsuleBeginOverlap_, OnCapsuleBeginOverlap_OG);

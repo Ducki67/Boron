@@ -14,6 +14,10 @@ public:
     static inline uint8_t PlayersOnCurTeam = 0;
     static inline TArray<const UFortAbilitySet*> AbilitySets;
     static inline FVector SafeZoneLoc{};
+    static inline bool bCH5FloorLootTickEnabled = false;
+
+    static void TickCH5FloorLoot();
+    static void TickCH5PickupDummies();
 
     UCLASS_COMMON_MEMBERS(AFortGameMode);
 
@@ -65,9 +69,11 @@ public:
 
     DefUHookOgRet(bool, ReadyToStartMatch_);
     static void SpawnDefaultPawnFor(UObject*, FFrame&, AActor**);
+    DefHookOg(AActor*, SpawnDefaultPawnFor_Native, AFortGameMode*, AFortPlayerControllerAthena*, AActor*);
     DefHookOg(void, HandlePostSafeZonePhaseChanged, AFortGameMode*, int);
     DefHookOg(uint8_t, PickTeam, AFortGameMode*, uint8_t, AFortPlayerControllerAthena*);
     DefUHookOg(HandleStartingNewPlayer_);
+    DefHookOg(void, HandleStartingNewPlayer_Native, AFortGameMode*, AFortPlayerControllerAthena*);
     DefHookOg(bool, StartAircraftPhase, AFortGameMode*, char);
     DefUHookOg(OnAircraftExitedDropZone_);
     DefHookOg(void, FinishWorldInitialization, AFortGameMode*, AActor*);

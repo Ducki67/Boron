@@ -6,6 +6,7 @@
 
 
 #include "../Public/FortPlayerControllerAthena.h"
+#include "../../Erbium/Plugins/CrashReporter/Public/CrashReporter.h"
 #include "../../Erbium/Public/Configuration.h"
 #include "../../Erbium/Public/Events.h"
 #include "../../Erbium/Public/GUI.h"
@@ -36,22 +37,36 @@ void AFortPlayerControllerAthena::GetPlayerViewPoint(AFortPlayerControllerAthena
 
 extern uint64_t ApplyCharacterCustomization;
 uint64_t InitializePlayerGameplayAbilities_;
-void AFortPlayerControllerAthena::ServerAcknowledgePossession(UObject* Context, FFrame& Stack)
+static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* PlayerController, AActor* Pawn)
 {
-    AActor* Pawn;
-    Stack.StepCompiledIn(&Pawn);
-    Stack.IncrementCode();
-    auto PlayerController = (AFortPlayerControllerAthena*)Context;
-
-    if (!Pawn)
+    if (!Pawn || !PlayerController->WorldInventory)
+    {
+        if (VersionInfo.EngineVersion >= 5.4)
+            printf("[Boron][Pawn] ServerAcknowledgePossession_Impl skipped (Pawn=%p WorldInventory=%p)\n", (void*)Pawn, (void*)(PlayerController ? PlayerController->WorldInventory : nullptr));
         return;
+    }
 
     auto FortPawn = (AFortPlayerPawnAthena*)Pawn;
 
-    static auto FortPCServerAcknowledgePossession = (void (*)(AFortPlayerControllerAthena*, AActor*))DefaultObjImpl("FortPlayerController")->Vft[Stack.GetCurrentNativeFunction()->GetVTableIndex()];
-    FortPCServerAcknowledgePossession(PlayerController, Pawn);
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        PlayerController->AcknowledgedPawn = Pawn;
+
+       // skins? bruh this bull shit is hard
+        if (!PlayerController->MyFortPawn)
+            PlayerController->MyFortPawn = FortPawn;
+        if (!PlayerController->Pawn)
+            PlayerController->Pawn = FortPawn;
+    }
 
     auto Num = PlayerController->WorldInventory->Inventory.ReplicatedEntries.Num();
+
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        static int posn = 0;
+        if (posn++ < 8)
+            printf("[Boron][Loadout] possession #%d Num=%d pawn=%p (loadout re-gives when Num==0)\n", posn, Num, (void*)Pawn);
+    }
 
     auto GameMode = (AFortGameMode*)UWorld::GetWorld()->AuthorityGameMode;
 
@@ -127,6 +142,21 @@ void AFortPlayerControllerAthena::ServerAcknowledgePossession(UObject* Context, 
     }
 
     auto Interface = PlayerController->PlayerState->GetInterface(IFortAbilitySystemInterface::StaticClass());
+
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        static bool loggedInit = false;
+
+        if (!loggedInit)
+        {
+            loggedInit = true;
+            printf("[Boron][Abilities] InitializePlayerGameplayAbilities_=0x%llX Interface=%p GameMode::AbilitySets.Num=%d ASC=%p\n",
+                   (unsigned long long)InitializePlayerGameplayAbilities_, (void*)Interface,
+                   AFortGameMode::AbilitySets.Num(),
+                   (void*)PlayerController->PlayerState->AbilitySystemComponent);
+        }
+    }
+
     if (InitializePlayerGameplayAbilities_ && Interface)
     {
         auto InitializePlayerGameplayAbilities = (void (*&)(const IInterface*))InitializePlayerGameplayAbilities_;
@@ -136,6 +166,51 @@ void AFortPlayerControllerAthena::ServerAcknowledgePossession(UObject* Context, 
     else
         for (auto& AbilitySet : AFortGameMode::AbilitySets)
             PlayerController->PlayerState->AbilitySystemComponent->GiveAbilitySet(AbilitySet);
+
+   //hurdle  stuff i tryed
+    if (VersionInfo.EngineVersion >= 5.4 && PlayerController->PlayerState->AbilitySystemComponent)
+    {
+        // NOTE: Utils::GetAll() is GetAllActorsOfClass -> ACTORS only. UFortAbilitySet is a data
+        // asset (UObject), so it always returns 0. Walk the object array directly instead.
+        static std::vector<const UFortAbilitySet*> MovementSets;
+        static bool abilScanned = false;
+
+        if (!abilScanned)
+        {
+            abilScanned = true;
+
+            auto AbilitySetClass = FindClass("FortAbilitySet");
+            int total = 0;
+
+            if (AbilitySetClass)
+                for (int i = 0; i < TUObjectArray::Num(); i++)
+                {
+                    auto Obj = TUObjectArray::GetObjectByIndex(i);
+
+                    if (!Obj || Obj->IsDefaultObject() || !Obj->IsA(AbilitySetClass))
+                        continue;
+
+                    total++;
+                    auto nm = Obj->Name.ToString();
+
+                    if (strstr(nm.c_str(), "Clamber") || strstr(nm.c_str(), "Hurdle") || strstr(nm.c_str(), "Mantle"))
+                    {
+                        Obj->AddToRoot();
+                        MovementSets.push_back((const UFortAbilitySet*)Obj);
+                        printf("[Boron][Abilities] found movement set: %s\n", nm.c_str());
+                    }
+                    else if (total <= 60)
+                        printf("[Boron][Abilities] set: %s\n", nm.c_str());
+                }
+
+            printf("[Boron][Abilities] class=%p FortAbilitySet objects=%d movement sets found=%d\n",
+                   (void*)AbilitySetClass, total, (int)MovementSets.size());
+        }
+
+        for (auto Set : MovementSets)
+            if (Set)
+                PlayerController->PlayerState->AbilitySystemComponent->GiveAbilitySet(Set);
+    }
 
     if (Num == 0)
     {
@@ -154,8 +229,11 @@ void AFortPlayerControllerAthena::ServerAcknowledgePossession(UObject* Context, 
             PlayerController->WorldInventory->GiveItem(DefaultPickaxe);
         }
 
-        if (GameMode->StartingItems.Num() == 0)
+       // bs
+        if (GameMode->StartingItems.Num() == 0 || VersionInfo.EngineVersion >= 5.4)
         {
+            static bool gaveOnce = false;
+            if (VersionInfo.EngineVersion >= 5.4 && !gaveOnce) { gaveOnce = true; printf("[Boron][Loadout] CH5 giving default pickaxe + builds + edit tool\n"); }
             static auto DefaultPickaxe = FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Harvest_Pickaxe_Athena_C_T01.WID_Harvest_Pickaxe_Athena_C_T01");
             static auto WallBuild = FindObject<UFortItemDefinition>(L"/Game/Items/Weapons/BuildingTools/BuildingItemData_Wall.BuildingItemData_Wall");
             static auto FloorBuild = FindObject<UFortItemDefinition>(L"/Game/Items/Weapons/BuildingTools/BuildingItemData_Floor.BuildingItemData_Floor");
@@ -163,12 +241,45 @@ void AFortPlayerControllerAthena::ServerAcknowledgePossession(UObject* Context, 
             static auto ConeBuild = FindObject<UFortItemDefinition>(L"/Game/Items/Weapons/BuildingTools/BuildingItemData_RoofS.BuildingItemData_RoofS");
             static auto EditTool = FindObject<UFortItemDefinition>(L"/Game/Items/Weapons/BuildingTools/EditTool.EditTool");
 
+            if (VersionInfo.EngineVersion >= 5.4)
+            {
+                static bool loggedDefs = false;
+
+                if (!loggedDefs)
+                {
+                    loggedDefs = true;
+                    printf("[Boron][Loadout] CH5 defs: pickaxe=%p wall=%p floor=%p stair=%p cone=%p edit=%p\n",
+                           (void*)DefaultPickaxe, (void*)WallBuild, (void*)FloorBuild,
+                           (void*)StairBuild, (void*)ConeBuild, (void*)EditTool);
+                }
+            }
+
             PlayerController->WorldInventory->GiveItem(DefaultPickaxe);
             PlayerController->WorldInventory->GiveItem(WallBuild);
             PlayerController->WorldInventory->GiveItem(FloorBuild);
             PlayerController->WorldInventory->GiveItem(StairBuild);
             PlayerController->WorldInventory->GiveItem(ConeBuild);
             PlayerController->WorldInventory->GiveItem(EditTool);
+
+            if (VersionInfo.EngineVersion >= 5.4)
+            {
+                static auto WoodMat = FindObject<UFortItemDefinition>(L"/Game/Items/ResourcePickups/WoodItemData.WoodItemData");
+                static auto StoneMat = FindObject<UFortItemDefinition>(L"/Game/Items/ResourcePickups/StoneItemData.StoneItemData");
+                static auto MetalMat = FindObject<UFortItemDefinition>(L"/Game/Items/ResourcePickups/MetalItemData.MetalItemData");
+
+                printf("[Boron][Loadout] CH5 mats: wood=%p stone=%p metal=%p bBuildFree=%d\n",
+                       (void*)WoodMat, (void*)StoneMat, (void*)MetalMat, (int)GameRuleConfig::bInfiniteMats);
+
+                if (WoodMat)
+                    PlayerController->WorldInventory->GiveItem(WoodMat, 500);
+                if (StoneMat)
+                    PlayerController->WorldInventory->GiveItem(StoneMat, 500);
+                if (MetalMat)
+                    PlayerController->WorldInventory->GiveItem(MetalMat, 500);
+
+                if (GameRuleConfig::bInfiniteMats && PlayerController->HasbBuildFree())
+                    PlayerController->bBuildFree = true;
+            }
         }
         else
             for (int i = 0; i < GameMode->StartingItems.Num(); i++)
@@ -188,10 +299,11 @@ void AFortPlayerControllerAthena::ServerAcknowledgePossession(UObject* Context, 
             PlayerController->ClientEquipItem(pickaxeEntry->ItemGuid, true);
         }*/
 
-        UFortKismetLibrary::UpdatePlayerCustomCharacterPartsVisualization(PlayerController->PlayerState);
-        if (!UFortKismetLibrary::UpdatePlayerCustomCharacterPartsVisualization__Ptr && ApplyCharacterCustomization)
+        if (VersionInfo.EngineVersion < 5.4)
         {
-            ((void (*)(AActor*, AActor*))ApplyCharacterCustomization)(PlayerController->PlayerState, Pawn);
+            UFortKismetLibrary::UpdatePlayerCustomCharacterPartsVisualization(PlayerController->PlayerState);
+            if (!UFortKismetLibrary::UpdatePlayerCustomCharacterPartsVisualization__Ptr && ApplyCharacterCustomization)
+                ((void (*)(AActor*, AActor*))ApplyCharacterCustomization)(PlayerController->PlayerState, Pawn);
         }
 
         auto Interface = PlayerController->PlayerState->GetInterface(IFortAbilitySystemInterface::StaticClass());
@@ -251,6 +363,143 @@ void AFortPlayerControllerAthena::ServerAcknowledgePossession(UObject* Context, 
         if (HealSlot2.Item)
             PlayerController->WorldInventory->GiveItem(HealSlot2.Item, HealSlot2.Count, HealSlot2ClipSize);
     }
+
+    if (VersionInfo.EngineVersion >= 5.4 && Pawn)
+    {
+        static auto CtrlCosmeticCls = FindClass("FortControllerComponent_CosmeticLoadout");
+        static auto PawnCosmeticCls = FindClass("FortCosmeticLoadoutComponent");
+
+        auto CtrlComp = CtrlCosmeticCls ? (UFortControllerComponent_CosmeticLoadout*)PlayerController->GetComponentByClass((UClass*)CtrlCosmeticCls) : nullptr;
+        auto PawnComp = PawnCosmeticCls ? Pawn->GetComponentByClass((UClass*)PawnCosmeticCls) : nullptr;
+
+        int slots = (CtrlComp && CtrlComp->HasCosmeticLoadout()) ? CtrlComp->CosmeticLoadout.Slots.Num() : -1;
+        bool pushed = false;
+
+        static auto FallbackPickaxe = (UAthenaPickaxeItemDefinition*)FindObject<UObject>(L"/Game/Athena/Items/Cosmetics/Pickaxes/DefaultPickaxe.DefaultPickaxe");
+
+        auto FixPickaxe = [&](FFortAthenaLoadout& L, const char* who)
+        {
+            if (!FallbackPickaxe)
+                return;
+
+            auto Cur = L.Pickaxe;
+            bool bad = !Cur;
+
+            if (Cur)
+            {
+                auto nm = Cur->Name.ToString();
+                bad = strstr(nm.c_str(), "BeanHands") != nullptr;
+            }
+
+            if (bad)
+            {
+                printf("[Boron][Cosmetics] %s pickaxe %s -> DefaultPickaxe\n", who, Cur ? Cur->Name.ToString().c_str() : "null");
+                L.Pickaxe = FallbackPickaxe;
+            }
+        };
+
+        if (CtrlComp && CtrlComp->HasCachedAthenaLoadout())
+            FixPickaxe(CtrlComp->CachedAthenaLoadout, "cached");
+
+        if (PlayerController->HasCosmeticLoadoutPC())
+            FixPickaxe(PlayerController->CosmeticLoadoutPC, "pc");
+
+        if (CtrlComp && PawnComp && slots > 0)
+        {
+            auto SetFn = PawnComp->GetFunction("SetCosmeticLoadout");
+
+            if (SetFn)
+            {
+                PawnComp->ProcessEvent(SetFn, &CtrlComp->CosmeticLoadout);
+                ((UFortCosmeticLoadoutComponent*)PawnComp)->OnRep_CosmeticLoadout();
+                pushed = true;
+            }
+        }
+
+        auto CID = (CtrlComp && CtrlComp->HasCachedAthenaLoadout()) ? CtrlComp->CachedAthenaLoadout.Character : nullptr;
+        if (!CID && PlayerController->HasCosmeticLoadoutPC())
+            CID = PlayerController->CosmeticLoadoutPC.Character;
+
+        int partsWritten = 0;
+        if (CID && PlayerController->MyFortPawn)
+        {
+            auto FortPawn = PlayerController->MyFortPawn;
+            static auto ChoosePartFn = FortPawn->GetFunction("ServerChoosePart");
+
+            struct
+            {
+                uint8_t Part;
+                uint8_t pad[7];
+                const UObject* ChosenCharacterPart;
+            } cp{};
+
+            auto Choose = [&](const UCustomCharacterPart* Part)
+            {
+                if (!Part || !ChoosePartFn || !Part->HasCharacterPartType() || Part->CharacterPartType >= 7)
+                    return;
+
+                cp.Part = Part->CharacterPartType;
+                cp.ChosenCharacterPart = Part;
+                FortPawn->ProcessEvent(ChoosePartFn, &cp);
+                partsWritten++;
+            };
+
+            if (CID->HasBaseCharacterParts())
+                for (auto& PartSoft : CID->BaseCharacterParts)
+                    Choose(PartSoft.Get());
+
+            if (PlayerController->HasCosmeticLoadoutPC() && PlayerController->CosmeticLoadoutPC.Backpack)
+                for (auto& Part : PlayerController->CosmeticLoadoutPC.Backpack->CharacterParts)
+                    Choose(Part);
+        }
+
+        static int pn = 0;
+        if (pn++ < 10)
+            printf("[Boron][Cosmetics] parts: CID=%s hero=%p written=%d\n",
+                   CID ? CID->Name.ToString().c_str() : "null",
+                   (void*)(CID && CID->HasHeroDefinition() ? CID->HeroDefinition : nullptr), partsWritten);
+
+        static int cn = 0;
+        if (cn++ < 10)
+            printf("[Boron][Cosmetics] possession apply #%d ctrlComp=%p pawnComp=%p slots=%d archetypes=%d pushed=%d\n",
+                   cn, (void*)CtrlComp, (void*)PawnComp, slots,
+                   (CtrlComp && CtrlComp->HasActiveArchetypes()) ? CtrlComp->ActiveArchetypes.Num() : -1, (int)pushed);
+
+        UFortKismetLibrary::UpdatePlayerCustomCharacterPartsVisualization(PlayerController->PlayerState);
+        if (!UFortKismetLibrary::UpdatePlayerCustomCharacterPartsVisualization__Ptr && ApplyCharacterCustomization)
+            ((void (*)(AActor*, AActor*, int))ApplyCharacterCustomization)(PlayerController->PlayerState, Pawn, 0);
+    }
+}
+
+void AFortPlayerControllerAthena::ServerAcknowledgePossession(UObject* Context, FFrame& Stack)
+{
+    AActor* Pawn;
+    Stack.StepCompiledIn(&Pawn);
+    Stack.IncrementCode();
+    auto PlayerController = (AFortPlayerControllerAthena*)Context;
+
+    if (!Pawn)
+        return;
+
+    static auto Idx = Stack.GetCurrentNativeFunction()->GetVTableIndex();
+    auto OGPossession = (void (*)(AFortPlayerControllerAthena*, AActor*))DefaultObjImpl("FortPlayerController")->Vft[Idx];
+    OGPossession(PlayerController, Pawn);
+
+    ServerAcknowledgePossession_Impl(PlayerController, Pawn);
+}
+
+void AFortPlayerControllerAthena::ServerAcknowledgePossession_Native(AFortPlayerControllerAthena* PlayerController, AActor* Pawn)
+{
+    static bool once = false;
+    if (!once) { once = true; printf("[Boron][ExecProbe] ServerAcknowledgePossession_Native FIRED (address hook, Pawn=%p)\n", (void*)Pawn); }
+
+    if (ServerAcknowledgePossession_NativeOG)
+        ServerAcknowledgePossession_NativeOG(PlayerController, Pawn);
+
+    if (!Pawn)
+        return;
+
+    ServerAcknowledgePossession_Impl(PlayerController, Pawn);
 }
 
 uint32 ServerAttemptAircraftJumpVft;
@@ -324,13 +573,92 @@ void AFortPlayerControllerAthena::ServerAttemptAircraftJump_(UObject* Context, F
     }
 }
 
+static bool GuardedEquip(AFortPlayerPawnAthena* Pawn, const UFortWeaponItemDefinition* Def, FGuid Guid, FGuid Tracker)
+{
+    FCrashReporter::bSEHGuard = true;
+    bool ok = true;
+    __try
+    {
+        Pawn->EquipWeaponDefinition(Def, Guid, Tracker, false);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        ok = false;
+    }
+    FCrashReporter::bSEHGuard = false;
+    return ok;
+}
+
+static uint32_t gLastExecCode = 0;
+static uint64_t gLastExecFaultAddr = 0;
+static uint64_t gLastExecFaultOp = 0;
+
+static int ExecFilter(EXCEPTION_POINTERS* ep)
+{
+    gLastExecCode = ep->ExceptionRecord->ExceptionCode;
+    gLastExecFaultAddr = (uint64_t)ep->ExceptionRecord->ExceptionAddress;
+    gLastExecFaultOp = ep->ExceptionRecord->NumberParameters >= 2 ? (uint64_t)ep->ExceptionRecord->ExceptionInformation[1] : 0;
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
+static bool GuardedServerExecute(void* Fn, void* Def, void* Item, void* PC, bool* Ret)
+{
+    FCrashReporter::bSEHGuard = true;
+    bool ok = true;
+    __try
+    {
+        bool r = ((bool (*)(void*, void*, void*))Fn)(Def, Item, PC);
+        if (Ret)
+            *Ret = r;
+    }
+    __except (ExecFilter(GetExceptionInformation()))
+    {
+        ok = false;
+    }
+    FCrashReporter::bSEHGuard = false;
+    return ok;
+}
+
 void AFortPlayerControllerAthena::ServerExecuteInventoryItem_(UObject* Context, FFrame& Stack)
 {
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        if (ServerExecuteInventoryItem_OG)
+            ServerExecuteInventoryItem_OG(Context, Stack);
+
+        auto PC = (AFortPlayerControllerAthena*)Context;
+        auto NativePawn = PC ? PC->MyFortPawn : nullptr;
+        auto NativeCW = NativePawn ? NativePawn->CurrentWeapon : nullptr;
+
+        static int nx = 0;
+        if (nx++ < 15)
+            printf("[Boron][Equip] native passthrough #%d og=%p CurrentWeapon=%p (%s)\n", nx,
+                   (void*)ServerExecuteInventoryItem_OG, (void*)NativeCW,
+                   NativeCW && NativeCW->Class ? NativeCW->Class->Name.ToString().c_str() : "null");
+
+        return;
+    }
+
     FGuid ItemGuid;
     Stack.StepCompiledIn(&ItemGuid);
     Stack.IncrementCode();
 
     auto PlayerController = (AFortPlayerControllerAthena*)Context;
+
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        static int ex = 0;
+        if (ex++ < 20)
+        {
+            auto probeEntry = PlayerController && PlayerController->WorldInventory
+                ? PlayerController->WorldInventory->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& en) { return en.ItemGuid == ItemGuid; }, FFortItemEntry::Size())
+                : nullptr;
+            printf("[Boron][Equip] ServerExecuteInventoryItem #%d def=%s pawn=%p\n", ex,
+                   probeEntry && probeEntry->ItemDefinition ? probeEntry->ItemDefinition->Name.ToString().c_str() : "null",
+                   (void*)(PlayerController ? PlayerController->MyFortPawn : nullptr));
+        }
+    }
+
     if (!PlayerController || !PlayerController->MyFortPawn)
         return;
 
@@ -338,6 +666,94 @@ void AFortPlayerControllerAthena::ServerExecuteInventoryItem_(UObject* Context, 
 
     if (!entry)
         return;
+
+   
+    // ServerExecute (UFortItemDefinition vtable)  Pre-5.4 keeps the original equip i think? plz sm1 help idk bro :sob:.
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        UFortWorldItem* Item = nullptr;
+        for (auto& Inst : PlayerController->WorldInventory->Inventory.ItemInstances)
+            if (Inst && Inst->ItemEntry.ItemGuid == ItemGuid)
+            {
+                Item = Inst;
+                break;
+            }
+
+        static bool once = false;
+        if (!once) { once = true; printf("[Boron][Equip] CH5 ServerExecute path: item=%p def=%p\n", (void*)Item, (void*)(Item ? Item->ItemEntry.ItemDefinition : nullptr)); }
+
+        if (Item && Item->ItemEntry.ItemDefinition)
+        {
+            UFortItemDefinition* RealDef = (UFortItemDefinition*)Item->ItemEntry.ItemDefinition;
+            auto UncastedDef = RealDef;
+            if (auto Gadget = RealDef->Cast<UFortGadgetItemDefinition>())
+                UncastedDef = Gadget->GetWeaponItemDefinition();
+
+            static const uint32_t ServerExecuteIdx = VersionInfo.FortniteVersion >= 32.00 ? 0x9C : 0x99;
+
+            auto WorldDef = UncastedDef ? UncastedDef->Cast<UFortWorldItemDefinition>() : nullptr;
+
+            static bool vftDumped = false;
+            if (!vftDumped && WorldDef)
+            {
+                vftDumped = true;
+
+                auto base = (uint64_t)GetModuleHandleW(nullptr);
+                printf("[Boron][Equip] vft dump for %s  imageBase=%llX peVftIdx=%llu\n",
+                       WorldDef->Name.ToString().c_str(), (unsigned long long)base,
+                       (unsigned long long)Offsets::ProcessEventVft);
+
+                int lastValid = -1;
+                for (int i = 0; i < 0x140; i++)
+                {
+                    auto p = (uint64_t)WorldDef->Vft[i];
+
+                    if (p > base && p < base + 0x10000000)
+                        lastValid = i;
+                }
+
+                printf("[Boron][Equip] vft lastValidIdx=0x%X\n", lastValid);
+
+                for (int i = 0x90; i <= 0xA2; i++)
+                    printf("[Boron][Equip]   vft[0x%X]=%p rva=%llX\n", i, WorldDef->Vft[i],
+                           (unsigned long long)((uint64_t)WorldDef->Vft[i] - base));
+            }
+
+            bool eqOk = false;
+            bool execRet = false;
+            void* ExecFn = nullptr;
+
+            if (WorldDef && PlayerController->MyFortPawn)
+            {
+                ExecFn = WorldDef->Vft[ServerExecuteIdx];
+
+                if (ExecFn)
+                    eqOk = GuardedServerExecute(ExecFn, WorldDef, Item, PlayerController, &execRet);
+            }
+
+            static int sx = 0;
+            if (sx++ < 20)
+            {
+                auto CW = PlayerController->MyFortPawn ? PlayerController->MyFortPawn->CurrentWeapon : nullptr;
+                auto base = (uint64_t)GetModuleHandleW(nullptr);
+                printf("[Boron][Equip] serverExec def=%s idx=0x%X ok=%d ret=%d CW=%p | exc=%08X at=%llX(rva %llX) badAddr=%llX item=%p pawn=%p\n",
+                       UncastedDef ? UncastedDef->Name.ToString().c_str() : "nullDef", ServerExecuteIdx,
+                       (int)eqOk, (int)execRet, (void*)CW,
+                       gLastExecCode, (unsigned long long)gLastExecFaultAddr,
+                       (unsigned long long)(gLastExecFaultAddr ? gLastExecFaultAddr - base : 0),
+                       (unsigned long long)gLastExecFaultOp, (void*)Item,
+                       (void*)PlayerController->MyFortPawn);
+            }
+
+            static FGuid lastEquipGuid{};
+            if (memcmp(&lastEquipGuid, &ItemGuid, sizeof(FGuid)) != 0)
+            {
+                lastEquipGuid = ItemGuid;
+                PlayerController->ClientEquipItem(ItemGuid, true);
+            }
+        }
+        return;
+    }
 
     UFortItemDefinition* RealDef = (UFortItemDefinition*)entry->ItemDefinition;
     auto UncastedDef = RealDef;
@@ -478,6 +894,13 @@ void AFortPlayerControllerAthena::ServerCreateBuildingActor(UObject* Context, FF
     FRotator BuildRot;
     bool bMirrored;
     auto PlayerController = (AFortPlayerControllerAthena*)Context;
+
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        static bool once = false;
+        if (!once) { once = true; printf("[Boron][RpcProbe] ServerCreateBuildingActor exec FIRED\n"); }
+    }
+
     struct _Pad_0xC
     {
         uint8_t Padding[0xC];
@@ -512,6 +935,16 @@ void AFortPlayerControllerAthena::ServerCreateBuildingActor(UObject* Context, FF
             float SyncKey;
             FBuildingClassData BuildingClassData;
         };
+
+        if (VersionInfo.EngineVersion >= 5.4 && AFortGameStateAthena::BuildingClassMap.empty())
+        {
+            auto GS = (AFortGameStateAthena*)UWorld::GetWorld()->GameState;
+            if (GS && GS->HasAllPlayerBuildableClassesIndexLookup())
+                for (auto& [BClass, BHandle] : GS->AllPlayerBuildableClassesIndexLookup)
+                    AFortGameStateAthena::BuildingClassMap[BHandle] = BClass;
+
+            printf("[Boron][Build] lazy BuildingClassMap populated: %zu entries\n", AFortGameStateAthena::BuildingClassMap.size());
+        }
 
         if (VersionInfo.FortniteVersion >= 20.00)
         {
@@ -2204,7 +2637,12 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
                 }
 
                 if (ApplyCharacterCustomization)
-                    ((void (*)(AActor*, AFortPlayerPawnAthena*))ApplyCharacterCustomization)(PlayerState, Pawn);
+                {
+                    if (VersionInfo.EngineVersion >= 5.4)
+                        ((void (*)(AActor*, AFortPlayerPawnAthena*, int))ApplyCharacterCustomization)(PlayerState, Pawn, 0);
+                    else
+                        ((void (*)(AActor*, AFortPlayerPawnAthena*))ApplyCharacterCustomization)(PlayerState, Pawn);
+                }
 
                 PlayerBotID++;
                 std::string Name = "Erbium Bot (#" + std::to_string(PlayerBotID) + ")";
@@ -2770,6 +3208,83 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
 }
 
 extern bool bDidntFind;
+void AFortPlayerControllerAthena::ServerSetMultiProductCosmeticLoadout_(UObject* Context, FFrame& Stack)
+{
+    ServerSetMultiProductCosmeticLoadout_OG(Context, Stack);
+
+    auto PlayerController = (AFortPlayerControllerAthena*)Context;
+
+    if (VersionInfo.EngineVersion < 5.4 || !PlayerController)
+        return;
+
+    static auto CosmeticCompClass = FindClass("FortControllerComponent_CosmeticLoadout");
+    auto CosmeticComp = CosmeticCompClass ? (UFortControllerComponent_CosmeticLoadout*)PlayerController->GetComponentByClass((UClass*)CosmeticCompClass) : nullptr;
+
+    auto Pawn = PlayerController->MyFortPawn ? (AActor*)PlayerController->MyFortPawn : (AActor*)PlayerController->Pawn;
+
+    int slots = -1;
+    if (CosmeticComp && CosmeticComp->HasCosmeticLoadout())
+        slots = CosmeticComp->CosmeticLoadout.Slots.Num();
+
+    static int n = 0;
+    if (n++ < 10)
+        printf("[Boron][Cosmetics] ServerSetMultiProductCosmeticLoadout #%d PC=%p comp=%p slots=%d pawn=%p PS=%p\n",
+               n, (void*)PlayerController, (void*)CosmeticComp, slots, (void*)Pawn, (void*)PlayerController->PlayerState);
+
+    if (CosmeticComp && CosmeticComp->HasActiveArchetypes())
+    {
+        static int archOff = -2;
+        if (archOff == -2)
+        {
+            archOff = -1;
+            if (auto Fn = Stack.GetCurrentNativeFunction())
+                archOff = (int)Fn->GetOffset("Archetypes");
+        }
+
+        int rpcNum = -1;
+        TArray<FCosmeticLoadoutActiveArchetype>* InArch = nullptr;
+        if (archOff >= 0)
+        {
+            InArch = (TArray<FCosmeticLoadoutActiveArchetype>*)(__int64(Stack.Locals) + archOff);
+            rpcNum = InArch->Num();
+        }
+
+        int compNum = CosmeticComp->ActiveArchetypes.Num();
+
+        static int an = 0;
+        if (an++ < 10)
+            printf("[Boron][Cosmetics] archetypes: rpc=%d comp=%d archOff=0x%X\n", rpcNum, compNum, archOff);
+
+        if (compNum == 0 && rpcNum > 0)
+        {
+            auto sz = FCosmeticLoadoutActiveArchetype::Size();
+            auto buf = FMemory::Malloc(sz * rpcNum);
+            memcpy(buf, InArch->Data, sz * rpcNum);
+            CosmeticComp->ActiveArchetypes.Data = (FCosmeticLoadoutActiveArchetype*)buf;
+            CosmeticComp->ActiveArchetypes.NumElements = rpcNum;
+            CosmeticComp->ActiveArchetypes.MaxElements = rpcNum;
+
+            if (an <= 10)
+                printf("[Boron][Cosmetics] archetypes: copied %d from RPC\n", rpcNum);
+        }
+
+        CosmeticComp->OnRep_CosmeticLoadout();
+        CosmeticComp->OnRep_ActiveArchetypes();
+
+        static int onr = 0;
+        if (onr++ < 10)
+            printf("[Boron][Cosmetics] ctrl OnRep_CosmeticLoadout + OnRep_ActiveArchetypes fired\n");
+    }
+
+    if (!Pawn || !PlayerController->PlayerState)
+        return;
+
+    UFortKismetLibrary::UpdatePlayerCustomCharacterPartsVisualization(PlayerController->PlayerState);
+
+    if (!UFortKismetLibrary::UpdatePlayerCustomCharacterPartsVisualization__Ptr && ApplyCharacterCustomization)
+        ((void (*)(AActor*, AActor*, int))ApplyCharacterCustomization)(PlayerController->PlayerState, Pawn, 0);
+}
+
 void AFortPlayerControllerAthena::ServerAttemptInteract_(UObject* Context, FFrame& Stack)
 {
     AActor* ReceivingActor = *(AActor**)Stack.Locals;
@@ -2797,6 +3312,15 @@ void AFortPlayerControllerAthena::ServerAttemptInteract_(UObject* Context, FFram
         PlayerController = (AFortPlayerControllerAthena*)Context;
 
     auto Pawn = (AFortPlayerPawnAthena*)PlayerController->Pawn;
+
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        static int itr = 0;
+
+        if (itr++ < 25)
+            printf("[Boron][Pickup] ServerAttemptInteract #%d actor=%p class=%s\n", itr, (void*)ReceivingActor,
+                   ReceivingActor ? ReceivingActor->Class->Name.ToString().c_str() : "null");
+    }
 
     auto sendStat = [&]()
     {
@@ -3877,8 +4401,18 @@ void AFortPlayerControllerAthena::PostLoadHook()
         Hooking::ExecHook(ServerAttemptAircraftJumpPC, ServerAttemptAircraftJump_);
     //}
 
-    Hooking::ExecHook(GetDefaultObj()->GetFunction("ServerAcknowledgePossession"), ServerAcknowledgePossession);
-    Hooking::ExecHook(GetDefaultObj()->GetFunction("ServerExecuteInventoryItem"), ServerExecuteInventoryItem_);
+    auto sapFn = GetDefaultObj()->GetFunction("ServerAcknowledgePossession");
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        auto sapIdx = sapFn->GetVTableIndex();
+        printf("[Boron][Pawn] ServerAcknowledgePossession: idx=%u athenaVft=%p (vtable swap)\n",
+               sapIdx, (sapIdx != (uint32_t)-1) ? GetDefaultObj()->Vft[sapIdx] : nullptr);
+        if (sapIdx != (uint32_t)-1)
+            Hooking::Hook<AFortPlayerControllerAthena>(sapIdx, ServerAcknowledgePossession_Native, ServerAcknowledgePossession_NativeOG);
+    }
+    else
+        Hooking::ExecHook(sapFn, ServerAcknowledgePossession);
+    Hooking::ExecHook(GetDefaultObj()->GetFunction("ServerExecuteInventoryItem"), ServerExecuteInventoryItem_, ServerExecuteInventoryItem_OG);
     Hooking::ExecHook(GetDefaultObj()->GetFunction("ServerExecuteInventoryWeapon"), ServerExecuteInventoryWeapon); // S9 shenanigans
 
     // same as serveracknowledgepossession
@@ -3919,6 +4453,16 @@ void AFortPlayerControllerAthena::PostLoadHook()
         Hooking::ExecHook(DefaultObjImpl("FortControllerComponent_Interaction")->GetFunction("ServerAttemptInteract"), ServerAttemptInteract_, ServerAttemptInteract_OG);
     else
         Hooking::ExecHook(ServerAttemptInteractPC, ServerAttemptInteract_, ServerAttemptInteract_OG);
+
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        auto SetMultiCosmeticFn = GetDefaultObj()->GetFunction("ServerSetMultiProductCosmeticLoadout");
+
+        printf("[Boron][Cosmetics] ServerSetMultiProductCosmeticLoadout UFunction=%p\n", (void*)SetMultiCosmeticFn);
+
+        if (SetMultiCosmeticFn)
+            Hooking::ExecHook(SetMultiCosmeticFn, ServerSetMultiProductCosmeticLoadout_, ServerSetMultiProductCosmeticLoadout_OG);
+    }
 
     Hooking::ExecHook(GetDefaultObj()->GetFunction("ServerDropAllItems"), ServerDropAllItems);
 

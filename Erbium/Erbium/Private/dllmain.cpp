@@ -83,7 +83,7 @@ void Main()
         }
     }
 
-    if constexpr (FConfig::bSaveConsoleLog && !FConfig::bUseStdoutLog)
+    if constexpr (FConfig::bSaveConsoleLog && (!FConfig::bUseStdoutLog || !FConfig::bGUI))
         SetupConsoleTee();
 
     if constexpr (FConfig::bCustomCrashReporter)
@@ -155,16 +155,38 @@ void Main()
             auto ReplicationBridgeConfig = UObjectReplicationBridgeConfig::GetDefaultObj();
 
             auto FortInventoryName = FName(L"/Script/FortniteGame.FortInventory");
-            for (int i = 0; i < ReplicationBridgeConfig->FilterConfigs.Num(); i++)
+            bool clearedInv = false;
+            int clearedExtra = 0;
+            int cfgN = ReplicationBridgeConfig ? ReplicationBridgeConfig->FilterConfigs.Num() : -1;
+            for (int i = 0; i < cfgN; i++)
             {
                 auto& FilterConfig = ReplicationBridgeConfig->FilterConfigs.Get(i, FObjectReplicationBridgeFilterConfig::Size());
 
                 if (FilterConfig.ClassName == FortInventoryName)
                 {
                     FilterConfig.DynamicFilterName = FName(0);
-                    break;
+                    clearedInv = true;
+                    continue;
+                }
+
+                // CH5: pickups replicate fine for ~1-2s then become impossible to interact with
+                // (drop+grab instantly works; floor/chest/ammo loot never does). Dormancy was ruled
+                // out, so dump every dynamic filter and clear the ones covering pickups/loot — a
+                // dynamically-filtered pickup stops replicating and the client can't complete pickup.
+                if (VersionInfo.EngineVersion >= 5.4)
+                {
+                    auto cls = FilterConfig.ClassName.ToString();
+                    printf("[Boron][Iris] filter[%d] class=%s dyn=%s\n", i, cls.c_str(), FilterConfig.DynamicFilterName.ToString().c_str());
+
+                    if (strstr(cls.c_str(), "Pickup") || strstr(cls.c_str(), "LootTier") || strstr(cls.c_str(), "SearchableContainer"))
+                    {
+                        FilterConfig.DynamicFilterName = FName(0);
+                        clearedExtra++;
+                        printf("[Boron][Iris]   -> CLEARED filter on %s\n", cls.c_str());
+                    }
                 }
             }
+            printf("[Boron][Iris] filters: configs=%d clearedInventory=%d clearedPickupLike=%d\n", cfgN, clearedInv, clearedExtra);
         }
         // UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"net.Iris.UseIrisReplication 1"), nullptr);
     }
@@ -175,6 +197,12 @@ void Main()
         auto HurdleCVar = FindCVar<uint32_t>(L"Fort.MME.Hurdle");
         auto SlideCVar = FindCVar<uint32_t>(L"Fort.MME.Sliding");
         auto MantleCVar = FindCVar<uint32_t>(L"Fort.MME.Clambering");
+
+        // if (SprintCVar)
+        //     *SprintCVar = false;
+
+        // if (HurdleCVar)
+        //     *HurdleCVar = false;
 
         // if (SprintCVar)
         //     *SprintCVar = false;
@@ -238,9 +266,23 @@ void Main()
     for (auto& HookFunc : _HookFuncs)
         HookFunc();
 
-    *(bool*)FindGIsClient() = false;
+    auto GIsClientAddr = FindGIsClient();
+    auto GIsServerAddr = FindGIsServer();
+    printf("[Boron] GIsClient=0x%llX GIsServer=0x%llX (FN %.2f)\n",
+           (unsigned long long)GIsClientAddr, (unsigned long long)GIsServerAddr, VersionInfo.FortniteVersion);
+
+    if (GIsClientAddr)
+        *(bool*)GIsClientAddr = false;
+    else
+        printf("[Boron] WARNING: GIsClient not found -- skipping (add a signature in Finders.cpp)\n");
+
     if (VersionInfo.EngineVersion > 4.20) // 3.6 and below have a crash on ALandscapeProxy
-        *(bool*)FindGIsServer() = true;
+    {
+        if (GIsServerAddr)
+            *(bool*)GIsServerAddr = true;
+        else
+            printf("[Boron] WARNING: GIsServer not found -- skipping (add a signature in Finders.cpp)\n");
+    }
 
     srand((uint32_t)time(0));
 
@@ -275,7 +317,12 @@ void Main()
     if (EncryptionPatch)
         Hooking::Patch<uint8_t>(EncryptionPatch, 0x74);
     else
-        printf("Matchmaking is NOT supported on this version, please make a github issue.\n");
+    {
+        // UE5.4+ (30.20/31.41/32.11) inlined the encryption check so the byte-patch sigs miss.
+        // net.AllowEncryption 0 disables encryption engine-wide and is version-agnostic (same job).
+        printf("Encryption byte-patch not found, falling back to net.AllowEncryption 0 (UE5.4+)\n");
+        UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"net.AllowEncryption 0"), nullptr);
+    }
 
     for (auto& HookFunc : _PostLoadHookFuncs)
         HookFunc();

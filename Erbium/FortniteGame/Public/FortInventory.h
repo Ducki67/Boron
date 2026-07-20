@@ -341,12 +341,20 @@ public:
     DEFINE_PROP(bPickedUp, bool);
     DEFINE_PROP(PickupLocationData, FFortPickupLocationData);
     DEFINE_PROP(MovementComponent, UObject*);
+    DEFINE_BITFIELD_PROP(bServerStoppedSimulation);
+    DEFINE_BITFIELD_PROP(bSuppressInteractionWidget);
+    DEFINE_BITFIELD_PROP(bUsePickupWidget);
+    DEFINE_BITFIELD_PROP(bBlockedFromAutoPickup);
+    DEFINE_PROP(PrimaryPickupDummyItem, UObject*);
+    DEFINE_PROP(TouchCapsule, UObject*);
+    DEFINE_PROP(OverrideInteractAimRadius, float);
 
     DEFINE_FUNC(OnRep_PrimaryPickupItemEntry, void);
     DEFINE_FUNC(OnRep_TossedFromContainer, void);
     DEFINE_FUNC(TossPickup, void);
     DEFINE_FUNC(OnRep_bPickedUp, void);
     DEFINE_FUNC(OnRep_PickupLocationData, void);
+    DEFINE_FUNC(OnRep_ServerStoppedSimulation, void);
 };
 
 class UFortWeaponItemDefinition : public UFortWorldItemDefinition
