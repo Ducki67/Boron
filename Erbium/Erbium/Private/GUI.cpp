@@ -898,6 +898,8 @@ void GUI::Init()
 
             ImGui::Text("Base / Erbium");
             ImGui::BulletText("Sarah (@ustruct on Discord)");
+            ImGui::Text("Bosses on C2S4");
+            ImGui::BulletText("Andreu");
         }
 
 

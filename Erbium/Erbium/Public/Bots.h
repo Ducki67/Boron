@@ -132,9 +132,15 @@ namespace BossAI
         return RandRange(-Max, -Base - Sep);
     }
 
+    inline bool IsValidPtr(const void* P)
+    {
+        auto V = (uintptr_t)P;
+        return V >= 0x10000 && V < 0x7FFFFFFFFFFFull;
+    }
+
     inline bool IsLiveActor(AActor* Actor)
     {
-        if (!Actor || Actor->bActorIsBeingDestroyed)
+        if (!IsValidPtr(Actor) || Actor->bActorIsBeingDestroyed)
             return false;
 
         auto Item = TUObjectArray::GetItemByIndex(Actor->Index);
@@ -161,6 +167,172 @@ namespace BossAI
         {
             return false;
         }
+    }
+
+    inline UObject* FindCDO(UClass* Cls)
+    {
+        if (!Cls)
+            return nullptr;
+        for (int i = 0; i < TUObjectArray::Num(); i++)
+        {
+            auto Obj = TUObjectArray::GetObjectByIndex(i);
+            if (Obj && Obj->IsDefaultObject() && Obj->Class == Cls)
+                return (UObject*)Obj;
+        }
+        return nullptr;
+    }
+
+    inline UFortItemDefinition* DroppableVersion(UFortItemDefinition* Def)
+    {
+        if (!Def)
+            return Def;
+        auto nm = Def->Name.ToString();
+        auto pos = nm.find("_NPC");
+        if (pos == std::string::npos)
+            return Def;
+
+        auto want = nm.substr(0, pos);
+        for (int i = 0; i < TUObjectArray::Num(); i++)
+        {
+            auto Obj = TUObjectArray::GetObjectByIndex(i);
+            if (Obj && Obj->Class && !Obj->IsDefaultObject() && Obj->IsA<UFortItemDefinition>() && Obj->Name.ToString() == want)
+                return (UFortItemDefinition*)Obj;
+        }
+        return Def;
+    }
+
+    inline void ApplyBotLoadout(AFortPlayerPawnAthena* Bot, UObject* SpawnerCDO)
+    {
+        if (!Bot || !Bot->Controller || !SpawnerCDO)
+            return;
+
+        static auto InvCompOff = SpawnerCDO->GetOffset("InventoryComponent");
+        if (InvCompOff == -1)
+            return;
+
+        auto InvCompClass = GetFromOffset<UClass*>(SpawnerCDO, InvCompOff);
+        auto InvCompCDO = FindCDO(InvCompClass);
+        if (!InvCompCDO)
+            return;
+
+        static auto ItemsOff = InvCompCDO->GetOffset("Items");
+        if (ItemsOff == -1)
+            return;
+
+        auto& Items = GetFromOffset<TArray<FItemAndCount>>(InvCompCDO, ItemsOff);
+        if (Items.Num() == 0)
+            return;
+
+        static auto InvOff = Bot->Controller->GetOffset("Inventory");
+        AFortInventory* Inv = (InvOff != -1) ? GetFromOffset<AFortInventory*>(Bot->Controller, InvOff) : nullptr;
+        if (!Inv && InvOff != -1)
+        {
+            Inv = UWorld::SpawnActor<AFortInventory>(AFortInventory::StaticClass(), FVector{ 0, 0, -99999 }, FRotator{}, Bot->Controller);
+            if (Inv)
+            {
+                Inv->InventoryType = 0;
+                if (auto OnRepOwnerFn = Inv->GetFunction("OnRep_Owner"))
+                    Inv->ProcessEvent(OnRepOwnerFn, nullptr);
+                GetFromOffset<AFortInventory*>(Bot->Controller, InvOff) = Inv;
+            }
+        }
+        if (!Inv)
+            return;
+
+        bool equipped = false;
+        int given = 0;
+        for (int i = 0; i < Items.Num(); i++)
+        {
+            auto& IC = Items.Get(i, FItemAndCount::Size());
+            auto Def = IC.GetItem();
+            if (!Def)
+                continue;
+
+            int cnt = IC.GetCount();
+            if (!equipped && Def->Cast<UFortWeaponRangedItemDefinition>())
+            {
+                GiveAndEquip(Inv, Bot, (UFortWorldItemDefinition*)Def);
+                equipped = true;
+            }
+            else
+            {
+                Inv->GiveItem(Def, cnt > 0 ? cnt : 1);
+            }
+            given++;
+
+            static int ilog = 0;
+            if (ilog++ < 40)
+                printf("[Boron][Bots] loadout item bot=%p [%s] x%d\n", (void*)Bot, Def->Name.ToString().c_str(), cnt);
+        }
+
+        static int llog = 0;
+        if (llog++ < 12)
+            printf("[Boron][Bots] loadout bot=%p items=%d equipped=%d\n", (void*)Bot, given, (int)equipped);
+    }
+
+    inline void ApplyBotCosmetics(AFortPlayerPawnAthena* Bot, UObject* SpawnerCDO)
+    {
+        if (!Bot || !Bot->Controller)
+            return;
+
+        UAthenaCharacterItemDefinition* CID = nullptr;
+
+        static auto LoadoutOff = Bot->Controller->GetOffset("CosmeticLoadoutBC");
+        if (LoadoutOff != -1)
+            CID = *(UAthenaCharacterItemDefinition**)((char*)Bot->Controller + LoadoutOff + 0x40);
+
+        if (!IsValidPtr(CID) && SpawnerCDO)
+        {
+            static auto CosCompOff = SpawnerCDO->GetOffset("CosmeticComponent");
+            if (CosCompOff != -1)
+            {
+                auto CosCompClass = GetFromOffset<UClass*>(SpawnerCDO, CosCompOff);
+                auto CosCompCDO = FindCDO(CosCompClass);
+                auto LoadoutClass = FindClass("FortAthenaAISpawnerDataComponent_CosmeticLoadout");
+                if (CosCompCDO && LoadoutClass && CosCompCDO->IsA(LoadoutClass))
+                    CID = *(UAthenaCharacterItemDefinition**)((char*)CosCompCDO + 0x28 + 0x40);
+            }
+        }
+
+        if (!IsValidPtr(CID))
+        {
+            static int cn = 0;
+            if (cn++ < 8)
+                printf("[Boron][Bots] cosmetics bot=%p no character\n", (void*)Bot);
+            return;
+        }
+
+        static auto ChoosePartFn = Bot->GetFunction("ServerChoosePart");
+        if (!ChoosePartFn)
+            return;
+
+        struct { uint8_t Part; uint8_t pad[7]; const UObject* ChosenCharacterPart; } cp{};
+        int applied = 0;
+
+        auto Choose = [&](const UCustomCharacterPart* Part)
+        {
+            if (!Part || !Part->HasCharacterPartType() || Part->CharacterPartType >= 7)
+                return;
+            cp.Part = Part->CharacterPartType;
+            cp.ChosenCharacterPart = Part;
+            Bot->ProcessEvent(ChoosePartFn, &cp);
+            applied++;
+        };
+
+        if (CID->HasBaseCharacterParts())
+            for (auto& PartSoft : CID->BaseCharacterParts)
+                Choose(PartSoft.Get());
+
+        if (auto Hero = CID->GetHeroDefinition())
+            for (auto& SpecSoft : Hero->Specializations)
+                if (auto Spec = (UFortHeroSpecialization*)SpecSoft.Get())
+                    for (auto& PartSoft : Spec->CharacterParts)
+                        Choose(PartSoft.Get());
+
+        static int clog = 0;
+        if (clog++ < 12)
+            printf("[Boron][Bots] cosmetics bot=%p character=%s parts=%d\n", (void*)Bot,
+                   CID->Name.ToString().c_str(), applied);
     }
 
     inline void SpawnAIOnPaths(const UClass* SpawnerClass, const std::string& Name, bool bAllPaths)
@@ -264,31 +436,49 @@ namespace BossAI
             if (Points.Num() == 0 || !Points[0])
                 continue;
 
-            struct { FVector Loc; FRotator Rot; UObject* List; AActor* ReturnValue; } SpawnParams{};
-            SpawnParams.Loc = Points[0]->K2_GetActorLocation();
-            SpawnParams.Rot = Points[0]->K2_GetActorRotation();
-            SpawnParams.List = CreateParams.ReturnValue;
+            auto LocV = Points[0]->K2_GetActorLocation();
+            auto RotV = Points[0]->K2_GetActorRotation();
 
-            static const bool bDrySpawn = true;
-            if (bDrySpawn)
+            int vsz = FVector::Size();
+            int rsz = FRotator::Size();
+            int listOff = vsz + rsz;
+            int retOff = listOff + 8;
+
+            uint8 Parms[96] = {};
+            if (vsz == 0xc)
             {
-                static int dlog = 0;
-                if (dlog++ < 8)
-                    printf("[Boron][Bots] DRY SpawnAI %s path=%zu list=%p botmgr=%p loc=(%.0f,%.0f,%.0f)\n",
-                           Name.c_str(), i, (void*)CreateParams.ReturnValue, (void*)BotManager,
-                           SpawnParams.Loc.X, SpawnParams.Loc.Y, SpawnParams.Loc.Z);
-                continue;
+                *(float*)(Parms + 0x0) = (float)LocV.X;
+                *(float*)(Parms + 0x4) = (float)LocV.Y;
+                *(float*)(Parms + 0x8) = (float)LocV.Z;
+                *(float*)(Parms + 0xc + 0x0) = (float)RotV.Pitch;
+                *(float*)(Parms + 0xc + 0x4) = (float)RotV.Yaw;
+                *(float*)(Parms + 0xc + 0x8) = (float)RotV.Roll;
             }
+            else
+            {
+                *(double*)(Parms + 0x0) = (double)LocV.X;
+                *(double*)(Parms + 0x8) = (double)LocV.Y;
+                *(double*)(Parms + 0x10) = (double)LocV.Z;
+                *(double*)(Parms + 0x18 + 0x0) = (double)RotV.Pitch;
+                *(double*)(Parms + 0x18 + 0x8) = (double)RotV.Yaw;
+                *(double*)(Parms + 0x18 + 0x10) = (double)RotV.Roll;
+            }
+            *(UObject**)(Parms + listOff) = CreateParams.ReturnValue;
 
-            bool ok = SafeProcessEvent((UObject*)BotManager, SpawnFn, &SpawnParams);
-            if (ok && SpawnParams.ReturnValue)
+            bool ok = SafeProcessEvent((UObject*)BotManager, SpawnFn, Parms);
+            AActor* spawnedPawn = *(AActor**)(Parms + retOff);
+            if (ok && spawnedPawn)
+            {
                 spawned++;
+                ApplyBotLoadout((AFortPlayerPawnAthena*)spawnedPawn, SpawnerCDO);
+                ApplyBotCosmetics((AFortPlayerPawnAthena*)spawnedPawn, SpawnerCDO);
+            }
 
             static int slog = 0;
             if (slog++ < 8)
-                printf("[Boron][Bots] SpawnAI %s path=%zu ok=%d pawn=%p list=%p loc=(%.0f,%.0f,%.0f)\n",
-                       Name.c_str(), i, (int)ok, (void*)SpawnParams.ReturnValue, (void*)CreateParams.ReturnValue,
-                       SpawnParams.Loc.X, SpawnParams.Loc.Y, SpawnParams.Loc.Z);
+                printf("[Boron][Bots] SpawnAI %s path=%zu ok=%d pawn=%p list=%p vsz=%d loc=(%.0f,%.0f,%.0f)\n",
+                       Name.c_str(), i, (int)ok, (void*)spawnedPawn, (void*)CreateParams.ReturnValue, vsz,
+                       LocV.X, LocV.Y, LocV.Z);
         }
 
         printf("[Boron][Bots] spawn %s: %d/%d paths\n", Name.c_str(), spawned, (int)Matches.size());
@@ -364,12 +554,13 @@ namespace BossAI
 
     inline UFortItemDefinition* GetWeaponDef(AActor* Weapon)
     {
-        if (!Weapon)
+        if (!IsValidPtr(Weapon))
             return nullptr;
         static auto WeaponDataOffset = Weapon->GetOffset("WeaponData");
         if (WeaponDataOffset == -1)
             return nullptr;
-        return GetFromOffset<UFortItemDefinition*>(Weapon, WeaponDataOffset);
+        auto Def = GetFromOffset<UFortItemDefinition*>(Weapon, WeaponDataOffset);
+        return IsValidPtr(Def) ? Def : nullptr;
     }
 
     inline void Tick()
@@ -381,11 +572,22 @@ namespace BossAI
             return;
 
         static bool bRequestedSpawns = false;
-        static uint32 spawnDelay = 0;
-        if (!bRequestedSpawns && ++spawnDelay > 60)
+        if (!bRequestedSpawns && VersionInfo.FortniteVersion >= 14.0)
         {
-            bRequestedSpawns = true;
-            RequestAISpawn();
+            auto SpawnWorld = UWorld::GetWorld();
+            auto SpawnGS = SpawnWorld ? (AFortGameStateAthena*)SpawnWorld->GameState : nullptr;
+            int spawnPhase = 0;
+            if (SpawnGS)
+            {
+                static auto PhOff = SpawnGS->GetOffset("GamePhase");
+                if (PhOff != -1)
+                    spawnPhase = (int)GetFromOffset<uint8>(SpawnGS, PhOff);
+            }
+            if (spawnPhase >= 3)
+            {
+                bRequestedSpawns = true;
+                RequestAISpawn();
+            }
         }
 
         auto& St = States();
@@ -439,6 +641,8 @@ namespace BossAI
             static auto InvOffset = Bot->Controller->GetOffset("Inventory");
             if (!State.inv && InvOffset != -1)
                 State.inv = GetFromOffset<AFortInventory*>(Bot->Controller, InvOffset);
+            if (!IsValidPtr(State.inv))
+                State.inv = nullptr;
 
             if (!State.gaveWeapon)
             {
@@ -465,12 +669,20 @@ namespace BossAI
                     else if (State.weaponTries >= 40)
                     {
                         State.gaveWeapon = true;
-                        BuildLoot();
-                        auto& L = Loot();
-                        auto& Pool = !L.Startup.empty() ? L.Startup : L.Guns;
 
-                        if (!Pool.empty())
-                            GiveAndEquip(State.inv, Bot, Pool[rand() % Pool.size()]);
+                        auto MeleeBoss = State.inv->Inventory.ReplicatedEntries.Search([](FFortItemEntry& Entry) {
+                            return Entry.ItemDefinition && Entry.ItemDefinition->Name.ToString().find("Wasabi") != std::string::npos;
+                        }, FFortItemEntry::Size());
+
+                        if (!MeleeBoss)
+                        {
+                            BuildLoot();
+                            auto& L = Loot();
+                            auto& Pool = !L.Startup.empty() ? L.Startup : L.Guns;
+
+                            if (!Pool.empty())
+                                GiveAndEquip(State.inv, Bot, Pool[rand() % Pool.size()]);
+                        }
                     }
                 }
                 else if (State.weaponTries >= 40 && InvOffset != -1)
@@ -518,10 +730,30 @@ namespace BossAI
 
                     if (!Entry.ItemDefinition)
                         continue;
-                    if (Entry.ItemDefinition->Cast<UFortWeaponMeleeItemDefinition>())
-                        continue;
                     if (Entry.ItemDefinition->Cast<UFortAmmoItemDefinition>())
                         continue;
+
+                    auto EntryName = Entry.ItemDefinition->Name.ToString();
+                    if (Entry.ItemDefinition->Cast<UFortWeaponMeleeItemDefinition>())
+                    {
+                        if (EntryName.find("Wasabi") != std::string::npos)
+                        {
+                            static auto Claws = FindObject<UFortItemDefinition>(L"/HighTower/Items/Wasabi/Claws/CoreBR/WID_HighTower_Wasabi_Claws_CoreBR.WID_HighTower_Wasabi_Claws_CoreBR");
+                            if (Claws)
+                            {
+                                State.dropDefs.push_back((UFortItemDefinition*)Claws);
+                                State.dropCounts.push_back(1);
+                            }
+
+                            static auto Fish = FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Consumables/Flopper/Effective/WID_Athena_Flopper_Effective.WID_Athena_Flopper_Effective");
+                            if (Fish)
+                            {
+                                State.dropDefs.push_back((UFortItemDefinition*)Fish);
+                                State.dropCounts.push_back(2);
+                            }
+                        }
+                        continue;
+                    }
 
                     State.dropDefs.push_back((UFortItemDefinition*)Entry.ItemDefinition);
                     State.dropCounts.push_back((int)Entry.Count);
@@ -719,11 +951,26 @@ namespace BossAI
             if (!it->second.seen && !it->second.dropped)
             {
                 int dropped = 0;
+                static int dlog = 0;
+                bool logThis = dlog++ < 16;
 
                 if (it->second.lastWeaponDef)
                 {
-                    AFortInventory::SpawnPickup(it->second.lastLoc, it->second.lastWeaponDef, 1, 0);
+                    auto Drop = DroppableVersion(it->second.lastWeaponDef);
+                    AFortInventory::SpawnPickup(it->second.lastLoc, Drop, 1, 0);
                     dropped++;
+                    if (logThis)
+                        printf("[Boron][Bots]   drop equipped [%s]\n", Drop->Name.ToString().c_str());
+
+                    if (it->second.lastWeaponDef->Cast<UFortWeaponRangedItemDefinition>())
+                    {
+                        auto Ammo = ((UFortWorldItemDefinition*)it->second.lastWeaponDef)->GetAmmoWorldItemDefinition_BP();
+                        if (Ammo && (UFortItemDefinition*)Ammo != it->second.lastWeaponDef)
+                        {
+                            AFortInventory::SpawnPickup(it->second.lastLoc, (UFortItemDefinition*)Ammo, 30, 0);
+                            dropped++;
+                        }
+                    }
                 }
 
                 for (size_t d = 0; d < it->second.dropDefs.size(); d++)
@@ -733,12 +980,14 @@ namespace BossAI
                     if (!Def || Def == it->second.lastWeaponDef)
                         continue;
 
-                    AFortInventory::SpawnPickup(it->second.lastLoc, Def, it->second.dropCounts[d] > 0 ? it->second.dropCounts[d] : 1, 0);
+                    auto Drop = DroppableVersion(Def);
+                    AFortInventory::SpawnPickup(it->second.lastLoc, Drop, it->second.dropCounts[d] > 0 ? it->second.dropCounts[d] : 1, 0);
                     dropped++;
+                    if (logThis)
+                        printf("[Boron][Bots]   drop item [%s]\n", Drop->Name.ToString().c_str());
                 }
 
-                static int dlog = 0;
-                if (dlog++ < 12)
+                if (logThis)
                     printf("[Boron][Bots] death drop: %d items at (%.0f,%.0f,%.0f)\n", dropped,
                            it->second.lastLoc.X, it->second.lastLoc.Y, it->second.lastLoc.Z);
 

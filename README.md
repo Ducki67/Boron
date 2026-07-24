@@ -104,3 +104,4 @@ Erbium is a WIP universal gameserver for Fortnite.
 > If you use this, please give credits to: [Ploosh](https://github.com/plooshi).
 > 
 > Credit to Milxnor for parts of Finders.cpp
+> [Andreu](https://github.com/andreux2025) for bosses on C2S4
