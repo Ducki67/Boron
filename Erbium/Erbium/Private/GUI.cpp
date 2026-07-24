@@ -10,6 +10,13 @@
 #include <d3d11.h>
 #include <fstream>
 #include <sstream>
+
+#include <chrono>
+#include <iostream>
+#include <thread>
+#include <io.h>
+#include <fcntl.h>
+
 #pragma comment(lib, "d3d11.lib")
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -326,14 +333,16 @@ void GUI::Init()
             if (!GUI::bServerSetupRequested)
             {
                 ImGui::BeginChild("setupserver", ImVec2(410 * main_scale, 230 * main_scale), ImGuiChildFlags_Borders);
-
+                ImGui::Text("Main Settings: ");
                 char PlaylistBuf[9999];
                 sprintf_s(PlaylistBuf, "%ls", FConfig::Playlist);
-                if (ImGui::InputText("Playlist ID Path", PlaylistBuf, 999))
+                if (ImGui::InputText("Playlist ID Path", PlaylistBuf, 9999))
                 {
                     swprintf_s(FConfig::Playlist, L"%hs", PlaylistBuf);
                 }
+
                 
+
                 // not done
                 ImGui::Checkbox("Force Respawns (requires client dll!)", &GameRuleConfig::bForceRespawns);
                 if (GameRuleConfig::bForceRespawns)
@@ -347,8 +356,16 @@ void GUI::Init()
                 ImGui::Checkbox("Creative Extra Ammo (currently bugs inventory out!!)", &GameRuleConfig::bCreativeExtraAmmo);
                 ImGui::Checkbox("Boss AI (move + shoot)", &GameRuleConfig::bBossAI);
                 
+                ImGui::Text("Creative Settings: ");
+                char CustomMapDefBuffer[9999];
+                sprintf_s(CustomMapDefBuffer, "%ls", FConfig::CreativeModeConfig::CustomMapDefinition);
+                if (ImGui::InputText("Custom Map Definition", CustomMapDefBuffer, 9999))
+                {
+                    swprintf_s(FConfig::CreativeModeConfig::CustomMapDefinition, L"%hs", CustomMapDefBuffer);
+                }
 
-                if (ImGui::Button("   Setup server   "))
+
+                if (ImGui::Button("  \n     Setup server  \n     "))
                     GUI::bServerSetupRequested = true;
                 ImGui::Spacing();
                 ImGui::Separator();
@@ -382,11 +399,11 @@ void GUI::Init()
                 // some better shit yo
                 ImGui::Text((std::string("Running for ") + std::to_string((int)floor(UGameplayStatics::GetTimeSeconds(GameMode))) + "s").c_str());
 
-                if (FConfig::bEnableIris)
+                if (VersionInfo.FortniteVersion >= 24.40 && FConfig::bEnableIris)
                 {
                     ImGui::Text("Replication: bEnableIris=true (Iris replication)");
                 }
-                else
+                else if (VersionInfo.FortniteVersion >= 24.40 && FConfig::bEnableIris)
                 {
                     ImGui::Text("Replication: bEnableIris=false (Legacy replication)");
                 }
@@ -416,7 +433,7 @@ void GUI::Init()
             }
 
             if (gsStatus <= Joinable)
-                if (FConfig::Playlist == L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2")
+                if (VersionInfo.FortniteVersion >=7.00 && FConfig::Playlist == L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2")
                 {
                     ImGui::Text("Lategame is disabled due to the Creative playlist!!!");
                     LategameConfig::bLateGame = false; // froce it ig cuz then ppl dont have fucking strom issue on creative
@@ -731,10 +748,10 @@ void GUI::Init()
                 ImGui::Spacing();
                 ImGui::Checkbox("Long Zone", &LategameConfig::bLateGameLongZone);
             }
-
+            /*
             ImGui::Spacing();
             ImGui::Checkbox("Realistic Moving Bus", &LategameConfig::bLateGameMovingBus);
-
+            */
             ImGui::Separator();
             ImGui::Spacing();
             ImGui::Text("Quick Notes:");

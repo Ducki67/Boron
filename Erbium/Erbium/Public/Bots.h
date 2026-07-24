@@ -10,6 +10,7 @@
 #include "../../FortniteGame/Public/FortPlayerPawnAthena.h"
 #include "../../FortniteGame/Public/FortPlayerControllerAthena.h"
 #include "../../FortniteGame/Public/FortInventory.h"
+#include "../../FortniteGame/Public/FortGameMode.h"
 
 namespace BossAI
 {
@@ -24,8 +25,15 @@ namespace BossAI
         float patrolYaw = -1.f;
         uint32 patrolTimer = 0;
         bool gaveWeapon = false;
+        int weaponTries = 0;
         bool targeting = false;
         bool boss = false;
+        AFortInventory* inv = nullptr;
+        std::vector<UFortItemDefinition*> dropDefs;
+        std::vector<int> dropCounts;
+        float aimX = 0.f;
+        float aimY = 0.f;
+        float aimZ = 0.f;
     };
 
     // Curated loot pools, built once from the object array by name (no offsets/RE).
@@ -34,6 +42,7 @@ namespace BossAI
     {
         bool built = false;
         std::vector<UFortWorldItemDefinition*> Guns;
+        std::vector<UFortWorldItemDefinition*> Startup;
         std::vector<UFortWorldItemDefinition*> Mythics;
         UFortItemDefinition* KeyCard = nullptr;
     };
@@ -64,6 +73,8 @@ namespace BossAI
                 L.KeyCard = (UFortItemDefinition*)Obj;
 
             if (!Obj->IsA<UFortWeaponRangedItemDefinition>())
+                continue;
+            if (Path.find("/Athena/") == std::string::npos)
                 continue;
             if (Path.find("Grenade") != std::string::npos || Path.find("Consumable") != std::string::npos ||
                 Path.find("Athena_C_") != std::string::npos || Path.find("_Ammo") != std::string::npos)
@@ -103,6 +114,254 @@ namespace BossAI
         return Map;
     }
 
+    inline float RandRange(float Min, float Max)
+    {
+        return Min + ((float)rand() / (float)RAND_MAX) * (Max - Min);
+    }
+
+    inline float ModLocation(float Base, float Sep, float Max)
+    {
+        auto Num = RandRange(0.f, 3.f);
+
+        if (Num < 1.f)
+            return RandRange(-Base, Base);
+
+        if (Num < 2.f)
+            return RandRange(Base + Sep, Max);
+
+        return RandRange(-Max, -Base - Sep);
+    }
+
+    inline bool IsLiveActor(AActor* Actor)
+    {
+        if (!Actor || Actor->bActorIsBeingDestroyed)
+            return false;
+
+        auto Item = TUObjectArray::GetItemByIndex(Actor->Index);
+        if (!Item || (Item->Flags & ((1 << 29) | (1 << 21))))
+            return false;
+
+        return true;
+    }
+
+    inline std::vector<AFortPlayerPawnAthena*>& Live()
+    {
+        static std::vector<AFortPlayerPawnAthena*> Pawns;
+        return Pawns;
+    }
+
+    inline bool SafeProcessEvent(UObject* Obj, UFunction* Fn, void* Params)
+    {
+        __try
+        {
+            Obj->ProcessEvent(Fn, Params);
+            return true;
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER)
+        {
+            return false;
+        }
+    }
+
+    inline void SpawnAIOnPaths(const UClass* SpawnerClass, const std::string& Name, bool bAllPaths)
+    {
+        if (!SpawnerClass)
+            return;
+
+        auto World = UWorld::GetWorld();
+        auto GameMode = World ? (AFortGameModeAthena*)World->AuthorityGameMode : nullptr;
+        auto BotManager = GameMode ? GameMode->ServerBotManager : nullptr;
+        if (!BotManager)
+            return;
+
+        auto PathClass = FindClass("FortAthenaPatrolPath");
+        if (!PathClass)
+            return;
+
+        TArray<AActor*> Found;
+        Utils::GetAll<AActor>(PathClass, Found);
+
+        std::vector<AActor*> Matches;
+        for (int i = 0; i < Found.Num(); i++)
+        {
+            auto Path = Found[i];
+            if (!Path)
+                continue;
+
+            static auto TagsOffset = Path->GetOffset("GameplayTags");
+            if (TagsOffset == -1)
+                continue;
+
+            auto& Tags = GetFromOffset<FGameplayTagContainer>(Path, TagsOffset).GameplayTags;
+            if (Tags.Num() == 0)
+                continue;
+
+            auto TagName = Tags.Get(0, FGameplayTag::Size()).TagName.ToString();
+            if (TagName.length() >= Name.length() && TagName.compare(TagName.length() - Name.length(), Name.length(), Name) == 0)
+                Matches.push_back(Path);
+        }
+        Found.Free();
+
+        if (Matches.empty())
+            return;
+
+        UObject* SpawnerCDO = nullptr;
+        for (int i = 0; i < TUObjectArray::Num(); i++)
+        {
+            auto Obj = TUObjectArray::GetObjectByIndex(i);
+            if (Obj && Obj->IsDefaultObject() && Obj->Class == SpawnerClass)
+            {
+                SpawnerCDO = (UObject*)Obj;
+                break;
+            }
+        }
+
+        auto CreateFn = SpawnerCDO ? SpawnerCDO->GetFunction("CreateComponentListFromClass") : nullptr;
+        auto SpawnFn = BotManager->GetFunction("SpawnAI");
+        if (!CreateFn || !SpawnFn)
+        {
+            printf("[Boron][Bots] spawn %s aborted: cdo=%p CreateComponentListFromClass=%p SpawnAI=%p\n", Name.c_str(), (void*)SpawnerCDO, (void*)CreateFn, (void*)SpawnFn);
+            return;
+        }
+
+        struct { UClass* SpawnerDataClass; UObject* OuterObject; UObject* ReturnValue; } CreateParams{ (UClass*)SpawnerClass, (UObject*)World, nullptr };
+        if (!SafeProcessEvent(SpawnerCDO, CreateFn, &CreateParams))
+        {
+            printf("[Boron][Bots] spawn %s aborted: CreateComponentListFromClass faulted\n", Name.c_str());
+            return;
+        }
+        if (!CreateParams.ReturnValue)
+        {
+            printf("[Boron][Bots] spawn %s aborted: null component list\n", Name.c_str());
+            return;
+        }
+
+        if (bAllPaths)
+        {
+            for (size_t i = Matches.size() - 1; i > 0; i--)
+            {
+                size_t j = (size_t)(rand() % (int)(i + 1));
+                auto Temp = Matches[i];
+                Matches[i] = Matches[j];
+                Matches[j] = Temp;
+            }
+        }
+        else
+        {
+            auto Pick = Matches[rand() % Matches.size()];
+            Matches.clear();
+            Matches.push_back(Pick);
+        }
+
+        int spawned = 0;
+        for (size_t i = 0; i < Matches.size(); i++)
+        {
+            static auto PointsOffset = Matches[i]->GetOffset("PatrolPoints");
+            if (PointsOffset == -1)
+                break;
+
+            auto& Points = GetFromOffset<TArray<AActor*>>(Matches[i], PointsOffset);
+            if (Points.Num() == 0 || !Points[0])
+                continue;
+
+            struct { FVector Loc; FRotator Rot; UObject* List; AActor* ReturnValue; } SpawnParams{};
+            SpawnParams.Loc = Points[0]->K2_GetActorLocation();
+            SpawnParams.Rot = Points[0]->K2_GetActorRotation();
+            SpawnParams.List = CreateParams.ReturnValue;
+
+            static const bool bDrySpawn = true;
+            if (bDrySpawn)
+            {
+                static int dlog = 0;
+                if (dlog++ < 8)
+                    printf("[Boron][Bots] DRY SpawnAI %s path=%zu list=%p botmgr=%p loc=(%.0f,%.0f,%.0f)\n",
+                           Name.c_str(), i, (void*)CreateParams.ReturnValue, (void*)BotManager,
+                           SpawnParams.Loc.X, SpawnParams.Loc.Y, SpawnParams.Loc.Z);
+                continue;
+            }
+
+            bool ok = SafeProcessEvent((UObject*)BotManager, SpawnFn, &SpawnParams);
+            if (ok && SpawnParams.ReturnValue)
+                spawned++;
+
+            static int slog = 0;
+            if (slog++ < 8)
+                printf("[Boron][Bots] SpawnAI %s path=%zu ok=%d pawn=%p list=%p loc=(%.0f,%.0f,%.0f)\n",
+                       Name.c_str(), i, (int)ok, (void*)SpawnParams.ReturnValue, (void*)CreateParams.ReturnValue,
+                       SpawnParams.Loc.X, SpawnParams.Loc.Y, SpawnParams.Loc.Z);
+        }
+
+        printf("[Boron][Bots] spawn %s: %d/%d paths\n", Name.c_str(), spawned, (int)Matches.size());
+    }
+
+    inline void RequestAISpawn()
+    {
+        if (VersionInfo.FortniteVersion < 14.0 || VersionInfo.FortniteVersion >= 15.0)
+            return;
+
+        {
+            auto World = UWorld::GetWorld();
+            auto GameMode = World ? (AFortGameModeAthena*)World->AuthorityGameMode : nullptr;
+            auto GameState = World ? (AFortGameStateAthena*)World->GameState : nullptr;
+            void* Nav = World ? (void*)World->NavigationSystem : nullptr;
+
+            void* AISys = nullptr;
+            if (World)
+            {
+                static auto AISysOffset = World->GetOffset("AISystem");
+                if (AISysOffset != -1)
+                    AISys = GetFromOffset<void*>(World, AISysOffset);
+            }
+
+            int phase = -1;
+            if (GameState)
+            {
+                static auto PhaseOffset = GameState->GetOffset("GamePhase");
+                if (PhaseOffset != -1)
+                    phase = (int)GetFromOffset<uint8>(GameState, PhaseOffset);
+            }
+
+            printf("[Boron][Bots] S14 prereqs: world=%p gm=%p botmgr=%p aidirector=%p nav=%p aisystem=%p gamephase=%d\n",
+                   (void*)World, (void*)GameMode, (void*)(GameMode ? GameMode->ServerBotManager : nullptr),
+                   (void*)(GameMode ? GameMode->AIDirector : nullptr), Nav, AISys, phase);
+        }
+
+        struct Entry { const char* Path; const char* Name; bool All; };
+        static const Entry Entries[] = {
+            { "/Gasket/AISpawnerData/TomatoAlpha/BP_AIBotSpawnerData_Gasket_TomatoAlpha.BP_AIBotSpawnerData_Gasket_TomatoAlpha_C", "TomatoAlpha", false },
+            { "/Gasket/AISpawnerData/DateAlpha/BP_AIBotSpawnerData_Gasket_DateAlpha.BP_AIBotSpawnerData_Gasket_DateAlpha_C", "DateAlpha", false },
+            { "/Gasket/AISpawnerData/Wasabi/BP_AIBotSpawnerData_Gasket_Wasabi.BP_AIBotSpawnerData_Gasket_Wasabi_C", "Wasabi", false },
+            { "/Gasket/AISpawnerData/MangAlpha/BP_AIBotSpawnerData_Gasket_MangAlpha.BP_AIBotSpawnerData_Gasket_MangAlpha_C", "MangAlpha", false },
+            { "/Gasket/AISpawnerData/Date/BP_AIBotSpawnerData_Gasket_Date.BP_AIBotSpawnerData_Gasket_Date_C", "Date", true },
+            { "/Gasket/AISpawnerData/Mang_Launcher/BP_AIBotSpawnerData_Gasket_MangLauncher.BP_AIBotSpawnerData_Gasket_MangLauncher_C", "MangLauncher", true },
+            { "/Gasket/AISpawnerData/Mang_Crossbow/BP_AIBotSpawnerData_Gasket_Mang_Crossbow.BP_AIBotSpawnerData_Gasket_Mang_Crossbow_C", "Mang", true },
+        };
+
+        for (auto& E : Entries)
+        {
+            auto Class = FindObject<UClass>(E.Path);
+            if (!Class)
+            {
+                printf("[Boron][Bots] spawner class missing: %s\n", E.Name);
+                continue;
+            }
+            SpawnAIOnPaths(Class, E.Name, E.All);
+        }
+
+        if (auto StarkBot = FindObject<UClass>("/Gasket/AISpawnerData/Tomato/BP_AIBotSpawnerData_Gasket_Tomato.BP_AIBotSpawnerData_Gasket_Tomato_C"))
+        {
+            SpawnAIOnPaths(StarkBot, "Tomato", true);
+            for (int i = 1; i <= 17; i++)
+            {
+                char Buf[32];
+                sprintf_s(Buf, "TomatoQuinnJet%02d", i);
+                SpawnAIOnPaths(StarkBot, Buf, true);
+            }
+        }
+        else
+            printf("[Boron][Bots] spawner class missing: Tomato\n");
+    }
+
     inline UFortItemDefinition* GetWeaponDef(AActor* Weapon)
     {
         if (!Weapon)
@@ -117,22 +376,46 @@ namespace BossAI
     {
         if (!GameRuleConfig::bBossAI)
             return;
-        // some nerdy shit:
-        // Manual tick: run the AI at ~1/3 of the server tick rate (~10Hz) so the
-        // per-tick GetAllActorsOfClass scan + ProcessEvent calls don't tank the framerate.
         static uint32 tickCount = 0;
         if (++tickCount % 3 != 0)
             return;
 
-        auto& St = States();
-
-        TArray<AFortPlayerPawnAthena*> Pawns;
-        Utils::GetAll<AFortPlayerPawnAthena>(Pawns);
-        if (Pawns.Num() <= 1)
+        static bool bRequestedSpawns = false;
+        static uint32 spawnDelay = 0;
+        if (!bRequestedSpawns && ++spawnDelay > 60)
         {
-            Pawns.Free();
-            return;
+            bRequestedSpawns = true;
+            RequestAISpawn();
         }
+
+        auto& St = States();
+        auto& Pawns = Live();
+
+        static uint32 aiTick = 0;
+        if ((aiTick++ % 10) == 0)
+        {
+            Pawns.clear();
+
+            TArray<AFortPlayerPawnAthena*> Scanned;
+            Utils::GetAll<AFortPlayerPawnAthena>(Scanned);
+            for (int i = 0; i < Scanned.Num(); i++)
+                if (IsLiveActor(Scanned[i]))
+                    Pawns.push_back(Scanned[i]);
+            Scanned.Free();
+        }
+        else
+        {
+            for (size_t i = 0; i < Pawns.size();)
+            {
+                if (!IsLiveActor(Pawns[i]))
+                    Pawns.erase(Pawns.begin() + i);
+                else
+                    ++i;
+            }
+        }
+
+        if (Pawns.size() <= 1)
+            return;
 
         for (auto& Pair : St)
             Pair.second.seen = false;
@@ -141,10 +424,10 @@ namespace BossAI
         const float FireRange = 4500.f;
         const float StopRange = 350.f;
 
-        for (int i = 0; i < Pawns.Num(); i++)
+        for (int i = 0; i < (int)Pawns.size(); i++)
         {
             auto Bot = Pawns[i];
-            if (!Bot || !Bot->Controller)
+            if (!Bot || !Bot->Controller || !IsLiveActor((AActor*)Bot->Controller))
                 continue;
             if (Bot->Controller->IsA<AFortPlayerControllerAthena>())
                 continue;
@@ -153,54 +436,97 @@ namespace BossAI
             State.seen = true;
             State.lastLoc = Bot->K2_GetActorLocation();
 
+            static auto InvOffset = Bot->Controller->GetOffset("Inventory");
+            if (!State.inv && InvOffset != -1)
+                State.inv = GetFromOffset<AFortInventory*>(Bot->Controller, InvOffset);
+
             if (!State.gaveWeapon)
             {
-                State.gaveWeapon = true;
-                static auto InvOffset = Bot->Controller->GetOffset("Inventory");
-                AFortInventory* Inv = (InvOffset != -1) ? GetFromOffset<AFortInventory*>(Bot->Controller, InvOffset) : nullptr;
-                if (!Inv && InvOffset != -1)
+                State.weaponTries++;
+
+                auto CurDef = GetWeaponDef(Bot->CurrentWeapon);
+                bool bNativeRanged = CurDef && CurDef->Cast<UFortWeaponRangedItemDefinition>();
+
+                if (bNativeRanged)
                 {
-                    Inv = UWorld::SpawnActor<AFortInventory>(AFortInventory::StaticClass(), FVector{ 0, 0, -99999 }, FRotator{}, Bot->Controller);
-                    if (Inv)
+                    State.gaveWeapon = true;
+                }
+                else if (State.inv)
+                {
+                    auto WeaponEntry = State.inv->Inventory.ReplicatedEntries.Search([](FFortItemEntry& Entry) {
+                        return Entry.ItemDefinition && Entry.ItemDefinition->Cast<UFortWeaponRangedItemDefinition>();
+                    }, FFortItemEntry::Size());
+
+                    if (WeaponEntry)
                     {
-                        Inv->InventoryType = 0;
-                        if (auto OnRepOwnerFn = Inv->GetFunction("OnRep_Owner"))
-                            Inv->ProcessEvent(OnRepOwnerFn, nullptr);
-                        GetFromOffset<AFortInventory*>(Bot->Controller, InvOffset) = Inv;
+                        State.gaveWeapon = true;
+                        Bot->EquipWeaponDefinition(WeaponEntry->ItemDefinition, WeaponEntry->ItemGuid);
+                    }
+                    else if (State.weaponTries >= 40)
+                    {
+                        State.gaveWeapon = true;
+                        BuildLoot();
+                        auto& L = Loot();
+                        auto& Pool = !L.Startup.empty() ? L.Startup : L.Guns;
+
+                        if (!Pool.empty())
+                            GiveAndEquip(State.inv, Bot, Pool[rand() % Pool.size()]);
                     }
                 }
-                if (Inv)
+                else if (State.weaponTries >= 40 && InvOffset != -1)
                 {
-                    BuildLoot();
-                    auto& L = Loot();
+                    auto NewInv = UWorld::SpawnActor<AFortInventory>(AFortInventory::StaticClass(), FVector{ 0, 0, -99999 }, FRotator{}, Bot->Controller);
+                    if (NewInv)
+                    {
+                        NewInv->InventoryType = 0;
+                        if (auto OnRepOwnerFn = NewInv->GetFunction("OnRep_Owner"))
+                            NewInv->ProcessEvent(OnRepOwnerFn, nullptr);
+                        GetFromOffset<AFortInventory*>(Bot->Controller, InvOffset) = NewInv;
+                        State.inv = NewInv;
 
-                    
-                    State.boss = !L.Mythics.empty() && ((((uintptr_t)Bot) >> 5) % 5 == 0);
+                        State.gaveWeapon = true;
+                        BuildLoot();
+                        auto& L = Loot();
+                        auto& Pool = !L.Startup.empty() ? L.Startup : L.Guns;
 
-                    if (State.boss)
-                    {
-                        GiveAndEquip(Inv, Bot, L.Mythics[rand() % L.Mythics.size()]);
-                        if (L.KeyCard)
-                            Inv->GiveItem(L.KeyCard, 1);
+                        if (!Pool.empty())
+                            GiveAndEquip(NewInv, Bot, Pool[rand() % Pool.size()]);
                     }
-                    else if (!L.Guns.empty())
-                    {
-                        GiveAndEquip(Inv, Bot, L.Guns[rand() % L.Guns.size()]);
-                    }
-                    else
-                    {
-                        
-                        auto WeaponEntry = Inv->Inventory.ReplicatedEntries.Search([](FFortItemEntry& Entry) {
-                            return Entry.ItemDefinition && Entry.ItemDefinition->Cast<UFortWeaponRangedItemDefinition>();
-                        }, FFortItemEntry::Size());
-                        if (WeaponEntry)
-                            Bot->EquipWeaponDefinition(WeaponEntry->ItemDefinition, WeaponEntry->ItemGuid);
-                    }
+                }
+
+                if (State.gaveWeapon)
+                {
+                    static int logged = 0;
+                    if (logged++ < 16)
+                        printf("[Boron][Bots] bot=%p inv=%p tries=%d nativeWeapon=%s\n", (void*)Bot, (void*)State.inv, State.weaponTries,
+                               bNativeRanged && CurDef ? CurDef->Name.ToString().c_str() : "pool/none");
                 }
             }
 
             if (auto Def = GetWeaponDef(Bot->CurrentWeapon))
                 State.lastWeaponDef = Def;
+
+            if (State.inv && (State.patrolTimer % 20) == 0)
+            {
+                State.dropDefs.clear();
+                State.dropCounts.clear();
+
+                auto& Entries = State.inv->Inventory.ReplicatedEntries;
+                for (int e = 0; e < Entries.Num(); e++)
+                {
+                    auto& Entry = Entries.Get(e, FFortItemEntry::Size());
+
+                    if (!Entry.ItemDefinition)
+                        continue;
+                    if (Entry.ItemDefinition->Cast<UFortWeaponMeleeItemDefinition>())
+                        continue;
+                    if (Entry.ItemDefinition->Cast<UFortAmmoItemDefinition>())
+                        continue;
+
+                    State.dropDefs.push_back((UFortItemDefinition*)Entry.ItemDefinition);
+                    State.dropCounts.push_back((int)Entry.Count);
+                }
+            }
 
             static auto DropOffset = Bot->GetOffset("bShouldDropItemsOnDeath");
             if (DropOffset != -1)
@@ -227,10 +553,12 @@ namespace BossAI
 
             AFortPlayerPawnAthena* Target = nullptr;
             float BestDist = AggroRange;
-            for (int j = 0; j < Pawns.Num(); j++)
+            for (int j = 0; j < (int)Pawns.size(); j++)
             {
                 auto Other = Pawns[j];
                 if (!Other || Other == Bot || !Other->Controller || Other->IsDBNO())
+                    continue;
+                if (!IsLiveActor((AActor*)Other->Controller))
                     continue;
                 if (!Other->Controller->IsA<AFortPlayerControllerAthena>())
                     continue;
@@ -284,9 +612,18 @@ namespace BossAI
             }
 
             auto TargetLoc = Target->K2_GetActorLocation();
-            float dx = (float)(TargetLoc.X - BotLoc.X);
-            float dy = (float)(TargetLoc.Y - BotLoc.Y);
-            float dz = (float)(TargetLoc.Z - BotLoc.Z);
+
+            if ((State.fireTimer % 17) == 0)
+            {
+                float Spread = 1.f + (BestDist / 1500.f);
+                State.aimX = ModLocation(30.f, 18.f, 30.f) * Spread;
+                State.aimY = ModLocation(34.f, 19.f, 34.f) * Spread;
+                State.aimZ = ModLocation(16.f, 17.f, 34.f) * Spread;
+            }
+
+            float dx = (float)(TargetLoc.X + State.aimX - BotLoc.X);
+            float dy = (float)(TargetLoc.Y + State.aimY - BotLoc.Y);
+            float dz = (float)(TargetLoc.Z + State.aimZ - BotLoc.Z);
             float len = sqrtf(dx * dx + dy * dy + dz * dz);
             if (len < 1.f)
                 continue;
@@ -316,7 +653,29 @@ namespace BossAI
                 Bot->AddMovementInput(Dir, 1.f, true);
             }
 
-            if (BestDist < FireRange && Bot->CurrentWeapon)
+            bool bHasLOS = true;
+            if (BestDist < FireRange)
+            {
+                static UFunction* LOSFn = nullptr;
+                static bool bLoggedLOS = false;
+                if (!LOSFn)
+                    LOSFn = Bot->Controller->GetFunction("LineOfSightTo");
+                if (!bLoggedLOS)
+                {
+                    bLoggedLOS = true;
+                    printf("[Boron][Bots] LineOfSightTo=%p\n", (void*)LOSFn);
+                }
+
+                if (LOSFn)
+                {
+                    struct { AActor* Other; FVector ViewPoint; bool bAlternateChecks; bool ReturnValue; } LOSParams{};
+                    LOSParams.Other = Target;
+                    Bot->Controller->ProcessEvent(LOSFn, &LOSParams);
+                    bHasLOS = LOSParams.ReturnValue;
+                }
+            }
+
+            if (BestDist < FireRange && Bot->CurrentWeapon && bHasLOS)
             {
                 if (!State.targeting)
                 {
@@ -326,13 +685,13 @@ namespace BossAI
                 }
 
                 State.fireTimer++;
-                uint32 phase = State.fireTimer % 16; // ~1.6s cycle at 10Hz
+                uint32 phase = State.fireTimer % 28;
                 if (phase == 1 && !State.firing)
                 {
                     Bot->PawnStartFire((uint8)0);
                     State.firing = true;
                 }
-                else if (phase == 10 && State.firing) // ~1.0s burst, ~0.6s pause
+                else if (phase == 7 && State.firing)
                 {
                     Bot->PawnStopFire((uint8)0);
                     State.firing = false;
@@ -357,11 +716,32 @@ namespace BossAI
 
         for (auto it = St.begin(); it != St.end();)
         {
-            if (!it->second.seen && !it->second.dropped && it->second.lastWeaponDef)
+            if (!it->second.seen && !it->second.dropped)
             {
-                AFortInventory::SpawnPickup(it->second.lastLoc, it->second.lastWeaponDef, 1, 0);
-                if (it->second.boss && Loot().KeyCard)
-                    AFortInventory::SpawnPickup(it->second.lastLoc, Loot().KeyCard, 1, 0);
+                int dropped = 0;
+
+                if (it->second.lastWeaponDef)
+                {
+                    AFortInventory::SpawnPickup(it->second.lastLoc, it->second.lastWeaponDef, 1, 0);
+                    dropped++;
+                }
+
+                for (size_t d = 0; d < it->second.dropDefs.size(); d++)
+                {
+                    auto Def = it->second.dropDefs[d];
+
+                    if (!Def || Def == it->second.lastWeaponDef)
+                        continue;
+
+                    AFortInventory::SpawnPickup(it->second.lastLoc, Def, it->second.dropCounts[d] > 0 ? it->second.dropCounts[d] : 1, 0);
+                    dropped++;
+                }
+
+                static int dlog = 0;
+                if (dlog++ < 12)
+                    printf("[Boron][Bots] death drop: %d items at (%.0f,%.0f,%.0f)\n", dropped,
+                           it->second.lastLoc.X, it->second.lastLoc.Y, it->second.lastLoc.Z);
+
                 it->second.dropped = true;
             }
             if (!it->second.seen)
@@ -369,7 +749,5 @@ namespace BossAI
             else
                 ++it;
         }
-
-        Pawns.Free();
     }
 }
