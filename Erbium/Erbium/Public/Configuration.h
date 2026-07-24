@@ -125,10 +125,10 @@ struct FConfig
 
     static inline auto Port = 7777; // can be 7777  or 7778
     static inline auto bEnableIris = true;
-    static inline constexpr auto bGUI = false;
+    static inline constexpr auto bGUI = true;
     static inline constexpr auto bCustomCrashReporter = true;
-    static inline constexpr auto bUseStdoutLog = true;
-    static inline constexpr auto bSaveConsoleLog = true; // for 31.41 use this to check for some logs Boron_Console.txt  btw) 
+    static inline constexpr auto bUseStdoutLog = false;
+    static inline constexpr auto bSaveConsoleLog = false; // for 31.41 use this to check for some logs Boron_Console.txt  btw) 
 
     struct CreativeModeConfig
     {   // TODO: fix island not laoding on s7 creative  i swear its the same code but on s8+ works but not on s7 what thge helly :sob:
