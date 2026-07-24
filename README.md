@@ -39,8 +39,7 @@ A modifiyed/forked Erbium gameserver with my own features and fixes
   - [ ] POI tp commands (hopefully on every season, later)
 
 - [ ] **Versions** (not decided yet)
-  - [ ] ~~ 30.20  *(version detection already handles >=30)* ~~
-  - [x] 31.41 *(maybe but it should be less fcked)* **9% Done**
+  - [x] 31.41 *(maybe but it should be less fcked)* **9.5% Done**
 
 
 </details>
@@ -51,7 +50,7 @@ A modifiyed/forked Erbium gameserver with my own features and fixes
 
 Currently the only version that is "supported" is **31.41** C5S4.
 
-Progress: **9% Done**
+Progress: **9.5% Done**
 
 **Features (currently a lot missing)**
 - Walking simulator
@@ -61,7 +60,9 @@ Progress: **9% Done**
 - No pickaxe (yet)
 - No proper NetMode (yet)
 - No building and editing (yet)
-
+- Reload (the playlist can be sued now and the map will load)
+- Reboots in reload (kinda bugged but yea)
+- Loot pool needs fix on reload (kinda mixed rn)
 
 </details>
 
