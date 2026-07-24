@@ -296,6 +296,12 @@ void Main()
     }
     else if (VersionInfo.FortniteVersion >= 12.00 && wcsstr(FConfig::Playlist, L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2"))
         terrainOpen = L"open Creative_NoApollo_Terrain";
+    // temp for now
+    else if (VersionInfo.FortniteVersion == 31.41 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_SunflowerSolo.Playlist_SunflowerSolo"))
+        terrainOpen = L"open BlastBerry_Terrain";
+
+    /* else if (VersionInfo.FortniteVersion == 32.00 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_PunchBerrySolo.Playlist_PunchBerrySolo"))
+        terrainOpen = L"open PunchBerry_Terrain";*/
     else
     {
         if (VersionInfo.FortniteVersion >= 27.00)

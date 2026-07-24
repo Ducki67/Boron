@@ -88,9 +88,12 @@ struct FConfig
 
     static inline auto bGameSessions = false; // GSS  for GSSMMs and backends (TDOD: wayy more later tho but ill add it)
 
-    // NOTE:  /BRPlaylists/  is teh correct path AND "durian"  doesnt exist on s30+
+    // NOTE:  /BRPlaylists/  is the correct path AND "durian"  doesnt exist on s30+
     //  also if u looking for playlist ids look at: https://github.com/Ducki67/OGFN-Build-Dumps  i have some ids there and might upload some more
+    
+    
     static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo";
+    
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Showdown/Playlist_ShowdownAlt_Solo.Playlist_ShowdownAlt_Solo";
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2";  // creative
    
@@ -105,6 +108,12 @@ struct FConfig
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/gg/Playlist_Gg_Reverse.Playlist_Gg_Reverse"; // gungame (maybe ill add this but dont ask bruh :/ )
 
 
+    /*  31.41 Testing playlists*/
+    // static inline wchar_t Playlist[9999] = L"/BRPlaylists/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo"; // BR
+    //static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_SunflowerSolo.Playlist_SunflowerSolo"; // venture Reload (testing)
+
+
+
     /* static inline wchar_t Playlist[9999] = L"";
     static inline wchar_t Playlist[9999] = L"";
     static inline wchar_t Playlist[9999] = L"";*/
@@ -116,20 +125,20 @@ struct FConfig
 
     static inline auto Port = 7777; // can be 7777  or 7778
     static inline auto bEnableIris = true;
-    static inline constexpr auto bGUI = true;
+    static inline constexpr auto bGUI = false;
     static inline constexpr auto bCustomCrashReporter = true;
     static inline constexpr auto bUseStdoutLog = true;
-    static inline constexpr auto bSaveConsoleLog = false; // for 31.41 use this to check for some logs Boron_Console.txt  btw) 
+    static inline constexpr auto bSaveConsoleLog = true; // for 31.41 use this to check for some logs Boron_Console.txt  btw) 
 
     struct CreativeModeConfig
     {   // TODO: fix island not laoding on s7 creative  i swear its the same code but on s8+ works but not on s7 what thge helly :sob:
         // Note: dont ask me to add Island slecting for the creative protal menu NO i wont give that to you skids hell no!
         static inline auto bCustomMap = false;
-        static inline auto CustomMapDefinition = L"/Game/Playgrounds/Items/Plots/TheBlock_Season7"; //  The Block map | see at FortCreativePortal.cpp line: 76 what it does
+        static inline wchar_t CustomMapDefinition[9999] = L"/Game/Playgrounds/Items/Plots/TheBlock_Season7"; //  The Block map | see at FortCreativePortal.cpp line: 76 what it does
         // default map: L"/Game/Playgrounds/Items/Plots/Temperate_Medium.Temperate_Medium"
     };
 
-
+    // TODO: fix teh creative inv shit
 
 
 
