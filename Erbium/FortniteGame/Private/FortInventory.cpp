@@ -613,7 +613,8 @@ void SetLoadedAmmo(UFortWorldItem* Item, int LoadedAmmo)
     if (!Item)
         return;
 
-    auto PlayerController = (AFortPlayerControllerAthena*)Item->GetOwningController();
+    auto OwningController = Item->GetOwningController();
+    auto PlayerController = (OwningController && OwningController->IsA<AFortPlayerControllerAthena>()) ? (AFortPlayerControllerAthena*)OwningController : nullptr;
     if (!PlayerController || !PlayerController->WorldInventory)
     {
         Item->ItemEntry.LoadedAmmo = LoadedAmmo;
@@ -641,7 +642,8 @@ void SetPhantomReserveAmmo(UFortWorldItem* Item, unsigned int PhantomReserveAmmo
     if (!Item)
         return;
 
-    auto PlayerController = (AFortPlayerControllerAthena*)Item->GetOwningController();
+    auto OwningController = Item->GetOwningController();
+    auto PlayerController = (OwningController && OwningController->IsA<AFortPlayerControllerAthena>()) ? (AFortPlayerControllerAthena*)OwningController : nullptr;
     if (!PlayerController || !PlayerController->WorldInventory)
     {
         Item->ItemEntry.PhantomReserveAmmo = PhantomReserveAmmo;

@@ -299,8 +299,8 @@ void Main()
     // temp for now
     else if (VersionInfo.FortniteVersion == 31.41 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_SunflowerSolo.Playlist_SunflowerSolo"))
         terrainOpen = L"open BlastBerry_Terrain";
-
-    /* else if (VersionInfo.FortniteVersion == 32.00 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_PunchBerrySolo.Playlist_PunchBerrySolo"))
+    /*
+     else if (VersionInfo.FortniteVersion == 32.00 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_PunchBerrySolo.Playlist_PunchBerrySolo"))
         terrainOpen = L"open PunchBerry_Terrain";*/
     else
     {

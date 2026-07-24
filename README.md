@@ -57,10 +57,11 @@ Progress: **9.5% Done**
 - In-game (BR island)
 - MME stuff (hurdle still needs fix and sprint needs stamin fix)
 - Chest, Ammo box looting
+- Floor loot (works 50% of the time on both BR and reload)
 - No pickaxe (yet)
 - No proper NetMode (yet)
 - No building and editing (yet)
-- Reload (the playlist can be sued now and the map will load)
+- Reload (the playlist can be used now and the map will load)
 - Reboots in reload (kinda bugged but yea)
 - Loot pool needs fix on reload (kinda mixed rn)
 
