@@ -15,9 +15,9 @@ namespace Unibeam
         int pulses = 0;
     };
 
-    inline constexpr float ChargeDelay = 2.0f;
-    inline constexpr float PulseInterval = 0.05f;
-    inline constexpr float MaxLife = 2.6f;
+    inline constexpr float ChargeDelay = 1.95f;
+    inline constexpr float PulseInterval = 0.03f;
+    inline constexpr float MaxLife = 2.85f;
 
     inline std::unordered_map<void*, Drive>& Active()
     {
@@ -54,6 +54,15 @@ namespace Unibeam
         uint8 raw[8];
     };
 
+    inline void SafePE(UObject* Obj, UFunction* Fn, void* Params)
+    {
+        __try
+        {
+            Obj->ProcessEvent(Fn, Params);
+        }
+        __except (EXCEPTION_EXECUTE_HANDLER) {}
+    }
+
     inline bool IsLiveObject(UObject* Obj)
     {
         auto V = (uintptr_t)Obj;
@@ -86,6 +95,12 @@ namespace Unibeam
         if (SlowOff() == -2)
             SlowOff() = Ability->GetOffset("GE_Slow_Handle");
         Active()[(void*)Ability] = Drive{};
+
+        if (auto CD = Ability->GetFunction("K2_CommitAbilityCooldown"))
+        {
+            struct { uint8 Broadcast; uint8 Force; } P{ 1, 1 };
+            SafePE(Ability, CD, &P);
+        }
 
         static int n = 0;
         if (n++ < 16)
@@ -125,6 +140,12 @@ namespace Unibeam
                         Inst->ProcessEvent(RemoveGEFn(), &P);
                     }
                     __except (EXCEPTION_EXECUTE_HANDLER) {}
+                }
+
+                if (auto RS = Inst->GetFunction("Update_Rotation_Input_Scale"))
+                {
+                    struct { uint8 Limit; uint8 pad[3]; float Pitch; float Yaw; } P{ 0, {0, 0, 0}, 1.0f, 1.0f };
+                    __try { Inst->ProcessEvent(RS, &P); } __except (EXCEPTION_EXECUTE_HANDLER) {}
                 }
 
                 if (EndFn())

@@ -3843,6 +3843,102 @@ inline std::string CleanupString(std::string& s)
     return s;
 }
 // i think this is some stw shit  i wont touch it but intresting
+static void (*WumbaOnInteractOG)(UObject*, FFrame&) = nullptr;
+static void WumbaOnInteract(UObject* Context, FFrame& Stack)
+{
+    AFortPlayerPawnAthena* InteractingPawn = nullptr;
+    uint8 InteractionByte = 0;
+    Stack.StepCompiledIn(&InteractingPawn);
+    Stack.StepCompiledIn(&InteractionByte);
+    Stack.IncrementCode();
+
+    auto CallOG = [&]() { if (WumbaOnInteractOG) WumbaOnInteractOG(Context, Stack); };
+
+    if (!InteractingPawn || !InteractingPawn->Controller || !InteractingPawn->CurrentWeapon)
+        return CallOG();
+
+    auto PC = (AFortPlayerControllerAthena*)InteractingPawn->Controller;
+    if (!PC->WorldInventory)
+        return CallOG();
+
+    static auto UT = FindObject<UDataTable>(L"/Game/Items/Datatables/AthenaWumbaData.AthenaWumbaData");
+    if (!UT)
+        return CallOG();
+
+    auto HeldWeapon = (AFortWeapon*)InteractingPawn->CurrentWeapon;
+    auto HeldDef = (const UFortItemDefinition*)HeldWeapon->WeaponData;
+    if (!HeldDef)
+        return CallOG();
+
+    uint8 Direction = (InteractionByte == 1) ? 2 : 1;
+
+    struct FUpgradeRow
+    {
+        uint8 Base[8];
+        const UFortItemDefinition* CurrentWeaponDef;
+        const UFortItemDefinition* UpgradedWeaponDef;
+        uint8 WoodCost;
+        uint8 MetalCost;
+        uint8 BrickCost;
+        uint8 Direction;
+    };
+
+    FUpgradeRow* Row = nullptr;
+    for (auto& [Key, Val] : UT->RowMap)
+    {
+        auto R = (FUpgradeRow*)Val;
+        if (R && R->CurrentWeaponDef == HeldDef && R->Direction == Direction)
+        {
+            Row = R;
+            break;
+        }
+    }
+    if (!Row || !Row->UpgradedWeaponDef)
+        return CallOG();
+
+    static const int CostMap[29] = {
+        0, 10, 100, 150, 200, 10, 100, 150, 200, 10, 100, 150, 200,
+        20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 20, 0
+    };
+    auto Cost = [](uint8 i) -> int { return i < 29 ? CostMap[i] : 0; };
+
+    static auto Wood = FindObject<UFortItemDefinition>(L"/Game/Items/ResourcePickups/WoodItemData.WoodItemData");
+    static auto Stone = FindObject<UFortItemDefinition>(L"/Game/Items/ResourcePickups/StoneItemData.StoneItemData");
+    static auto Metal = FindObject<UFortItemDefinition>(L"/Game/Items/ResourcePickups/MetalItemData.MetalItemData");
+
+    auto& Entries = PC->WorldInventory->Inventory.ReplicatedEntries;
+    auto Deduct = [&](const UFortItemDefinition* MatDef, int Amount)
+    {
+        if (!MatDef || Amount <= 0)
+            return;
+        auto E = Entries.Search([&](FFortItemEntry& En) { return En.ItemDefinition == MatDef; }, FFortItemEntry::Size());
+        if (!E)
+            return;
+        E->Count -= Amount;
+        if (E->Count <= 0)
+            PC->WorldInventory->Remove(E->ItemGuid);
+        else
+            PC->WorldInventory->UpdateEntry(*E);
+    };
+    Deduct((const UFortItemDefinition*)Wood, Cost(Row->WoodCost));
+    Deduct((const UFortItemDefinition*)Stone, Cost(Row->BrickCost));
+    Deduct((const UFortItemDefinition*)Metal, Cost(Row->MetalCost));
+
+    auto IE = Entries.Search([&](FFortItemEntry& En) { return En.ItemDefinition == HeldDef; }, FFortItemEntry::Size());
+    int LoadedAmmo = IE ? IE->LoadedAmmo : 0;
+
+    auto NewEntry = AFortInventory::MakeItemEntry(Row->UpgradedWeaponDef, 1, 0);
+    if (NewEntry)
+    {
+        NewEntry->LoadedAmmo = LoadedAmmo;
+        if (IE)
+            PC->WorldInventory->Remove(IE->ItemGuid);
+        PC->WorldInventory->GiveItem(*NewEntry);
+    }
+
+    return CallOG();
+}
+
 void AFortPlayerControllerAthena::ServerCraftSchematic(UObject* Context, FFrame& Stack)
 {
     FString ItemId;
@@ -4490,6 +4586,11 @@ void AFortPlayerControllerAthena::PostLoadHook()
 
     Hooking::ExecHook(GetDefaultObj()->GetFunction("ServerCraftSchematic"), ServerCraftSchematic);
     Hooking::ExecHook(GetDefaultObj()->GetFunction("ServerGiveCreativeItem"), ServerGiveCreativeItem);
+
+    auto Wumba = DefaultObjImpl("B_Athena_Wumba_C");
+    printf("[Boron][Wumba] upgrade bench cdo=%p\n", (void*)Wumba);
+    if (Wumba)
+        Hooking::ExecHook(Wumba->GetFunction("BlueprintOnInteract"), WumbaOnInteract, WumbaOnInteractOG);
 
     Hooking::ExecHook(GetDefaultObj()->GetFunction("ServerRequestSeatChange"), ServerRequestSeatChange_, ServerRequestSeatChange_OG);
 

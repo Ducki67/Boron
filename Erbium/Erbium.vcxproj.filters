@@ -244,6 +244,7 @@
     <ClInclude Include="FortniteGame\Public\FortAthenaSpawningPolicyManager.h">
       <Filter>FortniteGame\Public</Filter>
     </ClInclude>
+    <ClInclude Include="Erbium\Public\Unibeam.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Erbium\Private\dllmain.cpp">
