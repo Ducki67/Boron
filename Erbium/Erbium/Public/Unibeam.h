@@ -37,6 +37,23 @@ namespace Unibeam
         return F;
     }
 
+    inline UFunction*& RemoveGEFn()
+    {
+        static UFunction* F = nullptr;
+        return F;
+    }
+
+    inline int& SlowOff()
+    {
+        static int O = -2;
+        return O;
+    }
+
+    struct alignas(4) GESlowHandle
+    {
+        uint8 raw[8];
+    };
+
     inline bool IsLiveObject(UObject* Obj)
     {
         auto V = (uintptr_t)Obj;
@@ -64,7 +81,10 @@ namespace Unibeam
             return;
 
         TraceFn() = TF;
-        EndFn() = Ability->GetFunction("CastMontageNotifyEndAbility");
+        EndFn() = Ability->GetFunction("K2_EndAbility");
+        RemoveGEFn() = Ability->GetFunction("BP_RemoveGameplayEffectFromOwnerWithHandle");
+        if (SlowOff() == -2)
+            SlowOff() = Ability->GetOffset("GE_Slow_Handle");
         Active()[(void*)Ability] = Drive{};
 
         static int n = 0;
@@ -95,6 +115,18 @@ namespace Unibeam
 
             if (D.elapsed > MaxLife)
             {
+                if (RemoveGEFn() && SlowOff() >= 0)
+                {
+                    struct { GESlowHandle Handle; int32 Stacks; } P{};
+                    P.Handle = GetFromOffset<GESlowHandle>(Inst, SlowOff());
+                    P.Stacks = -1;
+                    __try
+                    {
+                        Inst->ProcessEvent(RemoveGEFn(), &P);
+                    }
+                    __except (EXCEPTION_EXECUTE_HANDLER) {}
+                }
+
                 if (EndFn())
                 {
                     __try
@@ -102,11 +134,13 @@ namespace Unibeam
                         Inst->ProcessEvent(EndFn(), nullptr);
                     }
                     __except (EXCEPTION_EXECUTE_HANDLER) {}
-
-                    static int e = 0;
-                    if (e++ < 16)
-                        printf("[Boron][Unibeam] end inst=%p elapsed=%.2f pulses=%d\n", (void*)Inst, D.elapsed, D.pulses);
                 }
+
+                static int e = 0;
+                if (e++ < 16)
+                    printf("[Boron][Unibeam] end inst=%p elapsed=%.2f pulses=%d removeGE=%p slowOff=%d\n",
+                           (void*)Inst, D.elapsed, D.pulses, (void*)RemoveGEFn(), SlowOff());
+
                 it = Active().erase(it);
                 continue;
             }
