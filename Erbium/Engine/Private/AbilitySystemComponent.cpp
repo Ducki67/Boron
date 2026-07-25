@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "../Public/AbilitySystemComponent.h"
 #include "../../Erbium/Public/Finders.h"
+#include "../../Erbium/Public/Unibeam.h"
 #include "../../FortniteGame/Public/FortKismetLibrary.h"
 
 uint64 ConstructAbilitySpec;
@@ -82,12 +83,18 @@ void UAbilitySystemComponent::InternalServerTryActivateAbility(UAbilitySystemCom
     auto InternalTryActivateAbility = (bool (*)(UAbilitySystemComponent*, FGameplayAbilitySpecHandle, _Pad_0x10, UFortGameplayAbility**, void*, void*))InternalTryActivateAbility_;
     auto InternalTryActivateAbilityNew = (bool (*)(UAbilitySystemComponent*, FGameplayAbilitySpecHandle, _Pad_0x18, UFortGameplayAbility**, void*, void*))InternalTryActivateAbility_;
 
-    if (!(FPredictionKey::Size() == 0x18 ? InternalTryActivateAbilityNew(AbilitySystemComponent, Handle, *(_Pad_0x18*)PredictionKey, &InstancedAbility, nullptr, TriggerEventData)
-                                         : InternalTryActivateAbility(AbilitySystemComponent, Handle, *(_Pad_0x10*)PredictionKey, &InstancedAbility, nullptr, TriggerEventData)))
+    bool bActivated = FPredictionKey::Size() == 0x18 ? InternalTryActivateAbilityNew(AbilitySystemComponent, Handle, *(_Pad_0x18*)PredictionKey, &InstancedAbility, nullptr, TriggerEventData)
+                                                     : InternalTryActivateAbility(AbilitySystemComponent, Handle, *(_Pad_0x10*)PredictionKey, &InstancedAbility, nullptr, TriggerEventData);
+
+    if (!bActivated)
     {
         AbilitySystemComponent->ClientActivateAbilityFailed(Handle, PredictionKey->Current);
         Spec->InputPressed = false;
         AbilitySystemComponent->ActivatableAbilities.MarkItemDirty(*Spec);
+    }
+    else if (InstancedAbility)
+    {
+        Unibeam::NotifyActivated((UObject*)InstancedAbility);
     }
 }
 

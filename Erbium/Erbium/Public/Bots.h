@@ -201,6 +201,60 @@ namespace BossAI
         return Def;
     }
 
+    inline bool GiveStartupInventory(AFortPlayerPawnAthena* Bot, AFortInventory* Inv)
+    {
+        if (!Bot || !Bot->Controller || !Inv)
+            return false;
+
+        static auto StartupOff = Bot->Controller->GetOffset("StartupInventory");
+        if (StartupOff == -1)
+            return false;
+
+        auto Startup = GetFromOffset<UObject*>(Bot->Controller, StartupOff);
+        if (!IsValidPtr(Startup))
+            return false;
+
+        static auto ItemsOff = Startup->GetOffset("Items");
+        if (ItemsOff == -1)
+            return false;
+
+        auto& Items = GetFromOffset<TArray<FItemAndCount>>(Startup, ItemsOff);
+        if (Items.Num() == 0)
+            return false;
+
+        bool equipped = false;
+        int given = 0;
+        for (int i = 0; i < Items.Num(); i++)
+        {
+            auto& IC = Items.Get(i, FItemAndCount::Size());
+            auto Def = IC.GetItem();
+            if (!IsValidPtr(Def))
+                continue;
+
+            int cnt = IC.GetCount();
+            if (!equipped && Def->Cast<UFortWeaponRangedItemDefinition>())
+            {
+                GiveAndEquip(Inv, Bot, (UFortWorldItemDefinition*)Def);
+                equipped = true;
+            }
+            else
+            {
+                Inv->GiveItem(Def, cnt > 0 ? cnt : 1);
+            }
+            given++;
+
+            static int silog = 0;
+            if (silog++ < 40)
+                printf("[Boron][Bots] startup item bot=%p [%s] x%d\n", (void*)Bot, Def->Name.ToString().c_str(), cnt);
+        }
+
+        static int slog = 0;
+        if (slog++ < 12)
+            printf("[Boron][Bots] startup loadout bot=%p items=%d equipped=%d\n", (void*)Bot, given, (int)equipped);
+
+        return given > 0;
+    }
+
     inline void ApplyBotLoadout(AFortPlayerPawnAthena* Bot, UObject* SpawnerCDO)
     {
         if (!Bot || !Bot->Controller || !SpawnerCDO)
@@ -676,12 +730,16 @@ namespace BossAI
 
                         if (!MeleeBoss)
                         {
-                            BuildLoot();
-                            auto& L = Loot();
-                            auto& Pool = !L.Startup.empty() ? L.Startup : L.Guns;
+                            bool gotReal = VersionInfo.FortniteVersion < 14.0 && GiveStartupInventory(Bot, State.inv);
+                            if (!gotReal)
+                            {
+                                BuildLoot();
+                                auto& L = Loot();
+                                auto& Pool = !L.Startup.empty() ? L.Startup : L.Guns;
 
-                            if (!Pool.empty())
-                                GiveAndEquip(State.inv, Bot, Pool[rand() % Pool.size()]);
+                                if (!Pool.empty())
+                                    GiveAndEquip(State.inv, Bot, Pool[rand() % Pool.size()]);
+                            }
                         }
                     }
                 }
@@ -697,12 +755,16 @@ namespace BossAI
                         State.inv = NewInv;
 
                         State.gaveWeapon = true;
-                        BuildLoot();
-                        auto& L = Loot();
-                        auto& Pool = !L.Startup.empty() ? L.Startup : L.Guns;
+                        bool gotReal = VersionInfo.FortniteVersion < 14.0 && GiveStartupInventory(Bot, NewInv);
+                        if (!gotReal)
+                        {
+                            BuildLoot();
+                            auto& L = Loot();
+                            auto& Pool = !L.Startup.empty() ? L.Startup : L.Guns;
 
-                        if (!Pool.empty())
-                            GiveAndEquip(NewInv, Bot, Pool[rand() % Pool.size()]);
+                            if (!Pool.empty())
+                                GiveAndEquip(NewInv, Bot, Pool[rand() % Pool.size()]);
+                        }
                     }
                 }
 
