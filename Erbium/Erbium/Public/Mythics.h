@@ -6,7 +6,7 @@
 #include "Configuration.h"
 #include "Utils.h"
 
-namespace Unibeam
+namespace Mythics
 {
     struct Drive
     {
@@ -76,12 +76,33 @@ namespace Unibeam
 
     inline void NotifyActivated(UObject* Ability)
     {
-        if (VersionInfo.FortniteVersion < 14.0 || VersionInfo.FortniteVersion >= 15.0)
+        if (VersionInfo.FortniteVersion < 13.0 || VersionInfo.FortniteVersion >= 15.0)
             return;
         if (!IsLiveObject(Ability) || !Ability->Class)
             return;
 
         auto Name = Ability->Class->Name.ToString();
+
+        if (VersionInfo.FortniteVersion >= 13.0 && VersionInfo.FortniteVersion < 14.0)
+        {
+            static int a = 0;
+            if (a++ < 120)
+                printf("[Boron][Ability] activated class=%s\n", Name.c_str());
+
+            if (Name.find("BottomlessChugJug") != std::string::npos)
+            {
+                if (auto CD = Ability->GetFunction("K2_CommitAbilityCooldown"))
+                {
+                    struct { uint8 Broadcast; uint8 Force; } P{ 1, 1 };
+                    SafePE(Ability, CD, &P);
+                    printf("[Boron][ChugJug] cooldown committed inst=%p\n", (void*)Ability);
+                }
+                else
+                    printf("[Boron][ChugJug] no K2_CommitAbilityCooldown on %s\n", Name.c_str());
+            }
+            return;
+        }
+
         if (Name.find("RepulsorCannon") == std::string::npos)
             return;
 
