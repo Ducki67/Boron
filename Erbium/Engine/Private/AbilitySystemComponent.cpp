@@ -1,7 +1,7 @@
 #include "pch.h"
 #include "../Public/AbilitySystemComponent.h"
 #include "../../Erbium/Public/Finders.h"
-#include "../../Erbium/Public/Unibeam.h"
+#include "../../Erbium/Public/Mythics.h"
 #include "../../FortniteGame/Public/FortKismetLibrary.h"
 
 uint64 ConstructAbilitySpec;
@@ -94,7 +94,7 @@ void UAbilitySystemComponent::InternalServerTryActivateAbility(UAbilitySystemCom
     }
     else if (InstancedAbility)
     {
-        Unibeam::NotifyActivated((UObject*)InstancedAbility);
+        Mythics::NotifyActivated((UObject*)InstancedAbility);
     }
 }
 

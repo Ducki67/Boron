@@ -5,7 +5,7 @@
 #include "../../Erbium/Public/GUI.h"
 #include "../../Erbium/Public/Misc.h"
 #include "../../Erbium/Public/Bots.h"
-#include "../../Erbium/Public/Unibeam.h"
+#include "../../Erbium/Public/Mythics.h"
 #include "../../FortniteGame/Public/BattleRoyaleGamePhaseLogic.h"
 #include "../../FortniteGame/Public/FortGameMode.h"
 
@@ -508,7 +508,7 @@ void UNetDriver::TickFlush(UNetDriver* Driver, float DeltaSeconds)
     }
 
     BossAI::Tick();
-    Unibeam::Tick(DeltaSeconds);
+    Mythics::Tick(DeltaSeconds);
     CheckAutoRestart();
 
     if (Driver->ClientConnections.Num() > 0)
@@ -580,7 +580,7 @@ uint64_t ServerReplicateActors_;
 void UNetDriver::TickFlush__RepGraph(UNetDriver* Driver, float DeltaSeconds)
 {
     BossAI::Tick();
-    Unibeam::Tick(DeltaSeconds);
+    Mythics::Tick(DeltaSeconds);
     CheckAutoRestart();
 
     if (Driver->ReplicationDriver)
@@ -866,7 +866,7 @@ void UNetDriver::TickFlush__Iris(UNetDriver* Driver, float DeltaSeconds)
     }
 
     BossAI::Tick();
-    Unibeam::Tick(DeltaSeconds);
+    Mythics::Tick(DeltaSeconds);
     CheckAutoRestart();
     AFortGameMode::TickCH5FloorLoot();
     AFortGameMode::TickCH5PickupDummies();

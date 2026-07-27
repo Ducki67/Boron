@@ -95,9 +95,27 @@ namespace BossAI
         printf("[BossAI] Loot pools: %d guns, %d mythics, keycard=%s\n", (int)L.Guns.size(), (int)L.Mythics.size(), L.KeyCard ? "yes" : "no");
     }
 
+    inline bool IsValidPtr(const void* P)
+    {
+        auto V = (uintptr_t)P;
+        return V >= 0x10000 && V < 0x7FFFFFFFFFFFull;
+    }
+
+    inline bool IsLiveActor(AActor* Actor)
+    {
+        if (!IsValidPtr(Actor) || Actor->bActorIsBeingDestroyed)
+            return false;
+
+        auto Item = TUObjectArray::GetItemByIndex(Actor->Index);
+        if (!Item || (Item->Flags & ((1 << 29) | (1 << 21))))
+            return false;
+
+        return true;
+    }
+
     inline void GiveAndEquip(AFortInventory* Inv, AFortPlayerPawnAthena* Bot, UFortWorldItemDefinition* Def)
     {
-        if (!Inv || !Bot || !Def)
+        if (!IsLiveActor((AActor*)Inv) || !IsLiveActor((AActor*)Bot) || !IsValidPtr(Def))
             return;
         auto Stats = AFortInventory::GetStats((UFortWeaponItemDefinition*)Def);
         int Clip = (Stats && Stats->ClipSize > 0) ? Stats->ClipSize : 30;
@@ -130,24 +148,6 @@ namespace BossAI
             return RandRange(Base + Sep, Max);
 
         return RandRange(-Max, -Base - Sep);
-    }
-
-    inline bool IsValidPtr(const void* P)
-    {
-        auto V = (uintptr_t)P;
-        return V >= 0x10000 && V < 0x7FFFFFFFFFFFull;
-    }
-
-    inline bool IsLiveActor(AActor* Actor)
-    {
-        if (!IsValidPtr(Actor) || Actor->bActorIsBeingDestroyed)
-            return false;
-
-        auto Item = TUObjectArray::GetItemByIndex(Actor->Index);
-        if (!Item || (Item->Flags & ((1 << 29) | (1 << 21))))
-            return false;
-
-        return true;
     }
 
     inline std::vector<AFortPlayerPawnAthena*>& Live()
@@ -695,7 +695,7 @@ namespace BossAI
             static auto InvOffset = Bot->Controller->GetOffset("Inventory");
             if (!State.inv && InvOffset != -1)
                 State.inv = GetFromOffset<AFortInventory*>(Bot->Controller, InvOffset);
-            if (!IsValidPtr(State.inv))
+            if (!IsLiveActor((AActor*)State.inv))
                 State.inv = nullptr;
 
             if (!State.gaveWeapon)
@@ -1047,6 +1047,20 @@ namespace BossAI
                     dropped++;
                     if (logThis)
                         printf("[Boron][Bots]   drop item [%s]\n", Drop->Name.ToString().c_str());
+
+                    if (Drop->Cast<UFortWeaponRangedItemDefinition>())
+                    {
+                        auto ExtraAmmo = ((UFortWorldItemDefinition*)Drop)->GetAmmoWorldItemDefinition_BP();
+                        if (ExtraAmmo && (UFortItemDefinition*)ExtraAmmo != Drop)
+                        {
+                            auto DropName = Drop->Name.ToString();
+                            int AmmoCount = DropName.find("Launcher") != std::string::npos ? 6 : 30;
+                            AFortInventory::SpawnPickup(it->second.lastLoc, (UFortItemDefinition*)ExtraAmmo, AmmoCount, 0);
+                            dropped++;
+                            if (logThis)
+                                printf("[Boron][Bots]   drop ammo [%s] x%d\n", ((UFortItemDefinition*)ExtraAmmo)->Name.ToString().c_str(), AmmoCount);
+                        }
+                    }
                 }
 
                 if (logThis)
