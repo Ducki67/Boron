@@ -6,6 +6,8 @@
 #include "../Public/FortPlayerControllerAthena.h"
 #include "../Public/FortWeapon.h"
 #include "../Public/BuildingSMActor.h"
+#include "../Public/FortGameStateAthena.h"
+#include "../Public/BattleRoyaleGamePhaseLogic.h"
 
 struct _Pad_0xC
 {
@@ -927,6 +929,108 @@ void AFortPlayerPawnAthena::UpdateOutsideSafeZone(AFortPlayerPawnAthena* _this)
     _this->OnRep_IsInsideSafeZone();
 }
 
+void UClamberingComponent::ServerStartClambering(UObject* Context, FFrame& Stack)
+{
+    static int n = 0;
+    auto Comp = (UClamberingComponent*)Context;
+
+    if (n++ < 12)
+        printf("[Boron][Clamber] ServerStartClambering comp=%p localState=%d repState=%d\n", (void*)Comp,
+               Comp->HasLocalClamberingState() ? (int)Comp->LocalClamberingState : -1,
+               Comp->HasReplicatedClamberingState() ? (int)Comp->ReplicatedClamberingState : -1);
+
+    return ServerStartClamberingOG(Context, Stack);
+}
+
+void UClamberingComponent::NetMulticast_ClamberingLedgeFailed(UObject* Context, FFrame& Stack)
+{
+    static const char* Reasons[] = { "None",
+                                     "Unknown",
+                                     "DebugForced",
+                                     "OwnerDied",
+                                     "OwnerDBNO",
+                                     "OwnerLaunched",
+                                     "SynchedActionNotStarted",
+                                     "OwnerTeleported",
+                                     "Ledge_PlayerTooFar",
+                                     "Ledge_TargetLocationInvalid",
+                                     "Ledge_TargetActorInvalid",
+                                     "Ledge_TargetActorDestroyed",
+                                     "Ledge_BlockerEncountered" };
+
+    uint8 Reason = Stack.Locals ? *(uint8*)(__int64(Stack.Locals) + 0x0) : 0xFF;
+    uint8 State = Stack.Locals ? *(uint8*)(__int64(Stack.Locals) + 0x1) : 0xFF;
+
+    static int n = 0;
+
+    if (n++ < 24)
+        printf("[Boron][Clamber] LEDGE FAILED reason=%d (%s) state=%d\n", (int)Reason, Reason < 13 ? Reasons[Reason] : "?", (int)State);
+
+    return NetMulticast_ClamberingLedgeFailedOG(Context, Stack);
+}
+
+void UClamberingComponent::Configure(AActor* Pawn)
+{
+    if (VersionInfo.EngineVersion < 5.4 || !Pawn)
+        return;
+
+    static int n = 0;
+    bool bLog = n++ < 4;
+
+    auto Cls = StaticClass();
+    auto Comp = Cls ? (UClamberingComponent*)Pawn->GetComponentByClass((UClass*)Cls) : nullptr;
+
+    if (!Comp)
+    {
+        if (bLog)
+            printf("[Boron][Clamber] component missing on pawn=%p (cls=%p)\n", (void*)Pawn, (void*)Cls);
+        return;
+    }
+
+    float Enabled = Comp->HasClamberingEnabled() ? Comp->ClamberingEnabled.Evaluate() : -1.f;
+    float MaxDist = Comp->HasServerValidatePlayerMaxDistance() ? Comp->ServerValidatePlayerMaxDistance.Evaluate() : -1.f;
+    float FailDelay = Comp->HasServerFailDelay() ? Comp->ServerFailDelay.Evaluate() : -1.f;
+    float SyncDelay = Comp->HasSynchedActionFailDelay() ? Comp->SynchedActionFailDelay.Evaluate() : -1.f;
+
+    if (Comp->HasServerValidatePlayerMaxDistance() && MaxDist < 500.f)
+    {
+        Comp->ServerValidatePlayerMaxDistance.Curve.CurveTable = nullptr;
+        Comp->ServerValidatePlayerMaxDistance.Value = 5000.f;
+    }
+
+    if (bLog)
+        printf("[Boron][Clamber] pawn=%p comp=%p enabled=%.2f indicator=%.2f maxDist=%.0f failDelay=%.2f syncDelay=%.2f mme=%p isEnabled=%d autoClamber=%d\n",
+               (void*)Pawn, (void*)Comp, Enabled, Comp->HasClamberIndicatorEnabled() ? Comp->ClamberIndicatorEnabled.Evaluate() : -1.f, MaxDist, FailDelay,
+               SyncDelay, Comp->HasMovementModeExtension() ? (void*)Comp->MovementModeExtension : nullptr,
+               Comp->GetFunction("IsClamberingEnabled") ? (int)Comp->IsClamberingEnabled() : -1,
+               Comp->GetFunction("IsAutoClamberingEnabled") ? (int)Comp->IsAutoClamberingEnabled() : -1);
+}
+
+void UClamberingComponent::PostLoadHook()
+{
+    if (VersionInfo.EngineVersion < 5.4)
+        return;
+
+    auto Default = GetDefaultObj();
+
+    if (!Default)
+    {
+        printf("[Boron][Clamber] ClamberingComponent class not present on this build\n");
+        return;
+    }
+
+    auto StartFn = Default->GetFunction("ServerStartClambering");
+    auto FailFn = Default->GetFunction("NetMulticast_ClamberingLedgeFailed");
+
+    printf("[Boron][Clamber] hooks: start=%p fail=%p\n", (void*)StartFn, (void*)FailFn);
+
+    if (StartFn)
+        Hooking::ExecHook(StartFn, ServerStartClambering, ServerStartClamberingOG);
+
+    if (FailFn)
+        Hooking::ExecHook(FailFn, NetMulticast_ClamberingLedgeFailed, NetMulticast_ClamberingLedgeFailedOG);
+}
+
 void AFortPlayerPawnAthena::PostLoadHook()
 {
     OnRep_ZiplineState = FindOnRep_ZiplineState();
@@ -993,6 +1097,79 @@ void AFortPlayerPawnAthena::PostLoadHook()
     }
 }
 
+static AFortPlayerPawnAthena* ResolveShooter(AFortWeaponRanged* Weapon)
+{
+    if (!Weapon)
+        return nullptr;
+
+    auto Shooter = (AFortPlayerPawnAthena*)(Weapon->HasOwner() ? Weapon->Owner : nullptr);
+
+    if (!Shooter && Weapon->HasInstigator())
+        Shooter = (AFortPlayerPawnAthena*)Weapon->Instigator;
+
+    return Shooter;
+}
+
+static void SendDamageCue(AFortWeaponRanged* Weapon, AActor* HitActor, FHitResult& Hit, float Magnitude, bool bFatal, bool bCritical,
+                          bool bShield, bool bShieldDestroyed, bool bNonPlayer)
+{
+    static bool bChecked = false;
+    static bool bAvailable = false;
+
+    auto Shooter = ResolveShooter(Weapon);
+
+    if (!bChecked)
+    {
+        bChecked = true;
+        bAvailable = FAthenaBatchedDamageGameplayCues_Shared::StaticStruct() && FAthenaBatchedDamageGameplayCues_NonShared::StaticStruct()
+                     && Shooter && Shooter->GetFunction("NetMulticast_Athena_BatchedDamageCues");
+
+        printf("[Boron][Cue] shared=%p nonShared=%p fn=%p sharedSize=%d nonSharedSize=%d available=%d\n",
+               (void*)FAthenaBatchedDamageGameplayCues_Shared::StaticStruct(), (void*)FAthenaBatchedDamageGameplayCues_NonShared::StaticStruct(),
+               (void*)(Shooter ? Shooter->GetFunction("NetMulticast_Athena_BatchedDamageCues") : nullptr),
+               FAthenaBatchedDamageGameplayCues_Shared::StaticStruct() ? FAthenaBatchedDamageGameplayCues_Shared::Size() : -1,
+               FAthenaBatchedDamageGameplayCues_NonShared::StaticStruct() ? FAthenaBatchedDamageGameplayCues_NonShared::Size() : -1, (int)bAvailable);
+    }
+
+    if (!bAvailable || !Shooter || !HitActor)
+        return;
+
+    auto Shared = (FAthenaBatchedDamageGameplayCues_Shared*)malloc(FAthenaBatchedDamageGameplayCues_Shared::Size());
+    auto NonShared = (FAthenaBatchedDamageGameplayCues_NonShared*)malloc(FAthenaBatchedDamageGameplayCues_NonShared::Size());
+
+    memset((PBYTE)Shared, 0, FAthenaBatchedDamageGameplayCues_Shared::Size());
+    memset((PBYTE)NonShared, 0, FAthenaBatchedDamageGameplayCues_NonShared::Size());
+
+    Shared->Location = Hit.ImpactPoint;
+    Shared->Normal = Hit.ImpactNormal;
+    Shared->Magnitude = Magnitude;
+    Shared->bWeaponActivate = true;
+    Shared->bIsBallistic = true;
+    Shared->bIsBeam = false;
+    Shared->bIsFatal = bFatal;
+    Shared->bIsCritical = bCritical;
+    Shared->bIsShield = bShield;
+    Shared->bIsShieldDestroyed = bShieldDestroyed;
+    Shared->bIsValid = true;
+
+    NonShared->HitActor = HitActor;
+
+    if (bNonPlayer)
+    {
+        NonShared->NonPlayerHitActor = HitActor;
+        Shared->NonPlayerLocation = Hit.ImpactPoint;
+        Shared->NonPlayerNormal = Hit.ImpactNormal;
+        Shared->NonPlayerMagnitude = Magnitude;
+        Shared->NonPlayerbIsFatal = bFatal;
+        Shared->NonPlayerbIsCritical = bCritical;
+    }
+
+    Shooter->NetMulticast_Athena_BatchedDamageCues(*Shared, *NonShared);
+
+    free(Shared);
+    free(NonShared);
+}
+
 static void ApplyRangedHit(AFortWeaponRanged* Weapon, FHitResult& Hit, const char* Path)
 {
     if (!Weapon || !Weapon->HasWeaponData() || !Weapon->WeaponData)
@@ -1050,6 +1227,33 @@ static void ApplyRangedHit(AFortWeaponRanged* Weapon, FHitResult& Hit, const cha
 
     if (PawnClass && HitActor->IsA(PawnClass))
     {
+        static const int AircraftPhase = 3;
+        static const int BusFlyingStep = 5;
+
+        bool bPregame = false;
+
+        if (auto GamePhaseLogic = UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Get(UWorld::GetWorld()))
+        {
+            static int PhaseOff = -2;
+            static int StepOff = -2;
+
+            if (PhaseOff == -2)
+                PhaseOff = GamePhaseLogic->GetOffset("GamePhase");
+
+            if (StepOff == -2)
+                StepOff = GamePhaseLogic->GetOffset("GamePhaseStep");
+
+            int Phase = PhaseOff > 0 ? (int)GetFromOffset<uint8>(GamePhaseLogic, PhaseOff) : -1;
+            int Step = StepOff > 0 ? (int)GetFromOffset<uint8>(GamePhaseLogic, StepOff) : -1;
+
+            bPregame = (Phase >= 0 && Phase < AircraftPhase) || (Phase == AircraftPhase && Step >= 0 && Step < BusFlyingStep);
+
+            static int wn = 0;
+
+            if (wn++ < 8)
+                printf("[Boron][Damage] phase=%d step=%d (off %d/%d) pregame=%d\n", Phase, Step, PhaseOff, StepOff, (int)bPregame);
+        }
+
         auto Target = (AFortPlayerPawnAthena*)HitActor;
         float Shield = Target->GetShield();
         float Health = Target->GetHealth();
@@ -1065,6 +1269,12 @@ static void ApplyRangedHit(AFortWeaponRanged* Weapon, FHitResult& Hit, const cha
 
         if (Damage <= 0.f)
             return;
+
+        if (bPregame)
+        {
+            SendDamageCue(Weapon, HitActor, Hit, Damage, false, bCrit, Shield > 0.f, false, false);
+            return;
+        }
 
         float Remaining = Damage;
 
@@ -1094,6 +1304,8 @@ static void ApplyRangedHit(AFortWeaponRanged* Weapon, FHitResult& Hit, const cha
 
         Target->ForceNetUpdate();
 
+        SendDamageCue(Weapon, HitActor, Hit, Damage, bFatal, bCrit, Shield > 0.f, Shield > 0.f && Target->GetShield() <= 0.f, false);
+
         if (bLog)
             printf("[Boron][Damage] pawn path=%s cls=%s bone=%s crit=%d dmg=%.1f hp %.0f->%.0f sh %.0f->%.0f fatal=%d\n",
                    Path, ActorName.c_str(), Bone.c_str(), (int)bCrit, Damage,
@@ -1111,16 +1323,54 @@ static void ApplyRangedHit(AFortWeaponRanged* Weapon, FHitResult& Hit, const cha
         if (Shooter && Shooter->HasController())
             KillerController = Shooter->Controller;
 
+        UObject* KillerASC = nullptr;
+
+        if (Shooter && Shooter->HasPlayerState())
+            if (auto ShooterState = (AFortPlayerStateAthena*)Shooter->PlayerState)
+                if (ShooterState->HasAbilitySystemComponent())
+                    KillerASC = ShooterState->AbilitySystemComponent;
+
+        UObject* TargetASC = nullptr;
+
+        if (Target->HasPlayerState())
+            if (auto TargetState = (AFortPlayerStateAthena*)Target->PlayerState)
+                if (TargetState->HasAbilitySystemComponent())
+                    TargetASC = TargetState->AbilitySystemComponent;
+
         FGameplayTag DeathReason;
         memset(&DeathReason, 0, sizeof(DeathReason));
 
+        const char* Path2 = "none";
+
+        if (Target->GetFunction("ForceKill"))
+        {
+            Path2 = "ForceKill";
+            Target->ForceKill(DeathReason, KillerController, Weapon);
+        }
+
+        if (Target->GetHealth() > 0.f && !Target->IsDBNO() && KillerASC && Target->GetFunction("DoFatalDamage"))
+        {
+            Path2 = "DoFatalDamage";
+            Target->DoFatalDamage(KillerASC);
+        }
+
+        if (Target->GetHealth() > 0.f && !Target->IsDBNO())
+            Target->SetHealth(0.f);
+
+        if (Target->GetHealth() <= 0.f && !Target->IsDBNO() && Target->GetFunction("KillDisconnectedPawn"))
+        {
+            Path2 = "KillDisconnectedPawn";
+            Target->KillDisconnectedPawn();
+        }
+
+        Target->ForceNetUpdate();
+
         static int kn = 0;
 
-        if (kn++ < 10)
-            printf("[Boron][Damage] fatal target=%p shooter=%p killerPC=%p forceKill=%p\n",
-                   (void*)Target, (void*)Shooter, (void*)KillerController, (void*)Target->GetFunction("ForceKill"));
-
-        Target->ForceKill(DeathReason, KillerController, Weapon);
+        if (kn++ < 12)
+            printf("[Boron][Damage] fatal via=%s target=%p killerPC=%p killerASC=%p targetASC=%p hpAfter=%.0f dbno=%d\n",
+                   Path2, (void*)Target, (void*)KillerController, (void*)KillerASC, (void*)TargetASC,
+                   Target->GetHealth(), (int)Target->IsDBNO());
 
         return;
     }
@@ -1138,6 +1388,8 @@ static void ApplyRangedHit(AFortWeaponRanged* Weapon, FHitResult& Hit, const cha
 
         Building->SetHealth(Left);
         Building->ForceNetUpdate();
+
+        SendDamageCue(Weapon, HitActor, Hit, Damage, Left <= 0.f, false, false, false, true);
 
         if (bLog)
             printf("[Boron][Damage] building path=%s dmg=%.1f left=%.0f dorm=%d\n",

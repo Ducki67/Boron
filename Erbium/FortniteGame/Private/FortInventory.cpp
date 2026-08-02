@@ -25,8 +25,25 @@ UFortWorldItem* AFortInventory::GiveItem(const UFortItemDefinition* Def, int Cou
     if (Item->ItemEntry.HasPhantomReserveAmmo())
         Item->ItemEntry.PhantomReserveAmmo = PhantomReserveAmmo;
     if (auto WeaponDef = Def->Cast<UFortWeaponItemDefinition>())
-        if (WeaponDef->HasWeaponModSlots() && FFortItemEntry::HasWeaponModSlots())
-            Item->ItemEntry.WeaponModSlots = WeaponDef->WeaponModSlots;
+    {
+        if (FFortItemEntry::HasWeaponModSlots())
+        {
+            if (WeaponDef->GetFunction("GetWeaponModSlots"))
+            {
+                auto Slots = WeaponDef->GetWeaponModSlots();
+
+                if (Slots.Num() > 0)
+                {
+                    Item->ItemEntry.GetWeaponModSlots() = Slots;
+
+                    static int mn = 0;
+
+                    if (mn++ < 10)
+                        printf("[Boron][Mods] %s spawned with %d mod slot(s)\n", Def->Name.ToString().c_str(), Slots.Num());
+                }
+            }
+        }
+    }
     if (Item->ItemEntry.HasStateValues() && StateValues.Num() > 0)
     {
         auto NewData = FMemory::Malloc(FFortItemEntryStateValue::Size() * StateValues.Num());
@@ -354,8 +371,13 @@ FFortItemEntry* AFortInventory::MakeItemEntry(const UFortItemDefinition* ItemDef
         }
     }
     if (auto WeaponDef = ItemDef->Cast<UFortWeaponItemDefinition>())
-        if (WeaponDef->HasWeaponModSlots() && FFortItemEntry::HasWeaponModSlots())
-            ItemEntry->WeaponModSlots = WeaponDef->WeaponModSlots;
+        if (FFortItemEntry::HasWeaponModSlots() && WeaponDef->GetFunction("GetWeaponModSlots"))
+        {
+            auto Slots = WeaponDef->GetWeaponModSlots();
+
+            if (Slots.Num() > 0)
+                ItemEntry->GetWeaponModSlots() = Slots;
+        }
     if (ItemEntry->HasPickupVariantIndex())
         ItemEntry->PickupVariantIndex = -1;
     if (ItemEntry->HasItemVariantDataMappingIndex())

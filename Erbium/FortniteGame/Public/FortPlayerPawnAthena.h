@@ -1,5 +1,6 @@
 #pragma once
 #include "../../pch.h"
+#include "../../Engine/Public/CurveTable.h"
 #include "GameplayTagContainer.h"
 
 class UCharacterMovementComponent : public UObject
@@ -9,8 +10,79 @@ public:
 
     DEFINE_PROP(Velocity, FVector);
     DEFINE_BITFIELD_PROP(bCheatFlying);
+    DEFINE_BITFIELD_PROP(bIgnoreClientMovementErrorChecksAndCorrection);
+    DEFINE_BITFIELD_PROP(bServerAcceptClientAuthoritativePosition);
 
     DEFINE_FUNC(SetMovementMode, void);
+};
+
+struct FAthenaBatchedDamageGameplayCues_Shared
+{
+public:
+    USCRIPTSTRUCT_COMMON_MEMBERS(FAthenaBatchedDamageGameplayCues_Shared);
+
+    DEFINE_STRUCT_PROP(Location, FVector);
+    DEFINE_STRUCT_PROP(Normal, FVector);
+    DEFINE_STRUCT_PROP(Magnitude, float);
+    DEFINE_STRUCT_PROP(bWeaponActivate, bool);
+    DEFINE_STRUCT_PROP(bIsFatal, bool);
+    DEFINE_STRUCT_PROP(bIsCritical, bool);
+    DEFINE_STRUCT_PROP(bIsShield, bool);
+    DEFINE_STRUCT_PROP(bIsShieldDestroyed, bool);
+    DEFINE_STRUCT_PROP(bIsBallistic, bool);
+    DEFINE_STRUCT_PROP(bIsBeam, bool);
+    DEFINE_STRUCT_PROP(NonPlayerLocation, FVector);
+    DEFINE_STRUCT_PROP(NonPlayerNormal, FVector);
+    DEFINE_STRUCT_PROP(NonPlayerMagnitude, float);
+    DEFINE_STRUCT_PROP(NonPlayerbIsFatal, bool);
+    DEFINE_STRUCT_PROP(NonPlayerbIsCritical, bool);
+    DEFINE_STRUCT_PROP(bIsValid, bool);
+};
+
+struct FAthenaBatchedDamageGameplayCues_NonShared
+{
+public:
+    USCRIPTSTRUCT_COMMON_MEMBERS(FAthenaBatchedDamageGameplayCues_NonShared);
+
+    DEFINE_STRUCT_PROP(HitActor, AActor*);
+    DEFINE_STRUCT_PROP(NonPlayerHitActor, AActor*);
+};
+
+class USkeletalMeshComponent : public UObject
+{
+public:
+    UCLASS_COMMON_MEMBERS(USkeletalMeshComponent);
+
+    DEFINE_PROP(VisibilityBasedAnimTickOption, uint8);
+    DEFINE_BITFIELD_PROP(bEnableUpdateRateOptimizations);
+};
+
+class UClamberingComponent : public UObject
+{
+public:
+    UCLASS_COMMON_MEMBERS(UClamberingComponent);
+
+    DEFINE_PROP(LocalClamberingState, uint8);
+    DEFINE_PROP(ReplicatedClamberingState, uint8);
+    DEFINE_PROP(ClamberingEnabled, FScalableFloat);
+    DEFINE_PROP(ClamberIndicatorEnabled, FScalableFloat);
+    DEFINE_PROP(ServerValidatePlayerMaxDistance, FScalableFloat);
+    DEFINE_PROP(ServerFailDelay, FScalableFloat);
+    DEFINE_PROP(SynchedActionFailDelay, FScalableFloat);
+    DEFINE_PROP(bPerformTargetingWhileWalking, bool);
+    DEFINE_PROP(bPerformTargetingWhileSwimming, bool);
+    DEFINE_PROP(MovementModeExtension, UClass*);
+
+    DEFINE_FUNC(IsClamberingEnabled, bool);
+    DEFINE_FUNC(IsAutoClamberingEnabled, bool);
+    DEFINE_FUNC(ShouldShowClamberIndicator, bool);
+
+    static void Configure(AActor* Pawn);
+
+    DefUHookOg(ServerStartClambering);
+    DefUHookOg(NetMulticast_ClamberingLedgeFailed);
+
+    InitPostLoadHooks;
 };
 
 struct FZiplinePawnState
@@ -116,6 +188,8 @@ public:
     DEFINE_FUNC(SetMaxHealth, void);
     DEFINE_FUNC(DoFatalDamage, void);
     DEFINE_FUNC(ForceKill, void);
+    DEFINE_FUNC(KillDisconnectedPawn, void);
+    DEFINE_FUNC(NetMulticast_Athena_BatchedDamageCues, void);
     DEFINE_FUNC(EquipWeaponDefinition, AActor*);
     DEFINE_FUNC(PawnStartFire, void);
     DEFINE_FUNC(PawnStopFire, void);

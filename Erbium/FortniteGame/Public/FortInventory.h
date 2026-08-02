@@ -227,6 +227,15 @@ public:
     DEFINE_STRUCT_PROP(StateType, uint8_t);
 };
 
+struct FFortWeaponModSlot
+{
+public:
+    USCRIPTSTRUCT_COMMON_MEMBERS(FFortWeaponModSlot);
+
+    DEFINE_STRUCT_PROP(WeaponMod, const UFortItemDefinition*);
+    DEFINE_STRUCT_PROP(bIsDynamic, bool);
+};
+
 struct FFortItemEntry : public FFastArraySerializerItem
 {
 public:
@@ -245,7 +254,7 @@ public:
     DEFINE_STRUCT_PROP(StateValues, TArray<FFortItemEntryStateValue>);
     DEFINE_STRUCT_PROP(bIsReplicatedCopy, bool);
     DEFINE_STRUCT_PROP(bIsDirty, bool);
-    DEFINE_STRUCT_PROP(WeaponModSlots, TArray<void*>);
+    DEFINE_STRUCT_PROP(WeaponModSlots, TArray<FFortWeaponModSlot>);
     DEFINE_STRUCT_PROP(PickupVariantIndex, int32);
     DEFINE_STRUCT_PROP(OrderIndex, int16);
     DEFINE_STRUCT_PROP(ItemVariantDataMappingIndex, int32);
@@ -371,8 +380,9 @@ public:
     DEFINE_PROP(EquippedAbilities, TArray<TSoftClassPtr<UClass>>);
     DEFINE_PROP(EquippedAbilitySet, TSoftObjectPtr<class UFortAbilitySet>);
     DEFINE_BITFIELD_PROP(bUsesCustomAmmoType);
-    DEFINE_PROP(WeaponModSlots, TArray<void*>);
     DEFINE_BITFIELD_PROP(bValidForLastEquipped);
+
+    DEFINE_FUNC(GetWeaponModSlots, TArray<FFortWeaponModSlot>);
 };
 
 struct FFortRangedWeaponStats

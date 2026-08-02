@@ -65,7 +65,50 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
     {
         static int posn = 0;
         if (posn++ < 8)
+        {
             printf("[Boron][Loadout] possession #%d Num=%d pawn=%p (loadout re-gives when Num==0)\n", posn, Num, (void*)Pawn);
+
+            printf("[Boron][MME] pawn=%p registeredLogic=%d activeExt=%p moveComp=%p\n",
+                   (void*)FortPawn,
+                   FortPawn->HasRegisteredMovementModeExtentionLogic() ? FortPawn->RegisteredMovementModeExtentionLogic.Num() : -1,
+                   FortPawn->HasRepActiveMovementModeExtension() ? FortPawn->RepActiveMovementModeExtension : nullptr,
+                   FortPawn->HasCharacterMovement() ? (void*)FortPawn->CharacterMovement : nullptr);
+        }
+
+        if (FortPawn->HasCharacterMovement())
+        {
+            if (auto MoveComp = FortPawn->CharacterMovement)
+            {
+                if (MoveComp->HasbIgnoreClientMovementErrorChecksAndCorrection())
+                    MoveComp->bIgnoreClientMovementErrorChecksAndCorrection = true;
+
+                if (MoveComp->HasbServerAcceptClientAuthoritativePosition())
+                    MoveComp->bServerAcceptClientAuthoritativePosition = true;
+            }
+        }
+
+        if (FortPawn->HasMesh())
+        {
+            if (auto SkelMesh = (USkeletalMeshComponent*)FortPawn->Mesh)
+            {
+                static int meshn = 0;
+                bool bMeshLog = meshn++ < 4;
+                int Before = SkelMesh->HasVisibilityBasedAnimTickOption() ? (int)SkelMesh->VisibilityBasedAnimTickOption : -1;
+
+                if (SkelMesh->HasVisibilityBasedAnimTickOption())
+                    SkelMesh->VisibilityBasedAnimTickOption = 0;
+
+                if (SkelMesh->HasbEnableUpdateRateOptimizations())
+                    SkelMesh->bEnableUpdateRateOptimizations = false;
+
+                if (bMeshLog)
+                    printf("[Boron][AnimTick] mesh=%p visTick %d -> %d uro=%d\n", (void*)SkelMesh, Before,
+                           SkelMesh->HasVisibilityBasedAnimTickOption() ? (int)SkelMesh->VisibilityBasedAnimTickOption : -1,
+                           SkelMesh->HasbEnableUpdateRateOptimizations() ? (int)SkelMesh->bEnableUpdateRateOptimizations : -1);
+            }
+        }
+
+        UClamberingComponent::Configure(Pawn);
     }
 
     auto GameMode = (AFortGameMode*)UWorld::GetWorld()->AuthorityGameMode;
@@ -188,7 +231,10 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
                     total++;
                     auto nm = Obj->Name.ToString();
 
-                    if (strstr(nm.c_str(), "Clamber") || strstr(nm.c_str(), "Hurdle") || strstr(nm.c_str(), "Mantle"))
+                    printf("[Boron][Abilities] set[%d] %s\n", total, nm.c_str());
+
+                    if (strstr(nm.c_str(), "Clamber") || strstr(nm.c_str(), "Hurdle") || strstr(nm.c_str(), "Mantle")
+                        || strstr(nm.c_str(), "Traversal") || strstr(nm.c_str(), "Vault"))
                     {
                         Obj->AddToRoot();
                         MovementSets.push_back((const UFortAbilitySet*)Obj);
@@ -215,13 +261,16 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
         {
             GrantedTo.push_back(ASC);
 
+#if 0
             for (auto Set : MovementSets)
                 if (Set)
                     PlayerController->PlayerState->AbilitySystemComponent->GiveAbilitySet(Set);
+#endif
 
-            printf("[Boron][Abilities] granted %d movement sets to asc=%p\n", (int)MovementSets.size(), ASC);
+            printf("[Boron][Abilities] granted %d movement sets to asc=%p (grant disabled, cd85901 parity)\n", (int)MovementSets.size(), ASC);
         }
 
+#if 0
         static bool bReappliedMME = false;
 
         if (!bReappliedMME)
@@ -231,6 +280,7 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
             UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Hurdle 1"), nullptr);
             UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Clambering 1"), nullptr);
         }
+#endif
     }
 
     if (Num == 0)
@@ -241,20 +291,37 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
 
         static auto FallbackHarvest = FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Harvest_Pickaxe_Athena_C_T01.WID_Harvest_Pickaxe_Athena_C_T01");
 
+        static auto LoadoutCosmeticCls = FindClass("FortControllerComponent_CosmeticLoadout");
+        auto LoadoutCtrlComp = LoadoutCosmeticCls
+                                   ? (UFortControllerComponent_CosmeticLoadout*)PlayerController->GetComponentByClass((UClass*)LoadoutCosmeticCls)
+                                   : nullptr;
+
+        const UFortItemDefinition* CachedPickaxeWeapon = nullptr;
+
+        if (LoadoutCtrlComp && LoadoutCtrlComp->HasCachedAthenaLoadout() && LoadoutCtrlComp->CachedAthenaLoadout.Pickaxe)
+        {
+            auto CachedDef = LoadoutCtrlComp->CachedAthenaLoadout.Pickaxe->WeaponDefinition;
+
+            if (CachedDef && !strstr(CachedDef->Name.ToString().c_str(), "Bean"))
+                CachedPickaxeWeapon = CachedDef;
+        }
+
         auto SafePickaxeDef = [&](const UFortItemDefinition* Def) -> const UFortItemDefinition*
         {
-            if (!Def)
-                return FallbackHarvest;
+            bool bad = !Def;
 
-            auto nm = Def->Name.ToString();
+            if (Def)
+                bad = strstr(Def->Name.ToString().c_str(), "Bean") != nullptr;
 
-            if (strstr(nm.c_str(), "BeanHands") || strstr(nm.c_str(), "Bean"))
-            {
-                printf("[Boron][Loadout] rejecting cosmetic pickaxe %s -> WID_Harvest_Pickaxe_Athena_C_T01\n", nm.c_str());
-                return FallbackHarvest;
-            }
+            if (!bad)
+                return Def;
 
-            return Def;
+            auto Replacement = CachedPickaxeWeapon ? CachedPickaxeWeapon : FallbackHarvest;
+
+            printf("[Boron][Loadout] pickaxe %s -> %s\n", Def ? Def->Name.ToString().c_str() : "null",
+                   Replacement ? Replacement->Name.ToString().c_str() : "null");
+
+            return Replacement;
         };
 
         bool bGavePickaxe = false;
@@ -427,25 +494,48 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
 
         static auto FallbackPickaxe = (UAthenaPickaxeItemDefinition*)FindObject<UObject>(L"/Game/Athena/Items/Cosmetics/Pickaxes/DefaultPickaxe.DefaultPickaxe");
 
+        auto IsBadPickaxe = [](UAthenaPickaxeItemDefinition* P) -> bool
+        {
+            if (!P)
+                return true;
+
+            auto nm = P->Name.ToString();
+
+            return strstr(nm.c_str(), "Bean") != nullptr;
+        };
+
+        UAthenaPickaxeItemDefinition* GoodPickaxe = nullptr;
+
+        if (CtrlComp && CtrlComp->HasCachedAthenaLoadout() && !IsBadPickaxe(CtrlComp->CachedAthenaLoadout.Pickaxe))
+            GoodPickaxe = CtrlComp->CachedAthenaLoadout.Pickaxe;
+
+        if (!GoodPickaxe && PlayerController->HasCosmeticLoadoutPC() && !IsBadPickaxe(PlayerController->CosmeticLoadoutPC.Pickaxe))
+            GoodPickaxe = PlayerController->CosmeticLoadoutPC.Pickaxe;
+
+        static int pxn = 0;
+
+        if (pxn++ < 4)
+            printf("[Boron][Cosmetics] pickaxe cached=%s pc=%s chosen=%s\n",
+                   (CtrlComp && CtrlComp->HasCachedAthenaLoadout() && CtrlComp->CachedAthenaLoadout.Pickaxe)
+                       ? CtrlComp->CachedAthenaLoadout.Pickaxe->Name.ToString().c_str() : "null",
+                   (PlayerController->HasCosmeticLoadoutPC() && PlayerController->CosmeticLoadoutPC.Pickaxe)
+                       ? PlayerController->CosmeticLoadoutPC.Pickaxe->Name.ToString().c_str() : "null",
+                   GoodPickaxe ? GoodPickaxe->Name.ToString().c_str() : "fallback");
+
         auto FixPickaxe = [&](FFortAthenaLoadout& L, const char* who)
         {
-            if (!FallbackPickaxe)
+            if (!IsBadPickaxe(L.Pickaxe))
                 return;
 
-            auto Cur = L.Pickaxe;
-            bool bad = !Cur;
+            auto Replacement = GoodPickaxe ? GoodPickaxe : FallbackPickaxe;
 
-            if (Cur)
-            {
-                auto nm = Cur->Name.ToString();
-                bad = strstr(nm.c_str(), "BeanHands") != nullptr;
-            }
+            if (!Replacement)
+                return;
 
-            if (bad)
-            {
-                printf("[Boron][Cosmetics] %s pickaxe %s -> DefaultPickaxe\n", who, Cur ? Cur->Name.ToString().c_str() : "null");
-                L.Pickaxe = FallbackPickaxe;
-            }
+            printf("[Boron][Cosmetics] %s pickaxe %s -> %s\n", who, L.Pickaxe ? L.Pickaxe->Name.ToString().c_str() : "null",
+                   Replacement->Name.ToString().c_str());
+
+            L.Pickaxe = Replacement;
         };
 
         if (CtrlComp && CtrlComp->HasCachedAthenaLoadout())
@@ -496,21 +586,53 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
 
             int softResolved = 0;
 
+            static int spn = 0;
+
             if (CID->HasBaseCharacterParts())
-                for (auto& PartSoft : CID->BaseCharacterParts)
+                for (int i = 0; i < CID->BaseCharacterParts.Num(); i++)
                 {
+                    auto& PartSoft = CID->BaseCharacterParts.Get(i, FSoftObjectPtr::Size());
                     auto Part = PartSoft.Get();
 
                     if (Part)
                         softResolved++;
+                    else if (spn++ < 12)
+                    {
+                        if (VersionInfo.FortniteVersion >= 23)
+                        {
+                            auto& PackageName = *(FName*)(__int64(&PartSoft) + (VersionInfo.EngineVersion < 5.3 ? 0x10 : 0x8));
+
+                            if (PackageName.ComparisonIndex > 0)
+                            {
+                                auto Path = PackageName.ToWString();
+                                printf("[Boron][Cosmetics] softpart[%d] UNRESOLVED: %ls\n", i, Path.c_str());
+                            }
+                            else
+                                printf("[Boron][Cosmetics] softpart[%d] UNRESOLVED (empty path)\n", i);
+                        }
+                        else
+                            printf("[Boron][Cosmetics] softpart[%d] UNRESOLVED\n", i);
+                    }
 
                     Choose(Part);
                 }
 
             static int sn = 0;
-            if (sn++ < 6)
-                printf("[Boron][Cosmetics] softparts: baseParts=%d resolved=%d\n",
+            if (sn++ < 8)
+            {
+                auto PS = (AFortPlayerStateAthena*)PlayerController->PlayerState;
+                std::string PlayerName = "?";
+
+                if (PS && PS->HasPlayerNamePrivate() && PS->PlayerNamePrivate.Num() > 0)
+                {
+                    auto Wide = PS->PlayerNamePrivate.ToWString();
+                    PlayerName = std::string(Wide.begin(), Wide.end());
+                }
+
+                printf("[Boron][Cosmetics] IDENTITY player='%s' pc=%p ps=%p CID=%s baseParts=%d resolved=%d\n",
+                       PlayerName.c_str(), (void*)PlayerController, (void*)PS, CID->Name.ToString().c_str(),
                        CID->HasBaseCharacterParts() ? CID->BaseCharacterParts.Num() : -1, softResolved);
+            }
 
             if (PlayerController->HasCosmeticLoadoutPC() && PlayerController->CosmeticLoadoutPC.Backpack)
                 for (auto& Part : PlayerController->CosmeticLoadoutPC.Backpack->CharacterParts)

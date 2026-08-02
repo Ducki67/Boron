@@ -232,10 +232,12 @@ void Main()
         if (SlideCVar)
             *SlideCVar = false;
 
+        if (MantleCVar)
+            *MantleCVar = false;
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.TacticalSprint 0"), nullptr);
+        // UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Hurdle 0"), nullptr);
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Sliding 0"), nullptr);
-        UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Hurdle 1"), nullptr);
-        UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Clambering 1"), nullptr);
+        UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Clambering 0"), nullptr);
 
         static const wchar_t* NoisyCategories[] = {
             L"log LogDataTable off",
@@ -250,6 +252,19 @@ void Main()
 
         for (auto Category : NoisyCategories)
             UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(Category), nullptr);
+
+        static const wchar_t* StreamingBudget[] = {
+            L"s.AsyncLoadingTimeLimit 16",
+            L"s.AsyncLoadingUseFullTimeLimit 1",
+            L"s.PriorityAsyncLoadingExtraTime 40",
+            L"s.LevelStreamingActorsUpdateTimeLimit 8",
+            L"s.UnregisterComponentsTimeLimit 8",
+            L"s.MaxIncomingRequestsToStall 0",
+            L"s.MaxReadyRequestsToStallMB 0",
+        };
+
+        for (auto Command : StreamingBudget)
+            UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(Command), nullptr);
     }
     UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"log LogSpecialEventScript VeryVerbose"), nullptr);
 

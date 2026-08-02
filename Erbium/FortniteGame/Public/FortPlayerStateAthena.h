@@ -50,6 +50,7 @@ public:
     UCLASS_COMMON_MEMBERS(AFortPlayerStateAthena);
 
     DEFINE_PROP(AbilitySystemComponent, UAbilitySystemComponent*);
+    DEFINE_PROP(PlayerNamePrivate, FString);
     DEFINE_PROP(SquadId, uint8);
     DEFINE_PROP(TeamIndex, uint8);
     DEFINE_PROP(UniqueId, FUniqueNetIdRepl);
