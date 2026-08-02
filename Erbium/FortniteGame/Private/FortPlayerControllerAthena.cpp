@@ -194,17 +194,43 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
                         MovementSets.push_back((const UFortAbilitySet*)Obj);
                         printf("[Boron][Abilities] found movement set: %s\n", nm.c_str());
                     }
-                    else if (total <= 60)
-                        printf("[Boron][Abilities] set: %s\n", nm.c_str());
                 }
 
             printf("[Boron][Abilities] class=%p FortAbilitySet objects=%d movement sets found=%d\n",
                    (void*)AbilitySetClass, total, (int)MovementSets.size());
         }
 
-        for (auto Set : MovementSets)
-            if (Set)
-                PlayerController->PlayerState->AbilitySystemComponent->GiveAbilitySet(Set);
+        static std::vector<void*> GrantedTo;
+        auto ASC = (void*)PlayerController->PlayerState->AbilitySystemComponent;
+        bool bAlreadyGranted = false;
+
+        for (auto Existing : GrantedTo)
+            if (Existing == ASC)
+            {
+                bAlreadyGranted = true;
+                break;
+            }
+
+        if (!bAlreadyGranted)
+        {
+            GrantedTo.push_back(ASC);
+
+            for (auto Set : MovementSets)
+                if (Set)
+                    PlayerController->PlayerState->AbilitySystemComponent->GiveAbilitySet(Set);
+
+            printf("[Boron][Abilities] granted %d movement sets to asc=%p\n", (int)MovementSets.size(), ASC);
+        }
+
+        static bool bReappliedMME = false;
+
+        if (!bReappliedMME)
+        {
+            bReappliedMME = true;
+
+            UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Hurdle 1"), nullptr);
+            UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Clambering 1"), nullptr);
+        }
     }
 
     if (Num == 0)
@@ -213,15 +239,42 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
         static bool HasCosmeticLoadoutPC = PlayerController->HasCosmeticLoadoutPC();
         static bool HasCustomizationLoadout = PlayerController->HasCustomizationLoadout();
 
+        static auto FallbackHarvest = FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Harvest_Pickaxe_Athena_C_T01.WID_Harvest_Pickaxe_Athena_C_T01");
+
+        auto SafePickaxeDef = [&](const UFortItemDefinition* Def) -> const UFortItemDefinition*
+        {
+            if (!Def)
+                return FallbackHarvest;
+
+            auto nm = Def->Name.ToString();
+
+            if (strstr(nm.c_str(), "BeanHands") || strstr(nm.c_str(), "Bean"))
+            {
+                printf("[Boron][Loadout] rejecting cosmetic pickaxe %s -> WID_Harvest_Pickaxe_Athena_C_T01\n", nm.c_str());
+                return FallbackHarvest;
+            }
+
+            return Def;
+        };
+
+        bool bGavePickaxe = false;
+
         if (HasCosmeticLoadoutPC && PlayerController->CosmeticLoadoutPC.Pickaxe)
-            PlayerController->WorldInventory->GiveItem(PlayerController->CosmeticLoadoutPC.Pickaxe->WeaponDefinition);
+        {
+            PlayerController->WorldInventory->GiveItem(SafePickaxeDef(PlayerController->CosmeticLoadoutPC.Pickaxe->WeaponDefinition));
+            bGavePickaxe = true;
+        }
         else if (HasCustomizationLoadout && PlayerController->CustomizationLoadout.Pickaxe)
-            PlayerController->WorldInventory->GiveItem(PlayerController->CustomizationLoadout.Pickaxe->WeaponDefinition);
+        {
+            PlayerController->WorldInventory->GiveItem(SafePickaxeDef(PlayerController->CustomizationLoadout.Pickaxe->WeaponDefinition));
+            bGavePickaxe = true;
+        }
         else if (HasCosmeticLoadoutPC || HasCustomizationLoadout) // fix ur backend gng
         {
             static auto DefaultPickaxe = FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Harvest_Pickaxe_Athena_C_T01.WID_Harvest_Pickaxe_Athena_C_T01");
 
             PlayerController->WorldInventory->GiveItem(DefaultPickaxe);
+            bGavePickaxe = true;
         }
 
        // bs
@@ -249,7 +302,9 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
                 }
             }
 
-            PlayerController->WorldInventory->GiveItem(DefaultPickaxe);
+            if (!bGavePickaxe)
+                PlayerController->WorldInventory->GiveItem(DefaultPickaxe);
+
             PlayerController->WorldInventory->GiveItem(WallBuild);
             PlayerController->WorldInventory->GiveItem(FloorBuild);
             PlayerController->WorldInventory->GiveItem(StairBuild);
@@ -439,9 +494,23 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
                 partsWritten++;
             };
 
+            int softResolved = 0;
+
             if (CID->HasBaseCharacterParts())
                 for (auto& PartSoft : CID->BaseCharacterParts)
-                    Choose(PartSoft.Get());
+                {
+                    auto Part = PartSoft.Get();
+
+                    if (Part)
+                        softResolved++;
+
+                    Choose(Part);
+                }
+
+            static int sn = 0;
+            if (sn++ < 6)
+                printf("[Boron][Cosmetics] softparts: baseParts=%d resolved=%d\n",
+                       CID->HasBaseCharacterParts() ? CID->BaseCharacterParts.Num() : -1, softResolved);
 
             if (PlayerController->HasCosmeticLoadoutPC() && PlayerController->CosmeticLoadoutPC.Backpack)
                 for (auto& Part : PlayerController->CosmeticLoadoutPC.Backpack->CharacterParts)
@@ -461,7 +530,13 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
                    (CtrlComp && CtrlComp->HasActiveArchetypes()) ? CtrlComp->ActiveArchetypes.Num() : -1, (int)pushed);
 
         UFortKismetLibrary::UpdatePlayerCustomCharacterPartsVisualization(PlayerController->PlayerState);
-        if (!UFortKismetLibrary::UpdatePlayerCustomCharacterPartsVisualization__Ptr && ApplyCharacterCustomization)
+
+        static int an = 0;
+        if (an++ < 10)
+            printf("[Boron][Cosmetics] applyNative fn=%p ps=%p pawn=%p\n",
+                   (void*)ApplyCharacterCustomization, (void*)PlayerController->PlayerState, (void*)Pawn);
+
+        if (ApplyCharacterCustomization)
             ((void (*)(AActor*, AActor*, int))ApplyCharacterCustomization)(PlayerController->PlayerState, Pawn, 0);
     }
 }
@@ -568,22 +643,6 @@ void AFortPlayerControllerAthena::ServerAttemptAircraftJump_(UObject* Context, F
     }
 }
 
-static bool GuardedEquip(AFortPlayerPawnAthena* Pawn, const UFortWeaponItemDefinition* Def, FGuid Guid, FGuid Tracker)
-{
-    FCrashReporter::bSEHGuard = true;
-    bool ok = true;
-    __try
-    {
-        Pawn->EquipWeaponDefinition(Def, Guid, Tracker, false);
-    }
-    __except (EXCEPTION_EXECUTE_HANDLER)
-    {
-        ok = false;
-    }
-    FCrashReporter::bSEHGuard = false;
-    return ok;
-}
-
 static uint32_t gLastExecCode = 0;
 static uint64_t gLastExecFaultAddr = 0;
 static uint64_t gLastExecFaultOp = 0;
@@ -594,6 +653,25 @@ static int ExecFilter(EXCEPTION_POINTERS* ep)
     gLastExecFaultAddr = (uint64_t)ep->ExceptionRecord->ExceptionAddress;
     gLastExecFaultOp = ep->ExceptionRecord->NumberParameters >= 2 ? (uint64_t)ep->ExceptionRecord->ExceptionInformation[1] : 0;
     return EXCEPTION_EXECUTE_HANDLER;
+}
+
+static bool GuardedEquip(AFortPlayerPawnAthena* Pawn, const UFortWeaponItemDefinition* Def, FGuid Guid, FGuid Tracker)
+{
+    FCrashReporter::bSEHGuard = true;
+    bool ok = true;
+    gLastExecCode = 0;
+    gLastExecFaultAddr = 0;
+    gLastExecFaultOp = 0;
+    __try
+    {
+        Pawn->EquipWeaponDefinition(Def, Guid, Tracker, false);
+    }
+    __except (ExecFilter(GetExceptionInformation()))
+    {
+        ok = false;
+    }
+    FCrashReporter::bSEHGuard = false;
+    return ok;
 }
 
 static bool GuardedServerExecute(void* Fn, void* Def, void* Item, void* PC, bool* Ret)
@@ -618,18 +696,60 @@ void AFortPlayerControllerAthena::ServerExecuteInventoryItem_(UObject* Context, 
 {
     if (VersionInfo.EngineVersion >= 5.4)
     {
+        FGuid RequestedGuid = *(FGuid*)Stack.Locals;
+
         if (ServerExecuteInventoryItem_OG)
             ServerExecuteInventoryItem_OG(Context, Stack);
 
         auto PC = (AFortPlayerControllerAthena*)Context;
         auto NativePawn = PC ? PC->MyFortPawn : nullptr;
-        auto NativeCW = NativePawn ? NativePawn->CurrentWeapon : nullptr;
+
+        if (!NativePawn || !PC->WorldInventory || PC->IsInAircraft())
+            return;
+
+        auto CurrentWeap = (AFortWeapon*)NativePawn->CurrentWeapon;
+        if (CurrentWeap && CurrentWeap->ItemEntryGuid == RequestedGuid)
+            return;
+
+        auto entry = PC->WorldInventory->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& en) { return en.ItemGuid == RequestedGuid; }, FFortItemEntry::Size());
+
+        if (!entry || !entry->ItemDefinition)
+            return;
+
+        UFortItemDefinition* RealDef = (UFortItemDefinition*)entry->ItemDefinition;
+        auto UncastedDef = RealDef;
+
+        if (auto Gadget = RealDef->Cast<UFortGadgetItemDefinition>())
+            UncastedDef = Gadget->GetWeaponItemDefinition();
+
+        auto ItemDefinition = UncastedDef ? UncastedDef->Cast<UFortWeaponItemDefinition>() : nullptr;
+        if (!ItemDefinition)
+            return;
+
+        static bool loggedEquipFn = false;
+        if (!loggedEquipFn)
+        {
+            loggedEquipFn = true;
+            auto EquipFn = NativePawn->GetFunction("EquipWeaponDefinition");
+            printf("[Boron][Equip] CH5 EquipWeaponDefinition fn=%p exec=%p pawnClass=%s\n",
+                   (void*)EquipFn, EquipFn ? EquipFn->ExecFunction : nullptr,
+                   NativePawn->Class ? NativePawn->Class->Name.ToString().c_str() : "null");
+        }
+
+        bool eqOk = GuardedEquip(NativePawn, ItemDefinition, RequestedGuid, entry->HasTrackerGuid() ? entry->TrackerGuid : FGuid());
+        auto NativeCW = NativePawn->CurrentWeapon;
 
         static int nx = 0;
-        if (nx++ < 15)
-            printf("[Boron][Equip] native passthrough #%d og=%p CurrentWeapon=%p (%s)\n", nx,
-                   (void*)ServerExecuteInventoryItem_OG, (void*)NativeCW,
-                   NativeCW && NativeCW->Class ? NativeCW->Class->Name.ToString().c_str() : "null");
+        if (nx++ < 25)
+        {
+            auto imgBase = (uint64_t)GetModuleHandleW(nullptr);
+            printf("[Boron][Equip] CH5 equip #%d def=%s ok=%d CurrentWeapon=%p (%s) | exc=%08X at=%llX(rva %llX) badAddr=%llX pawn=%p def=%p\n", nx,
+                   RealDef->Name.ToString().c_str(), (int)eqOk, (void*)NativeCW,
+                   NativeCW && NativeCW->Class ? NativeCW->Class->Name.ToString().c_str() : "null",
+                   gLastExecCode, (unsigned long long)gLastExecFaultAddr,
+                   (unsigned long long)(gLastExecFaultAddr ? gLastExecFaultAddr - imgBase : 0),
+                   (unsigned long long)gLastExecFaultOp, (void*)NativePawn, (void*)ItemDefinition);
+        }
 
         return;
     }
@@ -2859,6 +2979,128 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
                 }
             }
         }
+        else if (command == "itemalias" || command == "alias")
+        {
+            _AliasList:
+            PlayerController->ClientMessage(FString(LR"(Item Alias List:
+            - Pump Shotgun
+            pump_c - Common
+            pump_uc - Uncommon
+            pump_r - Rare
+            pump_sr - Epic
+            pump_vr - Legendary
+
+            - Tactical Shotgun
+            tac_c - Common
+            tac_uc - Uncommon
+            tac_r - Rare
+            tac_sr - 
+            
+)"),
+                                            FName(), 1);
+                /*
+                { "pump", "Pump Shotgun" },
+            { "pumpvr", "Pump Shotgun" },
+            { "tac", "Tactical Shotgun" },
+            { "tacshotgun", "Tactical Shotgun" },
+            { "combatshotgun", "Combat Shotgun" },
+            { "combatsg", "Combat Shotgun" },
+            { "charge", "Charge Shotgun" },
+            { "chargesg", "Charge Shotgun" },
+            { "heavyshotgun", "Heavy Shotgun" },
+            { "leversg", "Lever Action Shotgun" },
+            { "drumsg", "Drum Shotgun" },
+            { "doublebarrel", "Double Barrel Shotgun" },
+            { "scar", "Assault Rifle" },
+            { "ar", "Assault Rifle" },
+            { "assault", "Assault Rifle" },
+            { "burst", "Burst Assault Rifle" },
+            { "burstar", "Burst Assault Rifle" },
+            { "heavyar", "Heavy Assault Rifle" },
+            { "scoped", "Scoped Assault Rifle" },
+            { "scopedar", "Scoped Assault Rifle" },
+            { "tacar", "Tactical Assault Rifle" },
+            { "famas", "Burst Assault Rifle" },
+            { "infantry", "Infantry Rifle" },
+            { "hunting", "Hunting Rifle" },
+            { "smg", "Submachine Gun" },
+            { "submachine", "Submachine Gun" },
+            { "tacsmg", "Tactical Submachine Gun" },
+            { "compact", "Compact SMG" },
+            { "compactsmg", "Compact SMG" },
+            { "suppressedsmg", "Suppressed Submachine Gun" },
+            { "p90", "Compact SMG" },
+            { "pistol", "Pistol" },
+            { "revolver", "Revolver" },
+            { "deagle", "Hand Cannon" },
+            { "handcannon", "Hand Cannon" },
+            { "suppressedpistol", "Suppressed Pistol" },
+            { "dualpistols", "Dual Pistols" },
+            { "sixshooter", "Six Shooter" },
+            { "tacpistol", "Tactical Pistol" },
+            { "sniper", "Bolt-Action Sniper Rifle" },
+            { "bolt", "Bolt-Action Sniper Rifle" },
+            { "boltsniper", "Bolt-Action Sniper Rifle" },
+            { "heavysniper", "Heavy Sniper Rifle" },
+            { "semisniper", "Semi-Auto Sniper Rifle" },
+            { "autosniper", "Automatic Sniper Rifle" },
+            { "huntingrifle", "Hunting Rifle" },
+            { "rpg", "Rocket Launcher" },
+            { "rocket", "Rocket Launcher" },
+            { "rocketlauncher", "Rocket Launcher" },
+            { "grenadelauncher", "Grenade Launcher" },
+            { "gl", "Grenade Launcher" },
+            { "quadlauncher", "Quad Launcher" },
+            { "guidedmissile", "Guided Missile" },
+            { "minigun", "Minigun" },
+            { "lmg", "Light Machine Gun" },
+            { "grenade", "Grenade" },
+            { "nade", "Grenade" },
+            { "clinger", "Clinger" },
+            { "stink", "Stink Bomb" },
+            { "shockwave", "Shockwave Grenade" },
+            { "impulse", "Impulse Grenade" },
+            { "boogie", "Boogie Bomb" },
+            { "remoteexplosives", "Remote Explosives" },
+            { "c4", "Remote Explosives" },
+            { "dynamite", "Dynamite" },
+            { "bandages", "Bandages" },
+            { "bandage", "Bandages" },
+            { "medkit", "Med-Kit" },
+            { "shield", "Shield Potion" },
+            { "shieldpotion", "Shield Potion" },
+            { "minishield", "Small Shield Potion" },
+            { "minis", "Small Shield Potion" },
+            { "slurp", "Slurp Juice" },
+            { "chugjug", "Chug Jug" },
+            { "chug", "Chug Jug" },
+            { "chugsplash", "Chug Splash" },
+            { "splash", "Chug Splash" },
+            { "medmist", "Med Mist" },
+            { "wood", "Wood" },
+            { "brick", "Stone" },
+            { "stone", "Stone" },
+            { "metal", "Metal" },
+            { "lightammo", "Light Bullets" },
+            { "mediumammo", "Medium Bullets" },
+            { "heavyammo", "Heavy Bullets" },
+            { "shellammo", "Shells" },
+            { "rocketammo", "Rockets" },
+            { "launchpad", "Launch Pad" },
+            { "cozycampfire", "Cozy Campfire" },
+            { "campfire", "Cozy Campfire" },
+            { "porta", "Port-A-Fort" },
+            { "portafort", "Port-A-Fort" },
+            { "portfort", "Port-A-Fort"},
+            { "bush", "Bush" },
+            { "grappler", "Grappler" },
+            { "rifttogo", "Rift-To-Go" },
+            { "balloons", "Balloons" }
+                */
+            return;
+        }
+
+
         else if (command == "give")
         {
             if (args.size() != 2 && args.size() != 3)
@@ -4596,9 +4838,22 @@ void AFortPlayerControllerAthena::PostLoadHook()
 
     auto ServerAttemptInteractPC = GetDefaultObj()->GetFunction("ServerAttemptInteract");
     if (!ServerAttemptInteractPC)
-        Hooking::ExecHook(DefaultObjImpl("FortControllerComponent_Interaction")->GetFunction("ServerAttemptInteract"), ServerAttemptInteract_, ServerAttemptInteract_OG);
+    {
+        auto InteractCompObj = DefaultObjImpl("FortControllerComponent_Interaction");
+        auto ServerAttemptInteractComp = InteractCompObj ? InteractCompObj->GetFunction("ServerAttemptInteract") : nullptr;
+
+        if (VersionInfo.EngineVersion >= 5.4)
+            printf("[Boron][Interact] hook target=component cdo=%p fn=%p\n", (void*)InteractCompObj, (void*)ServerAttemptInteractComp);
+
+        Hooking::ExecHook(ServerAttemptInteractComp, ServerAttemptInteract_, ServerAttemptInteract_OG);
+    }
     else
+    {
+        if (VersionInfo.EngineVersion >= 5.4)
+            printf("[Boron][Interact] hook target=playercontroller fn=%p\n", (void*)ServerAttemptInteractPC);
+
         Hooking::ExecHook(ServerAttemptInteractPC, ServerAttemptInteract_, ServerAttemptInteract_OG);
+    }
 
     if (VersionInfo.EngineVersion >= 5.4)
     {

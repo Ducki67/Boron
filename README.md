@@ -50,20 +50,23 @@ A modifiyed/forked Erbium gameserver with my own features and fixes
 
 Currently the only version that is "supported" is **31.41** C5S4.
 
-Progress: **9.5% Done**
+Progress: **20% Done**
 
 **Features (currently a lot missing)**
-- Walking simulator
-- In-game (BR island)
-- MME stuff (hurdle still needs fix and sprint needs stamin fix)
+- In-game (Br, Reload)
+- MME stuff (hurdle still needs fix + mantle needs to be added)
 - Chest, Ammo box looting
-- Floor loot (works 50% of the time on both BR and reload)
-- No pickaxe (yet)
-- No proper NetMode (yet)
-- No building and editing (yet)
-- Reload (the playlist can be used now and the map will load)
+- Floor loot (works 50% of the time on BR)
+- No proper NetMode/Ping (yet)
+- There's a tiny pickaxe but but doesnt really effect gameplay imo
+- Building and Editing
+- Reload
 - Reboots in reload (kinda bugged but yea)
-- Loot pool needs fix on reload (kinda mixed rn)
+- Mixed Loot pool on reload (i wont fix it i just dont mind it at all)
+- Ch5 guns do damage (no weapon mods yet)
+- Kinda scuffed pickup (dont ask why)
+
+
 
 </details>
 

@@ -39,7 +39,8 @@ void ABuildingFoundation::SetDynamicFoundationEnabled_(UObject* Context, FFrame&
             if (StreamInMyBuilding_)
                 StreamInMyBuilding(Foundation, false);
     }
-}
+} // THIS crashes on 17.20 with ANY palylist actually :((  TODO: fix crash
+// 0x00007ff8b4eada39 (Boron.dll+0x4da39): ABuildingFoundation::SetDynamicFoundationEnabled_() [BuildingFoundation.cpp:42]
 
 void ABuildingFoundation::SetDynamicFoundationTransform_(UObject* Context, FFrame& Stack)
 {

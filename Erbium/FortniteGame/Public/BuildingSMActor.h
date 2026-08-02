@@ -122,6 +122,7 @@ public:
     }
 
     DEFINE_FUNC(GetHealth, float);
+    DEFINE_FUNC(SetHealth, void);
     DEFINE_FUNC(GetMaxHealth, float);
     DEFINE_FUNC(SetMirrored, void);
     DEFINE_FUNC(InitializeKismetSpawnedBuildingActor, void);

@@ -2614,7 +2614,6 @@ void AFortGameMode::TickCH5FloorLoot()
             if (SeenClasses.insert((const void*)C->Class).second)
             {
                 auto cn = C->Class->Name.ToString();
-                printf("[Boron][Loot] container class seen: %s (containers now=%d)\n", cn.c_str(), AllContainers.Num());
 
                 if (strstr(cn.c_str(), "Tiered_Chest") || strstr(cn.c_str(), "Tiered_Ammo"))
                     AnchorClasses.insert((const void*)C->Class);
@@ -2638,7 +2637,20 @@ void AFortGameMode::TickCH5FloorLoot()
         static std::unordered_set<unsigned long long> SynthDone;
         int synth = 0;
 
-        if (FloorTG.ComparisonIndex)
+        bool bSynthCapped = (int)SynthDone.size() >= 600;
+
+        if (bSynthCapped)
+        {
+            static bool warned = false;
+
+            if (!warned)
+            {
+                warned = true;
+                printf("[Boron][Loot] synthetic floor loot CAPPED at %zu anchors\n", SynthDone.size());
+            }
+        }
+
+        if (FloorTG.ComparisonIndex && !bSynthCapped)
             for (auto& C : AllContainers)
             {
                 if (synth >= 150)
@@ -2663,9 +2675,6 @@ void AFortGameMode::TickCH5FloorLoot()
                 UFortLootPackage::SpawnLoot(TG, Loc);
                 synth++;
             }
-
-        if (synth)
-            printf("[Boron][Loot] synthetic floor loot: +%d (total anchors done=%zu)\n", synth, SynthDone.size());
 
         AllContainers.Free();
     }
@@ -2694,10 +2703,6 @@ void AFortGameMode::TickCH5FloorLoot()
             fresh++;
         }
         Containers.Free();
-
-        if (fresh)
-            printf("[Boron][Loot] wave %d: class=%s newContainers=%d totalDone=%zu\n",
-                   wave, Cls->Name.ToString().c_str(), fresh, DoneLocs.size());
     }
 }
 
@@ -2707,7 +2712,8 @@ void AFortGameMode::TickCH5PickupDummies()
         return;
 
     static int tick = 0;
-    if ((tick++ % 300) != 150)
+    static int interval = 300;
+    if ((tick++ % interval) != 150)
         return;
 
     TArray<AFortPickupAthena*> Pickups;
@@ -2739,6 +2745,8 @@ void AFortGameMode::TickCH5PickupDummies()
     if (fixed && logged++ < 25)
         printf("[Boron][Pickup] dummy fixup: %d dummies created, sample dummy now=%p\n",
                fixed, firstFixed ? (void*)firstFixed->PrimaryPickupDummyItem : nullptr);
+
+    interval = fixed ? 300 : (interval < 2400 ? interval * 2 : 2400);
 
     Pickups.Free();
 }

@@ -36,3 +36,27 @@ public:
     DEFINE_FUNC(ServerReleaseWeaponAbility, void);
     DEFINE_FUNC(OnRep_MountedWeaponInfoRepped, void);
 };
+
+struct FHitResult
+{
+public:
+    USCRIPTSTRUCT_COMMON_MEMBERS(FHitResult);
+
+    DEFINE_STRUCT_PROP(BoneName, FName);
+    DEFINE_STRUCT_PROP(ImpactPoint, FVector);
+    DEFINE_STRUCT_PROP(ImpactNormal, FVector);
+    DEFINE_STRUCT_PROP(HitObjectHandle, TWeakObjectPtr<AActor>);
+    DEFINE_STRUCT_PROP(Component, TWeakObjectPtr<UActorComponent>);
+};
+
+class AFortWeaponRanged : public AFortWeapon
+{
+public:
+    UCLASS_COMMON_MEMBERS(AFortWeaponRanged);
+
+    DEFINE_PROP(AmmoCount, int32);
+
+    static void ServerNotifyPawnHit_(UObject* Context, FFrame& Stack);
+    static void ServerNotifyProjectilePawnHit(UObject* Context, FFrame& Stack);
+    static void Hook();
+};

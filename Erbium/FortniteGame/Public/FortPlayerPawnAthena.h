@@ -114,6 +114,8 @@ public:
     DEFINE_FUNC(SetHealth, void);
     DEFINE_FUNC(SetShield, void);
     DEFINE_FUNC(SetMaxHealth, void);
+    DEFINE_FUNC(DoFatalDamage, void);
+    DEFINE_FUNC(ForceKill, void);
     DEFINE_FUNC(EquipWeaponDefinition, AActor*);
     DEFINE_FUNC(PawnStartFire, void);
     DEFINE_FUNC(PawnStopFire, void);

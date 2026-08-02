@@ -18,26 +18,15 @@ namespace BoronItems
     {
         static const std::unordered_map<std::string, std::string> Map = {
             { "c", "Common" },
-            { "common", "Common" },
-            { "grey", "Common" },
-            { "gray", "Common" },
             { "uc", "Uncommon" },
-            { "uncommon", "Uncommon" },
-            { "green", "Uncommon" },
             { "r", "Rare" },
-            { "rare", "Rare" },
-            { "blue", "Rare" },
             { "vr", "Epic" },
-            { "epic", "Epic" },
-            { "purple", "Epic" },
             { "sr", "Legendary" },
-            { "legendary", "Legendary" },
-            { "gold", "Legendary" },
-            { "orange", "Legendary" },
             { "m", "Mythic" },
-            { "mythic", "Mythic" },
-            { "e", "Exotic" },
-            { "exotic", "Exotic" }
+            { "ex", "Exotic" },
+            { "exotic", "Exotic"}  /*,
+            {"i","Impossible"}*/
+            
         };
         return Map;
     }
@@ -138,6 +127,7 @@ namespace BoronItems
             { "campfire", "Cozy Campfire" },
             { "porta", "Port-A-Fort" },
             { "portafort", "Port-A-Fort" },
+            { "portfort", "Port-A-Fort"},
             { "bush", "Bush" },
             { "grappler", "Grappler" },
             { "rifttogo", "Rift-To-Go" },

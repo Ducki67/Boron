@@ -356,7 +356,7 @@ public:
     DEFINE_PROP(CheatManager, UFortCheatManager*);
     DEFINE_PROP(CheatClass, TSubclassOf<UObject>);
     DEFINE_PROP(WorldInventoryClass, TSubclassOf<AFortInventory>);
-    DEFINE_PROP(bHasInitializedWorldInventory, bool);
+    DEFINE_BITFIELD_PROP(bHasInitializedWorldInventory);
     DEFINE_PROP(ActiveToyInstances, TArray<AActor*>);
     DEFINE_PROP(AppliedInGameModifierAbilitySetHandles, TMap<FGuid, void*>);
     DEFINE_PROP(BroadcastRemoteClientInfo, AFortBroadcastRemoteClientInfo*);

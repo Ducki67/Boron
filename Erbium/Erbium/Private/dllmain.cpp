@@ -190,6 +190,25 @@ void Main()
         }
         // UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"net.Iris.UseIrisReplication 1"), nullptr);
     }
+    if (VersionInfo.FortniteVersion == 31.41)
+    {
+        auto Target = (uint8_t*)((uint64_t)GetModuleHandleW(nullptr) + 0x1F34640);
+        DWORD og = 0;
+
+        printf("[Boron][EquipPatch] target=%p bytes=%02X %02X %02X %02X %02X\n",
+               (void*)Target, Target[0], Target[1], Target[2], Target[3], Target[4]);
+
+        if (VirtualProtect(Target, 3, PAGE_EXECUTE_READWRITE, &og))
+        {
+            Target[0] = 0x31;
+            Target[1] = 0xC0;
+            Target[2] = 0xC3;
+            VirtualProtect(Target, 3, og, &og);
+            printf("[Boron][EquipPatch] patched rva 0x1F34640 -> xor eax,eax ; ret\n");
+        }
+        else
+            printf("[Boron][EquipPatch] VirtualProtect FAILED err=%lu\n", GetLastError());
+    }
     if (VersionInfo.EngineVersion >= 5.4)
     {
         // sprint fix
@@ -213,12 +232,24 @@ void Main()
         if (SlideCVar)
             *SlideCVar = false;
 
-        if (MantleCVar)
-            *MantleCVar = false;
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.TacticalSprint 0"), nullptr);
-        // UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Hurdle 0"), nullptr);
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Sliding 0"), nullptr);
-        UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Clambering 0"), nullptr);
+        UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Hurdle 1"), nullptr);
+        UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Clambering 1"), nullptr);
+
+        static const wchar_t* NoisyCategories[] = {
+            L"log LogDataTable off",
+            L"log LogFortCosmetics off",
+            L"log LogLivingWorldManager off",
+            L"log LogFortCurieSpatialManager off",
+            L"log LogJunoBuildingCosmeticsUI off",
+            L"log LogPhysics off",
+            L"log LogSanitizeVehicleGamepadBindings off",
+            L"log LogFortLinkDataManager off",
+        };
+
+        for (auto Category : NoisyCategories)
+            UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(Category), nullptr);
     }
     UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"log LogSpecialEventScript VeryVerbose"), nullptr);
 

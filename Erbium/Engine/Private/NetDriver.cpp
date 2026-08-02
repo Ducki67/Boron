@@ -668,6 +668,7 @@ void SendClientMoveAdjustments(UNetDriver* Driver)
 {
     static auto SendClientAdjustment = (void (*)(AFortPlayerControllerAthena*))FindSendClientAdjustment();
 
+#if 0
     if (VersionInfo.EngineVersion >= 5.4)
     {
         UNetConnection* c0 = nullptr;
@@ -786,6 +787,7 @@ void SendClientMoveAdjustments(UNetDriver* Driver)
             }
         }
     }
+#endif
 
     if (SendClientAdjustment)
     {
@@ -979,6 +981,7 @@ void SetNetDormancy(AActor* Actor, int NewDormancy)
     if (VersionInfo.EngineVersion >= 5.4 && NewDormancy > 1 && Actor)
     {
         static auto PickupClass = FindClass("FortPickupAthena");
+        static auto BuildingClass = FindClass("BuildingSMActor");
 
         if (PickupClass && Actor->IsA(PickupClass))
         {
@@ -987,6 +990,16 @@ void SetNetDormancy(AActor* Actor, int NewDormancy)
             {
                 dormLogged = true;
                 printf("[Boron][Dormancy] CH5: forcing FortPickupAthena to stay awake (engine asked for dormancy=%d)\n", NewDormancy);
+            }
+            NewDormancy = 1; // DORM_Awake
+        }
+        else if (BuildingClass && Actor->IsA(BuildingClass))
+        {
+            static bool buildDormLogged = false;
+            if (!buildDormLogged)
+            {
+                buildDormLogged = true;
+                printf("[Boron][Dormancy] CH5: forcing BuildingSMActor to stay awake (engine asked for dormancy=%d)\n", NewDormancy);
             }
             NewDormancy = 1; // DORM_Awake
         }

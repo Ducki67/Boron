@@ -334,11 +334,11 @@ class AFortPickupAthena : public AActor
 public:
     UCLASS_COMMON_MEMBERS(AFortPickupAthena);
 
-    DEFINE_PROP(bRandomRotation, bool);
+    DEFINE_BITFIELD_PROP(bRandomRotation);
     DEFINE_PROP(PrimaryPickupItemEntry, FFortItemEntry);
     DEFINE_NEWOBJ_PROP(PawnWhoDroppedPickup, AFortPlayerPawnAthena);
-    DEFINE_PROP(bTossedFromContainer, bool);
-    DEFINE_PROP(bPickedUp, bool);
+    DEFINE_BITFIELD_PROP(bTossedFromContainer);
+    DEFINE_BITFIELD_PROP(bPickedUp);
     DEFINE_PROP(PickupLocationData, FFortPickupLocationData);
     DEFINE_PROP(MovementComponent, UObject*);
     DEFINE_BITFIELD_PROP(bServerStoppedSimulation);
@@ -382,6 +382,10 @@ public:
 
     DEFINE_STRUCT_PROP(ClipSize, int32);
     DEFINE_STRUCT_PROP(InitialClips, int32);
+    DEFINE_STRUCT_PROP(DmgPB, float);
+    DEFINE_STRUCT_PROP(EnvDmgPB, float);
+    DEFINE_STRUCT_PROP(ImpactDmgPB, float);
+    DEFINE_STRUCT_PROP(DamageZone_Critical, float);
 };
 
 class IFortInventoryOwnerInterface : public IInterface
@@ -424,7 +428,7 @@ class UFortGadgetItemDefinition : public UFortWorldItemDefinition
 public:
     UCLASS_COMMON_MEMBERS(UFortGadgetItemDefinition);
 
-    DEFINE_PROP(bValidForLastEquipped, bool);
+    DEFINE_BITFIELD_PROP(bValidForLastEquipped);
 
     DEFINE_FUNC(GetWeaponItemDefinition, UFortWeaponItemDefinition*);
 };
