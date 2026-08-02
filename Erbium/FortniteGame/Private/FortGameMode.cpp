@@ -1937,6 +1937,24 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
     printf("[GameMode] FinishWorldInitialization\n");
     FinishWorldInitializationOG(_this, WorldManager);
 
+    if (VersionInfo.EngineVersion >= 5.4 && WorldManager)
+    {
+        auto WM = (AFortWorldManager*)WorldManager;
+
+        bool bWasSaving = WM->HasbSavingEnabled() ? WM->bSavingEnabled : false;
+        uint32 OldFreq = WM->HasSaveFrequency_Seconds() ? WM->SaveFrequency_Seconds : 0;
+
+        if (WM->HasbSavingEnabled())
+            WM->bSavingEnabled = false;
+
+        if (WM->HasSaveFrequency_Seconds())
+            WM->SaveFrequency_Seconds = 0;
+
+        printf("[Boron][Perf] FortWorldManager=%p saving %d->%d freq %u->%u (BR has nothing to save)\n", (void*)WM, (int)bWasSaving,
+               WM->HasbSavingEnabled() ? (int)WM->bSavingEnabled : -1, OldFreq,
+               WM->HasSaveFrequency_Seconds() ? WM->SaveFrequency_Seconds : 0);
+    }
+
     // CH5 (UE5.4+): ReadyToStartMatch is called natively and bypasses its ExecHook, so the
     // listen setup there never runs. FinishWorldInitialization is an address-detour hook that
     // DOES fire on CH5 (this Athena-specific function) -> bring the listen server up here, once.

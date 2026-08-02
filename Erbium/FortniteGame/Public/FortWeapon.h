@@ -22,6 +22,7 @@ public:
 
     DEFINE_PROP(ItemEntryGuid, FGuid);
     DEFINE_PROP(WeaponData, UFortWeaponItemDefinition*);
+    DEFINE_PROP(WeaponModSlots, TArray<FFortWeaponModSlot>);
     DEFINE_PROP(ContextTrapItemDefinition, UFortItemDefinition*);
     DEFINE_PROP(PrimaryAbilitySpecHandle, FGameplayAbilitySpecHandle);
     DEFINE_PROP(SecondaryAbilitySpecHandle, FGameplayAbilitySpecHandle);

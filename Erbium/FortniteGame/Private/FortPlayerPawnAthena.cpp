@@ -1263,7 +1263,11 @@ static void ApplyRangedHit(AFortWeaponRanged* Weapon, FHitResult& Hit, const cha
 
         bool bLog = pn++ < 20;
         auto Bone = Hit.BoneName.ToString();
-        bool bCrit = strstr(Bone.c_str(), "head") != nullptr;
+        std::string BoneLower = Bone.c_str();
+
+        std::transform(BoneLower.begin(), BoneLower.end(), BoneLower.begin(), [](unsigned char c) { return (char)tolower(c); });
+
+        bool bCrit = BoneLower.find("head") != std::string::npos || BoneLower.find("neck") != std::string::npos;
         float Crit = Stats->DamageZone_Critical > 0.f ? Stats->DamageZone_Critical : 1.f;
         float Damage = Stats->DmgPB * (bCrit ? Crit : 1.f);
 

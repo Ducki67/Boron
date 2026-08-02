@@ -21,6 +21,7 @@
 #include "../Public/FortLootPackage.h"
 #include "../Public/FortPhysicsPawn.h"
 #include "../Public/FortWeapon.h"
+#include "../Public/FortWeaponMods.h"
 
 //#include "../Public/FortPlayerPawnAthena.h"
 
@@ -860,6 +861,8 @@ void AFortPlayerControllerAthena::ServerExecuteInventoryItem_(UObject* Context, 
 
         bool eqOk = GuardedEquip(NativePawn, ItemDefinition, RequestedGuid, entry->HasTrackerGuid() ? entry->TrackerGuid : FGuid());
         auto NativeCW = NativePawn->CurrentWeapon;
+
+        WeaponMods::Reapply((AFortWeapon*)NativeCW);
 
         static int nx = 0;
         if (nx++ < 25)
@@ -2351,6 +2354,10 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
     cheat launch <X> <Y> <Z> - Launches the player
     cheat savewaypoint - Saves your current location as a waypoint
     cheat waypoint <Name> - Loads a saved waypoint
+    cheat mods - Lists the mod slots on your held weapon
+    cheat mod list - Lists every weapon mod on this build
+    cheat mod <name> [force] - Puts a weapon mod on your held weapon
+    cheat mod clear / rand / fun - Clears, randomizes or chaos-rolls your mods
     cheat skydive - Toggles skydiving
     cheat giveitem <WID/path> <Count = 1> - Gives you an item
     cheat give <alias>[_rarity] <Count = 1> - Fast item give (ex: give pump_vr, give scar_sr, give minis 6)
@@ -2662,6 +2669,115 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
                 PlayerController->ClientMessage(FString(L"Paused time of day!"), FName(), 1.f);
 
             bIsPaused ^= 1;
+        }
+        else if (command == "mods" || command == "mod")
+        {
+            WeaponMods::Discover();
+
+            auto Say = [&](const std::string& Text, float Time)
+            {
+                printf("[Boron][Mods] %s\n", Text.c_str());
+                PlayerController->ClientMessage(FString(std::wstring(Text.begin(), Text.end()).c_str()), FName(), Time);
+            };
+
+            std::string Sub = args.size() >= 2 ? std::string(args[1]) : std::string();
+            std::transform(Sub.begin(), Sub.end(), Sub.begin(), [](unsigned char c) { return (char)tolower(c); });
+
+            if (command == "mod" && (Sub.empty() || Sub == "list" || Sub == "help"))
+            {
+                std::string Out = "Weapon Mods | cheat mod <name>";
+
+                for (int Cat = 0; Cat < WeaponMods::ModCategory_Count; Cat++)
+                {
+                    std::string Line;
+
+                    for (auto Mod : WeaponMods::Discovered)
+                        if (WeaponMods::Category(Mod) == Cat)
+                            Line += std::string(Line.empty() ? "" : ", ") + Mod->Name.ToString().c_str();
+
+                    if (!Line.empty())
+                        Out += std::string("\n== ") + WeaponMods::CategoryName(Cat) + " ==\n" + Line;
+                }
+
+                Out += "\nAliases: reddot holo p2x sniper supp muzzle vert angled speedgrip laser speed drum";
+                Out += "\nOther: clear (remove all) | rand (random) | fun (chaos)";
+
+                Say(Out, 10.f);
+                return;
+            }
+
+            auto Pawn = (AFortPlayerPawnAthena*)PlayerController->Pawn;
+
+            if (!Pawn || !Pawn->HasCurrentWeapon() || !Pawn->CurrentWeapon)
+            {
+                Say("Hold a weapon first!", 1.f);
+                return;
+            }
+
+            auto Held = (AFortWeapon*)Pawn->CurrentWeapon;
+
+            if (!WeaponMods::IsSupported(Held))
+            {
+                Say("This build has no weapon mods.", 1.f);
+                return;
+            }
+
+            if (command == "mods")
+            {
+                auto& Slots = Held->WeaponModSlots;
+                std::string Out = "Slots on held weapon: " + std::to_string(Slots.Num()) + " | mods available: " + std::to_string((int)WeaponMods::Discovered.size());
+
+                for (int i = 0; i < Slots.Num(); i++)
+                {
+                    auto& S = Slots.Get(i, FFortWeaponModSlot::Size());
+                    Out += "\n  [" + std::to_string(i) + "] " + (S.WeaponMod ? S.WeaponMod->Name.ToString().c_str() : "<empty>");
+                }
+
+                Say(Out, 6.f);
+                return;
+            }
+
+            if (Sub == "clear")
+            {
+                WeaponMods::ClearAll(Held);
+                Say("Cleared all weapon mods!", 3.f);
+                return;
+            }
+
+            if (Sub == "rand" || Sub == "random" || Sub == "fun" || Sub == "funny" || Sub == "chaos")
+            {
+                bool bChaos = Sub == "fun" || Sub == "funny" || Sub == "chaos";
+                int Applied = WeaponMods::ApplyRandom(Held, bChaos);
+
+                Say((bChaos ? std::string("FUN MODE: ") : std::string("Applied ")) + std::to_string(Applied) + " random mods!", 3.f);
+                return;
+            }
+
+            bool bForce = false;
+
+            for (size_t i = 2; i < args.size(); i++)
+            {
+                std::string Flag = std::string(args[i]);
+                std::transform(Flag.begin(), Flag.end(), Flag.begin(), [](unsigned char c) { return (char)tolower(c); });
+
+                if (Flag == "force" || Flag == "-f")
+                    bForce = true;
+            }
+
+            auto Picked = WeaponMods::Resolve(Sub);
+
+            if (!Picked)
+            {
+                Say(std::string("No weapon mod matched '") + Sub + "' - run 'cheat mod list'.", 1.f);
+                return;
+            }
+
+            std::string Reason;
+
+            if (WeaponMods::Apply(Held, Picked, bForce, &Reason))
+                Say(std::string("Applied mod: ") + Picked->Name.ToString().c_str(), 3.f);
+            else
+                Say(std::string("Failed to apply ") + Picked->Name.ToString().c_str() + " (" + Reason + ") - add 'force' to override", 3.f);
         }
         else if (command == "sethealth")
         {

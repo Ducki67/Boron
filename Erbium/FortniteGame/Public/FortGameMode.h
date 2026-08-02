@@ -8,6 +8,17 @@
 #include "FortSafeZoneIndicator.h"
 #include "FortAthenaSpawningPolicyManager.h"
 
+class AFortWorldManager : public AActor
+{
+public:
+    UCLASS_COMMON_MEMBERS(AFortWorldManager);
+
+    DEFINE_BITFIELD_PROP(bSavingEnabled);
+    DEFINE_BITFIELD_PROP(bStreamInBuildings);
+    DEFINE_BITFIELD_PROP(bConstructTileWorld);
+    DEFINE_PROP(SaveFrequency_Seconds, uint32);
+};
+
 class AFortGameMode : public AActor
 {
 public:
