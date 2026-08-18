@@ -3,6 +3,8 @@
 
 A modifiyed/forked Erbium gameserver with my own features and fixes
 
+### BETA BRANCH FOR COMPATIBILITY uh ###
+
 ### info and updates are coming soon.. :)
 
 
