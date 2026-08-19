@@ -5,11 +5,11 @@ A modifiyed/forked Erbium gameserver with my own features and fixes
 
 ### BETA BRANCH FOR COMPATIBILITY uh ###
 
-### info and updates are coming soon.. ###
+info and updates are coming soon..
 
 ### S30+ EXPERMENTAL Support in
 
-Currently the only version that is "supported" is **31.41**
+Currently the only version that is "supported" is **31.41** and **32.11** maybe
 
 If any1 has any suggestions what commands, fixes, gui additions i should add let me know.
 
