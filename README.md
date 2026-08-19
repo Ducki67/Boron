@@ -5,80 +5,15 @@ A modifiyed/forked Erbium gameserver with my own features and fixes
 
 ### BETA BRANCH FOR COMPATIBILITY uh ###
 
-### info and updates are coming soon.. :)
+### info and updates are coming soon.. ###
 
+### S30+ EXPERMENTAL Support in
 
-### Todo:
-
-<details>
-  
-
-- [ ] **LateGame**
-  - [ ] Realisic mooving bus  *(config + GUI toggle added, soon needs some more work)*
-  - [ ] Custom lootpools.
-  - [ ] Zone damage on older builds.
-  
-- [ ] **Creative**
-  - [ ] Give "extra" ammo from menu.  *(config flag added, currently bugs out inventory)*
-  
-- [ ] **GUI**
-  - [ ] Player manager tab. (soon)
-  - [x] Calendar tab. (e.g: full snow map on s11)  *(s11 snow wired; s13 water + s19 snow still needs so work tho)*
-  - [x] LateGame tab. *(slots 1-5 + counts + moving-bus toggle should work)*
-  - [x] Pre-StartServer options (Main tab's new feature). (for manual server setup mode)  *(MANUAL_SERVER_SETUP + "Setup server" button done)*
-  
-- [ ] **Gameplay**
-  - [ ] Projectile guns on 28.xx and 29.xx versions. **5% Done** *(scaffold in Misc.cpp, hook disabled at :658)*
-  - [x] Fix 16.xx crashes. (ServerHandlePickup was the issue nwo its fixed)
-  - [ ] Some LTMs stuff.
-  - [ ] Placement points for Arena.
-  - [ ] Bosses on 12.xx, 13.xx, 14.xx **20% Done** ( this is buggy rn and laggy a bit but tested on 13.40 a few)
-  - [ ] Fix autorestart (maybe in 6-7 weekls)
-
-- [ ] **Commands**
-  - [x] Server message. **100% done** (should work well on 1.8 - 21.00)
-  - [ ] Faster item give.  *(ItemAliases.h resolver added, needs some command wiring tho)*
-  - [ ] POI tp commands (hopefully on every season, later)
-
-- [ ] **Versions** (not decided yet)
-  - [x] 31.41 *(maybe but it should be less fcked)* **9.5% Done**
-
-
-</details>
-
-### S30+ EXPERMENTAL Support info.
-
-<details>
-
-Currently the only version that is "supported" is **31.41** C5S4.
-
-Progress: **20% Done**
-
-**Features (currently a lot missing)**
-- In-game (Br, Reload)
-- MME stuff (hurdle still needs fix + mantle needs to be added)
-- Chest, Ammo box looting
-- Floor loot (works 50% of the time on BR)
-- No proper NetMode/Ping (yet)
-- There's a tiny pickaxe but but doesnt really effect gameplay imo
-- Building and Editing
-- Reload
-- Reboots in reload (kinda bugged but yea)
-- Mixed Loot pool on reload (i wont fix it i just dont mind it at all)
-- Ch5 guns do damage (no weapon mods yet)
-- Kinda scuffed pickup (dont ask why)
-
-
-
-</details>
-
+Currently the only version that is "supported" is **31.41**
 
 If any1 has any suggestions what commands, fixes, gui additions i should add let me know.
 
 ---
-
-
-<details>
   
 <summary>Erbium</summary>
 
