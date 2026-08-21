@@ -2056,6 +2056,13 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
                         {
                             printf("[Boron][FWI-Listen] InitListen OK -- GameNetDriver listening on port %d\n", FConfig::Port);
                             SetWorld(NetDriver, CurWorld);
+
+                            GUI::gsStatus = Joinable;
+                            sprintf_s(GUI::windowTitle,
+                                      VersionInfo.EngineVersion >= 5.0 ? "Boron (FN %.2f, UE %.1f): Joinable"
+                                                                       : "Boron (FN %.2f, UE %.2f): Joinable",
+                                      VersionInfo.FortniteVersion, VersionInfo.EngineVersion);
+                            SetConsoleTitleA(GUI::windowTitle);
                         }
                         else
                             printf("[Boron][FWI-Listen] Failed to listen!\n");
