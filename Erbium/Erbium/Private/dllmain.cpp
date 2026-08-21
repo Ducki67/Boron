@@ -155,6 +155,7 @@ void Main()
             auto ReplicationBridgeConfig = UObjectReplicationBridgeConfig::GetDefaultObj();
 
             auto FortInventoryName = FName(L"/Script/FortniteGame.FortInventory");
+            auto FortWeaponName = FName(L"/Script/FortniteGame.FortWeapon");
             bool clearedInv = false;
             int clearedExtra = 0;
             int cfgN = ReplicationBridgeConfig ? ReplicationBridgeConfig->FilterConfigs.Num() : -1;
@@ -178,7 +179,7 @@ void Main()
                     auto cls = FilterConfig.ClassName.ToString();
                     printf("[Boron][Iris] filter[%d] class=%s dyn=%s\n", i, cls.c_str(), FilterConfig.DynamicFilterName.ToString().c_str());
 
-                    if (strstr(cls.c_str(), "Pickup") || strstr(cls.c_str(), "LootTier") || strstr(cls.c_str(), "SearchableContainer"))
+                    if (strstr(cls.c_str(), "Pickup") || strstr(cls.c_str(), "LootTier") || strstr(cls.c_str(), "SearchableContainer") || FilterConfig.ClassName == FortWeaponName)
                     {
                         FilterConfig.DynamicFilterName = FName(0);
                         clearedExtra++;
