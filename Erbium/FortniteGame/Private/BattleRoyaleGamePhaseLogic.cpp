@@ -270,6 +270,10 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::StartAircraftPhase()
             printf("[Boron][Aircraft] CH5 parachute deploy trace prop MISSING on this build\n");
     }
 
+    printf("[Boron][Aircraft] dispatch: FlightInfos=%d lategame=%d zones=%d fn=%.2f ue=%.2f\n",
+           GameState->MapInfo->FlightInfos.Num(), (int)LategameConfig::bLateGame,
+           SafeZoneLocations.Num(), VersionInfo.FortniteVersion, VersionInfo.EngineVersion);
+
     if (GameState->MapInfo->FlightInfos.Num() > 0)
     {
         // TArray<TWeakObjectPtr<AFortAthenaAircraft>> Aircrafts;
