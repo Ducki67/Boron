@@ -20,6 +20,7 @@ public:
     DEFINE_STATIC_FUNC(TryRemoveWeaponMod, bool);
     DEFINE_STATIC_FUNC(CanApplyModToWeapon, bool);
     DEFINE_STATIC_FUNC(ModAllowedOnWeapon, bool);
+    DEFINE_STATIC_FUNC(ApplyWeaponModToPickup, bool);
 };
 
 namespace WeaponMods
@@ -448,6 +449,97 @@ namespace WeaponMods
             NotifyRep(Weapon);
 
         printf("[Boron][Mods] reapplied %d mod(s) on equip of %s native=%d\n", Written, Weapon->HasWeaponData() && Weapon->WeaponData ? Weapon->WeaponData->Name.ToString().c_str() : "weapon", Native);
+    }
+
+    inline bool HasPickupNative()
+    {
+        static int Cached = -1;
+
+        if (Cached == -1)
+        {
+            auto Cls = FindClass("FortWeaponModFunctionLibrary");
+            auto Obj = Cls ? UFortWeaponModFunctionLibrary::GetDefaultObj() : nullptr;
+            Cached = (Obj && Obj->GetFunction("ApplyWeaponModToPickup")) ? 1 : 0;
+            printf("[Boron][Mods] native ApplyWeaponModToPickup available=%d\n", Cached);
+        }
+
+        return Cached == 1;
+    }
+
+    inline int RarityBudget(int Rarity)
+    {
+        switch (Rarity)
+        {
+        case 0:
+            return rand() % 100 < 30 ? 1 : 0;
+        case 1:
+            return rand() % 100 < 55 ? 1 : 0;
+        case 2:
+            return 1 + (rand() % 100 < 35 ? 1 : 0);
+        case 3:
+            return 1 + (rand() % 100 < 65 ? 1 : 0);
+        case 4:
+            return 2 + (rand() % 100 < 55 ? 1 : 0);
+        default:
+            return 3 + (rand() % 100 < 40 ? 1 : 0);
+        }
+    }
+
+    inline int RollForPickup(UObject* Pickup, const UFortItemDefinition* Def, int Rarity)
+    {
+        if (!Pickup || !Def || !HasPickupNative())
+            return 0;
+
+        Discover();
+
+        if (Discovered.empty())
+            return 0;
+
+        int Budget = RarityBudget(Rarity);
+
+        if (Budget <= 0)
+            return 0;
+
+        std::string WeaponName = Def->Name.ToString().c_str();
+
+        int Order[ModCategory_Count];
+
+        for (int i = 0; i < ModCategory_Count; i++)
+            Order[i] = i;
+
+        for (int i = ModCategory_Count - 1; i > 0; i--)
+        {
+            int j = rand() % (i + 1);
+            int Tmp = Order[i];
+            Order[i] = Order[j];
+            Order[j] = Tmp;
+        }
+
+        int Applied = 0;
+
+        for (int i = 0; i < ModCategory_Count && Applied < Budget; i++)
+        {
+            std::vector<const UFortWeaponModItemDefinition*> Pool;
+
+            for (auto Mod : Discovered)
+                if (Category(Mod) == Order[i] && IsCompatible(Mod, WeaponName))
+                    Pool.push_back(Mod);
+
+            if (Pool.empty())
+                continue;
+
+            auto Mod = Pool[rand() % Pool.size()];
+
+            if (UFortWeaponModFunctionLibrary::ApplyWeaponModToPickup(Pickup, (UFortWeaponModItemDefinition*)Mod))
+                Applied++;
+        }
+
+        static int pn = 0;
+
+        if (Applied > 0 && pn++ < 20)
+            printf("[Boron][Mods] pickup %s rarity=%d rolled %d/%d mod(s)\n", WeaponName.c_str(), Rarity, Applied, Budget);
+
+        return Applied;
     }
 
     inline int ApplyRandom(AFortWeapon* Weapon, bool bForceOptic)

@@ -5,6 +5,7 @@
 #include "../Public/FortPlayerControllerAthena.h"
 #include "../Public/FortPlayerPawnAthena.h"
 #include "../Public/FortWeapon.h"
+#include "../Public/FortWeaponMods.h"
 #include <ShlObj.h>
 
 uint32_t OnItemInstanceAddedVft;
@@ -421,6 +422,14 @@ AFortPickupAthena* AFortInventory::SpawnPickup(FVector Loc, FFortItemEntry& Entr
     else
         NewPickup->OnRep_PrimaryPickupItemEntry();
     NewPickup->PawnWhoDroppedPickup = Pawn;
+
+    if (VersionInfo.EngineVersion >= 5.4 && NewPickup->PrimaryPickupItemEntry.ItemDefinition)
+    {
+        auto PickupDef = (UFortItemDefinition*)NewPickup->PrimaryPickupItemEntry.ItemDefinition;
+
+        if (PickupDef->Cast<UFortWeaponItemDefinition>() && !PickupDef->Cast<UFortWeaponMeleeItemDefinition>())
+            WeaponMods::RollForPickup(NewPickup, PickupDef, PickupDef->HasRarity() ? (int)PickupDef->Rarity : 0);
+    }
 
     auto FinalLocation = Loc;
 
