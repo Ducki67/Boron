@@ -32,13 +32,14 @@ bool RetFalse()
 
 void Main()
 {
+    /*
     AllocConsole();
     FILE* s;
     freopen_s(&s, "CONOUT$", "w", stdout);
     freopen_s(&s, "CONOUT$", "w+", stderr);
     freopen_s(&s, "CONIN$", "r", stdin);
     SetConsoleTitleA("BoronClient");
-
+    */
     SDK::Init();
 
 
