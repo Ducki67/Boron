@@ -752,7 +752,7 @@ static void GivePickupTo(AFortPickupAthena* Pickup, UObject* OwnerInterface, boo
         after = PC->WorldInventory->Inventory.ReplicatedEntries.Num();
     }
 
-    if (n++ < 25)
+    if (Utils::LogBudget(n, 25, "[Pickup] GivePickupTo"))
         printf("[Boron][Pickup] GivePickupTo #%d pickup=%p PC=%p def=%p count=%d entries %d -> %d\n",
                n, (void*)Pickup, (void*)PC,
                (void*)(Pickup ? Pickup->PrimaryPickupItemEntry.ItemDefinition : nullptr),

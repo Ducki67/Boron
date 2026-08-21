@@ -38,6 +38,35 @@ void AFortPlayerControllerAthena::GetPlayerViewPoint(AFortPlayerControllerAthena
 
 extern uint64_t ApplyCharacterCustomization;
 uint64_t InitializePlayerGameplayAbilities_;
+static uint32_t gLastExecCode = 0;
+static uint64_t gLastExecFaultAddr = 0;
+static uint64_t gLastExecFaultOp = 0;
+
+static int ExecFilter(EXCEPTION_POINTERS* ep)
+{
+    gLastExecCode = ep->ExceptionRecord->ExceptionCode;
+    gLastExecFaultAddr = (uint64_t)ep->ExceptionRecord->ExceptionAddress;
+    gLastExecFaultOp = ep->ExceptionRecord->NumberParameters >= 2 ? (uint64_t)ep->ExceptionRecord->ExceptionInformation[1] : 0;
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+
+static bool GuardedApplyCosmetics(void* Fn, AActor* PlayerState, AActor* Pawn)
+{
+    FCrashReporter::bSEHGuard = true;
+    bool ok = true;
+    gLastExecCode = 0;
+    __try
+    {
+        ((void (*)(AActor*, AActor*, int))Fn)(PlayerState, Pawn, 0);
+    }
+    __except (ExecFilter(GetExceptionInformation()))
+    {
+        ok = false;
+    }
+    FCrashReporter::bSEHGuard = false;
+    return ok;
+}
+
 static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* PlayerController, AActor* Pawn)
 {
     if (!Pawn || !PlayerController->WorldInventory)
@@ -659,8 +688,12 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
             printf("[Boron][Cosmetics] applyNative fn=%p ps=%p pawn=%p\n",
                    (void*)ApplyCharacterCustomization, (void*)PlayerController->PlayerState, (void*)Pawn);
 
-        if (ApplyCharacterCustomization)
-            ((void (*)(AActor*, AActor*, int))ApplyCharacterCustomization)(PlayerController->PlayerState, Pawn, 0);
+        if (ApplyCharacterCustomization && PlayerController->PlayerState && Pawn)
+        {
+            if (!GuardedApplyCosmetics((void*)ApplyCharacterCustomization, PlayerController->PlayerState, Pawn))
+                printf("[Boron][Cosmetics] ApplyCharacterCustomization faulted exc=%08X ps=%p pawn=%p - skipped (match teardown?)\n",
+                       gLastExecCode, (void*)PlayerController->PlayerState, (void*)Pawn);
+        }
     }
 }
 
@@ -766,18 +799,6 @@ void AFortPlayerControllerAthena::ServerAttemptAircraftJump_(UObject* Context, F
     }
 }
 
-static uint32_t gLastExecCode = 0;
-static uint64_t gLastExecFaultAddr = 0;
-static uint64_t gLastExecFaultOp = 0;
-
-static int ExecFilter(EXCEPTION_POINTERS* ep)
-{
-    gLastExecCode = ep->ExceptionRecord->ExceptionCode;
-    gLastExecFaultAddr = (uint64_t)ep->ExceptionRecord->ExceptionAddress;
-    gLastExecFaultOp = ep->ExceptionRecord->NumberParameters >= 2 ? (uint64_t)ep->ExceptionRecord->ExceptionInformation[1] : 0;
-    return EXCEPTION_EXECUTE_HANDLER;
-}
-
 static bool GuardedEquip(AFortPlayerPawnAthena* Pawn, const UFortWeaponItemDefinition* Def, FGuid Guid, FGuid Tracker)
 {
     FCrashReporter::bSEHGuard = true;
@@ -865,7 +886,7 @@ void AFortPlayerControllerAthena::ServerExecuteInventoryItem_(UObject* Context, 
         WeaponMods::Reapply((AFortWeapon*)NativeCW);
 
         static int nx = 0;
-        if (nx++ < 25)
+        if (Utils::LogBudget(nx, 200, "[Equip] CH5 equip"))
         {
             auto imgBase = (uint64_t)GetModuleHandleW(nullptr);
             printf("[Boron][Equip] CH5 equip #%d def=%s ok=%d CurrentWeapon=%p (%s) | exc=%08X at=%llX(rva %llX) badAddr=%llX pawn=%p def=%p\n", nx,

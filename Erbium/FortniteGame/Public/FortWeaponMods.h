@@ -536,7 +536,7 @@ namespace WeaponMods
 
         static int pn = 0;
 
-        if (Applied > 0 && pn++ < 20)
+        if (Applied > 0 && Utils::LogBudget(pn, 20, "[Mods] pickup roll"))
             printf("[Boron][Mods] pickup %s rarity=%d rolled %d/%d mod(s)\n", WeaponName.c_str(), Rarity, Applied, Budget);
 
         return Applied;

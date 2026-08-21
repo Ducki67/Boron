@@ -8,6 +8,23 @@ class Utils
     static inline void* _NpFH = nullptr;
 
 public:
+    static bool LogBudget(int& Counter, int Cap, const char* Tag)
+    {
+        if (Counter < Cap)
+        {
+            Counter++;
+            return true;
+        }
+
+        if (Counter == Cap)
+        {
+            Counter++;
+            printf("[Boron][LogCap] %s reached %d lines - further output suppressed, this is NOT a failure\n", Tag, Cap);
+        }
+
+        return false;
+    }
+
     static void GetAllInternal(const UClass* Class, TArray<AActor*>& ret)
     {
         UGameplayStatics::GetAllActorsOfClass(UWorld::GetWorld(), Class, &ret);

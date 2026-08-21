@@ -1196,7 +1196,7 @@ static void ApplyRangedHit(AFortWeaponRanged* Weapon, FHitResult& Hit, const cha
     {
         static int nn = 0;
 
-        if (nn++ < 15)
+        if (Utils::LogBudget(nn, 15, "[Damage] NO ACTOR"))
             printf("[Boron][Damage] path=%s weapon=%s NO ACTOR (handle+component both null, hasComp=%d)\n",
                    Path, WeaponName.c_str(), (int)FHitResult::HasComponent());
 
