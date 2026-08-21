@@ -2020,7 +2020,14 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
                 else
                 {
                     if (VersionInfo.FortniteVersion >= 20)
-                        NetDriver->NetServerMaxTickRate = 30;
+                    {
+                        int WantTick = FConfig::MaxTickRate > 0 ? (int)FConfig::MaxTickRate : 30;
+
+                        printf("[Boron][Net] NetServerMaxTickRate %d -> %d (FConfig::MaxTickRate)\n",
+                               NetDriver->NetServerMaxTickRate, WantTick);
+
+                        NetDriver->NetServerMaxTickRate = WantTick;
+                    }
 
                     NetDriver->NetDriverName = NetDriverName;
                     NetDriver->World = CurWorld;
