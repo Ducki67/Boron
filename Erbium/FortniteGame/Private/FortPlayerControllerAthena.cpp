@@ -2706,6 +2706,8 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
 
             if (command == "mod" && (Sub.empty() || Sub == "list" || Sub == "help"))
             {
+                WeaponMods::Rediscover();
+
                 std::string Out = "Weapon Mods | cheat mod <name>";
 
                 for (int Cat = 0; Cat < WeaponMods::ModCategory_Count; Cat++)

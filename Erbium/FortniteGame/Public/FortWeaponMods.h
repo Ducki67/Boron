@@ -171,12 +171,15 @@ namespace WeaponMods
         return nullptr;
     }
 
-    inline const UFortWeaponModItemDefinition* Resolve(const std::string& Input)
+    inline void Rediscover()
     {
+        bDiscovered = false;
+        Discovered.clear();
         Discover();
+    }
 
-        auto Want = Lower(Input);
-
+    inline const UFortWeaponModItemDefinition* ResolveIn(const std::string& Want)
+    {
         for (auto& Alias : Aliases)
         {
             if (Want == Alias.Name)
@@ -187,6 +190,24 @@ namespace WeaponMods
         }
 
         return FindByMatch(Want);
+    }
+
+    inline const UFortWeaponModItemDefinition* Resolve(const std::string& Input)
+    {
+        Discover();
+
+        auto Want = Lower(Input);
+
+        if (auto Mod = ResolveIn(Want))
+            return Mod;
+
+        auto Before = (int)Discovered.size();
+        Rediscover();
+
+        if ((int)Discovered.size() != Before)
+            printf("[Boron][Mods] rescan on miss: %d -> %d definitions\n", Before, (int)Discovered.size());
+
+        return ResolveIn(Want);
     }
 
     inline FStoredMods* FindStore(const FGuid& Guid)
