@@ -99,7 +99,17 @@ AFortSafeZoneIndicator* UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Setu
                 if (FFortSafeZonePhaseInfo::HasUsePOIStormCenter())
                     PhaseInfo->UsePOIStormCenter = false;
 
-                PhaseInfo->Center = SafeZoneLocations[(int)i];
+                if (SafeZoneLocations.IsValidIndex((int)i))
+                    PhaseInfo->Center = SafeZoneLocations[(int)i];
+                else
+                {
+                    PhaseInfo->Center = GameState->MapInfo->GetMapCenter();
+
+                    static int zn = 0;
+
+                    if (Utils::LogBudget(zn, 8, "[Storm] zone index out of range"))
+                        printf("[Boron][Storm] zone %d out of range (have %d) - using map center\n", (int)i, SafeZoneLocations.Num());
+                }
 
                 Array.Add(*PhaseInfo, FFortSafeZonePhaseInfo::Size());
                 free(PhaseInfo);
