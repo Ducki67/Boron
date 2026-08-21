@@ -680,6 +680,7 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::InitializeSafeZoneLocat
 
     SafeZoneLocations.Clear();
     SafeZoneLocations.Reserve((int)SafeZoneCount);
+    SafeZoneLocations.NumElements = (int)SafeZoneCount;
 
     for (int i = (int)(SafeZoneCount - 1); i >= 0; i--)
     {
