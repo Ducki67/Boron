@@ -267,11 +267,23 @@ void AFortInventory::RemoveWeaponAbilities(AActor* Weapon__Uncasted)
 void AFortInventory::Remove(FGuid Guid)
 {
     auto ItemEntryIdx = Inventory.ReplicatedEntries.SearchIndex([&](FFortItemEntry& entry) { return entry.ItemGuid == Guid; }, FFortItemEntry::Size());
-    auto& ItemEntry = Inventory.ReplicatedEntries.Get(ItemEntryIdx, FFortItemEntry::Size());
-    auto EntryDef = ItemEntry.ItemDefinition;
+    const UFortItemDefinition* EntryDef = nullptr;
+
+    if (ItemEntryIdx != -1)
+        EntryDef = Inventory.ReplicatedEntries.Get(ItemEntryIdx, FFortItemEntry::Size()).ItemDefinition;
 
     auto ItemInstanceIdx = Inventory.ItemInstances.SearchIndex([&](UFortWorldItem* entry) { return entry->ItemEntry.ItemGuid == Guid; });
     auto ItemInstance = Inventory.ItemInstances.Search([&](UFortWorldItem* entry) { return entry->ItemEntry.ItemGuid == Guid; });
+
+    if (ItemEntryIdx == -1 || ItemInstanceIdx == -1)
+    {
+        static int dsn = 0;
+
+        if (Utils::LogBudget(dsn, 20, "[Inv] Remove desync"))
+            printf("[Boron][Inv] Remove DESYNC entryIdx=%d instanceIdx=%d entries=%d instances=%d def=%s\n",
+                   ItemEntryIdx, ItemInstanceIdx, Inventory.ReplicatedEntries.Num(), Inventory.ItemInstances.Num(),
+                   EntryDef ? EntryDef->Name.ToString().c_str() : "<entry missing>");
+    }
 
     if (ItemEntryIdx != -1)
         Inventory.ReplicatedEntries.Remove(ItemEntryIdx, FFortItemEntry::Size());

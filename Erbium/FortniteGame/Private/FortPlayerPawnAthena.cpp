@@ -320,6 +320,16 @@ void AFortPlayerPawnAthena::ServerHandlePickupInfo(UObject* Context, FFrame& Sta
                     {
                         AFortInventory::SpawnPickup(Pawn->K2_GetActorLocation() + Pawn->GetActorForwardVector() * 70.f + FVector(0, 0, 50), *DropEntry,
                                                     EFortPickupSourceTypeFlag::GetPlayer(), EFortPickupSpawnSource::GetUnset(), Pawn);
+                        auto HeldNow = (AFortWeapon*)Pawn->CurrentWeapon;
+                        bool bDroppingHeld = HeldNow && HeldNow->HasItemEntryGuid() && HeldNow->ItemEntryGuid == DropGuid;
+
+                        static int swn = 0;
+
+                        if (Utils::LogBudget(swn, 20, "[Pickup] full-inv swap"))
+                            printf("[Boron][Pickup] full-inv swap: dropping %s heldByPawn=%d requested=%d entries=%d instances=%d\n",
+                                   DropEntry->ItemDefinition->Name.ToString().c_str(), (int)bDroppingHeld, (int)bUseRequestedSwap,
+                                   Inv->Inventory.ReplicatedEntries.Num(), Inv->Inventory.ItemInstances.Num());
+
                         Inv->Remove(DropGuid);
                         bSwapped = true;
                     }
