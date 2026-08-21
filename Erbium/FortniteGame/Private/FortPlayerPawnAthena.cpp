@@ -49,6 +49,54 @@ public:
 uint64_t SetPickupTarget_ = 0;
 
 static void (*ServerHandlePickupProbeOG)(UObject*, FFrame&) = nullptr;
+static bool BeginPickupFlight(AFortPickupAthena* Pickup, AFortPlayerPawnAthena* Pawn, float InFlyTime, FVector& InStartDirection, bool bPlayPickupSound)
+{
+    if (!Pickup || !Pawn || !Pickup->PickupLocationData.HasPickupTarget())
+        return false;
+
+    Pickup->PickupLocationData.PickupTarget = Pawn;
+    Pickup->PickupLocationData.FlyTime = (InFlyTime > 0.f && InFlyTime <= 0.6f) ? InFlyTime : 0.4f;
+
+    if (Pickup->PickupLocationData.HasItemOwner())
+        Pickup->PickupLocationData.ItemOwner = Pawn;
+    if (Pickup->PickupLocationData.HasPickupGuid())
+        Pickup->PickupLocationData.PickupGuid = Pickup->PrimaryPickupItemEntry.ItemGuid;
+    if (Pickup->PickupLocationData.HasStartDirection())
+        Pickup->PickupLocationData.StartDirection = InStartDirection;
+    if (Pickup->PickupLocationData.HasbPlayPickupSound())
+        Pickup->PickupLocationData.bPlayPickupSound = bPlayPickupSound;
+
+    Pickup->OnRep_PickupLocationData();
+
+    return true;
+}
+
+static void FinishPickup(AFortPickupAthena* Pickup, AFortPlayerPawnAthena* Pawn, bool bFlew, const char* Path)
+{
+    if (!Pickup->bPickedUp)
+    {
+        Pickup->bPickedUp = true;
+        Pickup->OnRep_bPickedUp();
+    }
+
+    if (bFlew)
+    {
+        if (Pawn->HasIncomingPickups())
+            Pawn->IncomingPickups.Add(Pickup);
+
+        Pickup->SetLifeSpan(2.f);
+    }
+    else
+        Pickup->K2_DestroyActor();
+
+    static int fly = 0;
+
+    if (Utils::LogBudget(fly, 14, "[Pickup] fly anim"))
+        printf("[Boron][Pickup] fly anim=%d path=%s flyTime=%.2f incoming=%d\n", (int)bFlew, Path,
+               Pickup->PickupLocationData.HasPickupTarget() ? Pickup->PickupLocationData.FlyTime : -1.f,
+               Pawn->HasIncomingPickups() ? Pawn->IncomingPickups.Num() : -1);
+}
+
 static void ServerHandlePickupProbe(UObject* Context, FFrame& Stack)
 {
     AFortPickupAthena* Pickup = nullptr;
@@ -104,48 +152,8 @@ static void ServerHandlePickupProbe(UObject* Context, FFrame& Stack)
 
         if (bGiven)
         {
-            bool bFlew = false;
-
-            if (Pickup->PickupLocationData.HasPickupTarget())
-            {
-                Pickup->PickupLocationData.PickupTarget = Pawn;
-                Pickup->PickupLocationData.FlyTime = InFlyTime > 0.f ? InFlyTime : 0.4f;
-
-                if (Pickup->PickupLocationData.HasItemOwner())
-                    Pickup->PickupLocationData.ItemOwner = Pawn;
-                if (Pickup->PickupLocationData.HasPickupGuid())
-                    Pickup->PickupLocationData.PickupGuid = Pickup->PrimaryPickupItemEntry.ItemGuid;
-                if (Pickup->PickupLocationData.HasStartDirection())
-                    Pickup->PickupLocationData.StartDirection = InStartDirection;
-                if (Pickup->PickupLocationData.HasbPlayPickupSound())
-                    Pickup->PickupLocationData.bPlayPickupSound = bPlayPickupSound;
-
-                Pickup->OnRep_PickupLocationData();
-                bFlew = true;
-            }
-
-            if (!Pickup->bPickedUp)
-            {
-                Pickup->bPickedUp = true;
-                Pickup->OnRep_bPickedUp();
-            }
-
-            if (bFlew)
-            {
-                if (Pawn->HasIncomingPickups())
-                    Pawn->IncomingPickups.Add(Pickup);
-
-                Pickup->SetLifeSpan(2.f);
-            }
-            else
-                Pickup->K2_DestroyActor();
-
-            static int fly = 0;
-
-            if (Utils::LogBudget(fly, 10, "[Pickup] fly anim"))
-                printf("[Boron][Pickup] fly anim=%d flyTime=%.2f incoming=%d\n",
-                       (int)bFlew, Pickup->PickupLocationData.FlyTime,
-                       Pawn->HasIncomingPickups() ? Pawn->IncomingPickups.Num() : -1);
+            bool bFlew = BeginPickupFlight(Pickup, Pawn, InFlyTime, InStartDirection, bPlayPickupSound);
+            FinishPickup(Pickup, Pawn, bFlew, "walkover");
         }
         else
         {
@@ -388,9 +396,8 @@ void AFortPlayerPawnAthena::ServerHandlePickupInfo(UObject* Context, FFrame& Sta
                 if (Remaining > 0)
                     Inv->GiveItem(Entry, Remaining);
 
-                Pickup->bPickedUp = true;
-                Pickup->OnRep_bPickedUp();
-                Pickup->K2_DestroyActor();
+                bool bFlew = BeginPickupFlight(Pickup, Pawn, FlyTime, Direction, bPlayPickupSound);
+                FinishPickup(Pickup, Pawn, bFlew, "rpc");
             }
 
             Inv->SetRequiresUpdate();
