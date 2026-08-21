@@ -102,7 +102,11 @@ void GUI::Init()
         res =
             D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_WARP, nullptr, createDeviceFlags, featureLevelArray, 2, D3D11_SDK_VERSION, &sd, &g_pSwapChain, &g_pd3dDevice, &featureLevel, &g_pd3dDeviceContext);
     if (res != S_OK)
+    {
+        printf("[Boron][GUI] D3D11CreateDeviceAndSwapChain failed hr=0x%08X - GUI disabled for this run (fn=%.2f ue=%.2f)\n",
+               (unsigned int)res, VersionInfo.FortniteVersion, VersionInfo.EngineVersion);
         return;
+    }
 
     ID3D11RenderTargetView* g_mainRenderTargetView;
 
