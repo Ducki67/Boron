@@ -183,7 +183,19 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
             static auto Effect = FindObject<UClass>(L"/Game/Athena/SafeZone/GE_OutsideSafeZoneDamage.GE_OutsideSafeZoneDamage_C");
 
             bool Found = false;
-            auto AbilitySystemComponent = PlayerController->PlayerState->AbilitySystemComponent;
+            auto PawnASC = (VersionInfo.EngineVersion >= 5.4 && PlayerController->MyFortPawn && PlayerController->MyFortPawn->HasAbilitySystemComponent())
+                               ? (UAbilitySystemComponent*)PlayerController->MyFortPawn->AbilitySystemComponent
+                               : nullptr;
+            auto AbilitySystemComponent = PawnASC ? PawnASC : PlayerController->PlayerState->AbilitySystemComponent;
+
+            static bool loggedStormAsc = false;
+
+            if (!loggedStormAsc)
+            {
+                loggedStormAsc = true;
+                printf("[Boron][Storm] damage effect ASC pawn=%p ps=%p using=%s\n", (void*)PawnASC,
+                       (void*)PlayerController->PlayerState->AbilitySystemComponent, PawnASC ? "pawn" : "playerstate");
+            }
 
             for (int i = 0; i < AbilitySystemComponent->ActiveGameplayEffects.GameplayEffects_Internal.Num(); i++)
             {
@@ -591,7 +603,20 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
             CID = PlayerController->CosmeticLoadoutPC.Character;
 
         int partsWritten = 0;
-        if (CID && PlayerController->MyFortPawn)
+        bool bSlotLoadout = CtrlComp && CtrlComp->HasCosmeticLoadout() && CtrlComp->CosmeticLoadout.Slots.Num() > 0;
+
+        static bool loggedPartsMode = false;
+
+        if (!loggedPartsMode)
+        {
+            loggedPartsMode = true;
+            printf("[Boron][Cosmetics] parts mode: slots=%d legacyCID=%s -> %s\n",
+                   bSlotLoadout ? CtrlComp->CosmeticLoadout.Slots.Num() : -1,
+                   CID ? CID->Name.ToString().c_str() : "null",
+                   bSlotLoadout ? "native (slot loadout)" : "legacy ServerChoosePart");
+        }
+
+        if (CID && PlayerController->MyFortPawn && !bSlotLoadout)
         {
             auto FortPawn = PlayerController->MyFortPawn;
             static auto ChoosePartFn = FortPawn->GetFunction("ServerChoosePart");

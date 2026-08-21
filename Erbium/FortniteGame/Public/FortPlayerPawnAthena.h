@@ -144,6 +144,7 @@ class AFortPlayerPawnAthena : public AActor
 public:
     UCLASS_COMMON_MEMBERS(AFortPlayerPawnAthena);
 
+    DEFINE_PROP(AbilitySystemComponent, UObject*);
     DEFINE_PROP(CurrentWeapon, AActor*); // everything breaks if we include FortWeapon.h so
     DEFINE_PROP(PreviousWeapon, AActor*);
     DEFINE_PROP(Controller, AActor*);
