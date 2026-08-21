@@ -33,7 +33,7 @@ def main(path):
     print("\n-- BORON STATE --")
     checks = [
         ("Iris: FortWeapon routed",  r"CLEARED filter on /Script/FortniteGame\.FortWeapon"),
-        ("Server became Joinable",   r"UE [\d.]+\): Joinable|gsStatus"),
+        ("Listen server up",         r"InitListen OK -- GameNetDriver listening on port (\d+)"),
         ("Native mod apply",         r"native TryAddWeaponMod available=(\d)"),
         ("Native pickup mods",       r"native ApplyWeaponModToPickup available=(\d)"),
         ("Inventory desync seen",    r"Remove DESYNC"),
