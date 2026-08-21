@@ -2357,7 +2357,7 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
     cheat mods - Lists the mod slots on your held weapon
     cheat mod list - Lists every weapon mod on this build
     cheat mod <name> [force] - Puts a weapon mod on your held weapon
-    cheat mod clear / rand / fun - Clears, randomizes or chaos-rolls your mods
+    cheat mod all / clear / rand / fun - Maxes out, clears, randomizes or chaos-rolls your mods
     cheat skydive - Toggles skydiving
     cheat giveitem <WID/path> <Count = 1> - Gives you an item
     cheat give <alias>[_rarity] <Count = 1> - Fast item give (ex: give pump_vr, give scar_sr, give minis 6)
@@ -2700,7 +2700,7 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
                 }
 
                 Out += "\nAliases: reddot holo p2x sniper supp muzzle vert angled speedgrip laser speed drum";
-                Out += "\nOther: clear (remove all) | rand (random) | fun (chaos)";
+                Out += "\nOther: all (max out) | clear | rand | fun (chaos)";
 
                 Say(Out, 10.f);
                 return;
@@ -2744,6 +2744,51 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
                 return;
             }
 
+            auto SlotSummary = [&]() -> std::string
+            {
+                auto& Slots = Held->WeaponModSlots;
+                std::string Out;
+
+                for (int i = 0; i < Slots.Num(); i++)
+                {
+                    auto& S = Slots.Get(i, FFortWeaponModSlot::Size());
+
+                    if (S.WeaponMod)
+                        Out += std::string(Out.empty() ? "" : ", ") + S.WeaponMod->Name.ToString().c_str();
+                }
+
+                return Out.empty() ? std::string("<none>") : Out;
+            };
+
+            if (Sub == "all" || Sub == "max")
+            {
+                WeaponMods::ClearAll(Held);
+
+                std::string WeaponName = Held->HasWeaponData() && Held->WeaponData ? std::string(Held->WeaponData->Name.ToString().c_str()) : std::string();
+                int Applied = 0;
+
+                for (int Cat = 0; Cat < WeaponMods::ModCategory_Count; Cat++)
+                {
+                    std::vector<const UFortWeaponModItemDefinition*> Pool;
+
+                    for (auto Mod : WeaponMods::Discovered)
+                        if (WeaponMods::Category(Mod) == Cat && WeaponMods::IsCompatible(Mod, WeaponName)
+                            && WeaponMods::Lower(Mod->Name.ToString().c_str()).find("ironsights") == std::string::npos)
+                            Pool.push_back(Mod);
+
+                    if (Pool.empty())
+                        continue;
+
+                    std::string Reason;
+
+                    if (WeaponMods::Apply(Held, Pool[rand() % Pool.size()], true, &Reason))
+                        Applied++;
+                }
+
+                Say("Maxed out: " + std::to_string(Applied) + " mods -> " + SlotSummary(), 5.f);
+                return;
+            }
+
             if (Sub == "rand" || Sub == "random" || Sub == "fun" || Sub == "funny" || Sub == "chaos")
             {
                 bool bChaos = Sub == "fun" || Sub == "funny" || Sub == "chaos";
@@ -2768,14 +2813,35 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
 
             if (!Picked)
             {
-                Say(std::string("No weapon mod matched '") + Sub + "' - run 'cheat mod list'.", 1.f);
+                std::string Near;
+                int NearCount = 0;
+
+                for (auto Mod : WeaponMods::Discovered)
+                {
+                    auto Lowered = WeaponMods::Lower(Mod->Name.ToString().c_str());
+
+                    for (size_t c = 0; c < Sub.size() && NearCount < 5; c++)
+                    {
+                        if (Sub.size() - c < 3)
+                            break;
+
+                        if (Lowered.find(Sub.substr(c)) != std::string::npos)
+                        {
+                            Near += std::string(Near.empty() ? "" : ", ") + Mod->Name.ToString().c_str();
+                            NearCount++;
+                            break;
+                        }
+                    }
+                }
+
+                Say(std::string("No mod matched '") + Sub + "'." + (Near.empty() ? std::string(" Run 'cheat mod list'.") : std::string(" Did you mean: ") + Near), 5.f);
                 return;
             }
 
             std::string Reason;
 
             if (WeaponMods::Apply(Held, Picked, bForce, &Reason))
-                Say(std::string("Applied mod: ") + Picked->Name.ToString().c_str(), 3.f);
+                Say(std::string("Applied ") + Picked->Name.ToString().c_str() + " -> " + SlotSummary(), 4.f);
             else
                 Say(std::string("Failed to apply ") + Picked->Name.ToString().c_str() + " (" + Reason + ") - add 'force' to override", 3.f);
         }
