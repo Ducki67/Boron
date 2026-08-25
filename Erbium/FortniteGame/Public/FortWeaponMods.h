@@ -644,6 +644,34 @@ namespace WeaponMods
         return Applied;
     }
 
+    inline void ApplyToSpawnedPickup(AFortPickupAthena* Pickup, FFortItemEntry* Source)
+    {
+        if (VersionInfo.EngineVersion < 5.4 || !Pickup || !Pickup->PrimaryPickupItemEntry.ItemDefinition)
+            return;
+
+        auto Def = (UFortItemDefinition*)Pickup->PrimaryPickupItemEntry.ItemDefinition;
+
+        if (!Def->Cast<UFortWeaponItemDefinition>() || Def->Cast<UFortWeaponMeleeItemDefinition>())
+            return;
+
+        int Existing = EntryModCount(Source);
+
+        if (Existing > 0)
+        {
+            CarryEntryMods(Source, &Pickup->PrimaryPickupItemEntry);
+
+            int Reapplied = ReapplyEntryMods(Source, Pickup);
+            static int cn = 0;
+
+            if (Utils::LogBudget(cn, 20, "[Mods] keep on drop"))
+                printf("[Boron][Mods] %s kept %d/%d mod(s) on drop\n", Def->Name.ToString().c_str(), Reapplied, Existing);
+
+            return;
+        }
+
+        RollForPickup(Pickup, Def, Def->HasRarity() ? (int)Def->Rarity : 0);
+    }
+
     inline int ApplyRandom(AFortWeapon* Weapon, bool bForceOptic)
     {
         Discover();

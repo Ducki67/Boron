@@ -446,28 +446,7 @@ AFortPickupAthena* AFortInventory::SpawnPickup(FVector Loc, FFortItemEntry& Entr
         NewPickup->OnRep_PrimaryPickupItemEntry();
     NewPickup->PawnWhoDroppedPickup = Pawn;
 
-    if (VersionInfo.EngineVersion >= 5.4 && NewPickup->PrimaryPickupItemEntry.ItemDefinition)
-    {
-        auto PickupDef = (UFortItemDefinition*)NewPickup->PrimaryPickupItemEntry.ItemDefinition;
-
-        if (PickupDef->Cast<UFortWeaponItemDefinition>() && !PickupDef->Cast<UFortWeaponMeleeItemDefinition>())
-        {
-            int Existing = WeaponMods::EntryModCount(&Entry);
-
-            if (Existing > 0)
-            {
-                WeaponMods::CarryEntryMods(&Entry, &NewPickup->PrimaryPickupItemEntry);
-
-                int Reapplied = WeaponMods::ReapplyEntryMods(&Entry, NewPickup);
-                static int cn = 0;
-
-                if (Utils::LogBudget(cn, 20, "[Mods] keep on drop"))
-                    printf("[Boron][Mods] %s kept %d/%d mod(s) on drop\n", PickupDef->Name.ToString().c_str(), Reapplied, Existing);
-            }
-            else
-                WeaponMods::RollForPickup(NewPickup, PickupDef, PickupDef->HasRarity() ? (int)PickupDef->Rarity : 0);
-        }
-    }
+    WeaponMods::ApplyToSpawnedPickup(NewPickup, &Entry);
 
     auto FinalLocation = Loc;
 
@@ -538,6 +517,8 @@ AFortPickupAthena* AFortInventory::SpawnPickup(ABuildingContainer* Container, FF
         NewPickup->OnRep_PrimaryPickupItemEntry();
 
     NewPickup->PawnWhoDroppedPickup = Pawn;
+
+    WeaponMods::ApplyToSpawnedPickup(NewPickup, &Entry);
 
     // auto bFloorLoot = Container->IsA<ATiered_Athena_FloorLoot_01_C>() || Container->IsA<ATiered_Athena_FloorLoot_Warmup_C>();
     // UFortKismetLibrary::TossPickupFromContainer(UWorld::GetWorld(), Container, NewPickup, 1, 0, Container->LootTossConeHalfAngle_Athena, Container->LootTossDirection_Athena,
