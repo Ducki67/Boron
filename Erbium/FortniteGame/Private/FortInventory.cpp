@@ -138,8 +138,19 @@ UFortWorldItem* AFortInventory::GiveItem(FFortItemEntry& entry, int Count, bool 
     if (Count == -1)
         Count = entry.Count;
 
-    return GiveItem(entry.ItemDefinition, Count, entry.LoadedAmmo, entry.Level, ShowPickupNoti, updateInventory, entry.HasPhantomReserveAmmo() ? entry.PhantomReserveAmmo : 0,
-                    entry.HasStateValues() ? entry.StateValues : TArray<FFortItemEntryStateValue>{});
+    auto Item = GiveItem(entry.ItemDefinition, Count, entry.LoadedAmmo, entry.Level, ShowPickupNoti, updateInventory, entry.HasPhantomReserveAmmo() ? entry.PhantomReserveAmmo : 0,
+                         entry.HasStateValues() ? entry.StateValues : TArray<FFortItemEntryStateValue>{});
+
+    if (Item && VersionInfo.EngineVersion >= 5.4)
+    {
+        int Carried = WeaponMods::CarryEntryMods(&entry, &Item->ItemEntry);
+        static int gn = 0;
+
+        if (Carried > 0 && Utils::LogBudget(gn, 20, "[Mods] keep on pickup"))
+            printf("[Boron][Mods] %s kept %d mod(s) into inventory\n", entry.ItemDefinition ? entry.ItemDefinition->Name.ToString().c_str() : "?", Carried);
+    }
+
+    return Item;
 }
 
 void AFortInventory::SetRequiresUpdate()
@@ -440,7 +451,22 @@ AFortPickupAthena* AFortInventory::SpawnPickup(FVector Loc, FFortItemEntry& Entr
         auto PickupDef = (UFortItemDefinition*)NewPickup->PrimaryPickupItemEntry.ItemDefinition;
 
         if (PickupDef->Cast<UFortWeaponItemDefinition>() && !PickupDef->Cast<UFortWeaponMeleeItemDefinition>())
-            WeaponMods::RollForPickup(NewPickup, PickupDef, PickupDef->HasRarity() ? (int)PickupDef->Rarity : 0);
+        {
+            int Existing = WeaponMods::EntryModCount(&Entry);
+
+            if (Existing > 0)
+            {
+                WeaponMods::CarryEntryMods(&Entry, &NewPickup->PrimaryPickupItemEntry);
+
+                int Reapplied = WeaponMods::ReapplyEntryMods(&Entry, NewPickup);
+                static int cn = 0;
+
+                if (Utils::LogBudget(cn, 20, "[Mods] keep on drop"))
+                    printf("[Boron][Mods] %s kept %d/%d mod(s) on drop\n", PickupDef->Name.ToString().c_str(), Reapplied, Existing);
+            }
+            else
+                WeaponMods::RollForPickup(NewPickup, PickupDef, PickupDef->HasRarity() ? (int)PickupDef->Rarity : 0);
+        }
     }
 
     auto FinalLocation = Loc;

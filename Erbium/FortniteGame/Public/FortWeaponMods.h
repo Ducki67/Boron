@@ -506,6 +506,87 @@ namespace WeaponMods
         }
     }
 
+    inline bool IsDefaultMod(const UFortItemDefinition* Mod)
+    {
+        return Mod && Lower(Mod->Name.ToString().c_str()).find("default") != std::string::npos;
+    }
+
+    inline int EntryModCount(FFortItemEntry* Entry)
+    {
+        if (!Entry || !FFortItemEntry::HasWeaponModSlots())
+            return 0;
+
+        auto SlotSize = FFortWeaponModSlot::Size();
+
+        if (SlotSize <= 0)
+            return 0;
+
+        auto& Slots = Entry->GetWeaponModSlots();
+        int Count = 0;
+
+        for (int i = 0; i < Slots.Num(); i++)
+        {
+            auto Mod = Slots.Get(i, SlotSize).WeaponMod;
+
+            if (Mod && !IsDefaultMod(Mod))
+                Count++;
+        }
+
+        return Count;
+    }
+
+    inline int CarryEntryMods(FFortItemEntry* Src, FFortItemEntry* Dst)
+    {
+        if (!Src || !Dst || !FFortItemEntry::HasWeaponModSlots())
+            return 0;
+
+        auto SlotSize = FFortWeaponModSlot::Size();
+
+        if (SlotSize <= 0)
+            return 0;
+
+        auto& From = Src->GetWeaponModSlots();
+        auto& To = Dst->GetWeaponModSlots();
+        int Limit = From.Num() < To.Num() ? From.Num() : To.Num();
+        int Carried = 0;
+
+        for (int i = 0; i < Limit; i++)
+        {
+            auto& S = From.Get(i, SlotSize);
+
+            if (!S.WeaponMod)
+                continue;
+
+            To.Get(i, SlotSize).WeaponMod = S.WeaponMod;
+            Carried++;
+        }
+
+        return Carried;
+    }
+
+    inline int ReapplyEntryMods(FFortItemEntry* Src, UObject* Pickup)
+    {
+        if (!Src || !Pickup || !HasPickupNative() || !FFortItemEntry::HasWeaponModSlots())
+            return 0;
+
+        auto SlotSize = FFortWeaponModSlot::Size();
+
+        if (SlotSize <= 0)
+            return 0;
+
+        auto& Slots = Src->GetWeaponModSlots();
+        int Applied = 0;
+
+        for (int i = 0; i < Slots.Num(); i++)
+        {
+            auto& S = Slots.Get(i, SlotSize);
+
+            if (S.WeaponMod && !IsDefaultMod(S.WeaponMod) && UFortWeaponModFunctionLibrary::ApplyWeaponModToPickup(Pickup, (UFortWeaponModItemDefinition*)S.WeaponMod))
+                Applied++;
+        }
+
+        return Applied;
+    }
     inline int RollForPickup(UObject* Pickup, const UFortItemDefinition* Def, int Rarity)
     {
         if (!Pickup || !Def || !HasPickupNative())

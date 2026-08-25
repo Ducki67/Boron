@@ -598,9 +598,24 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
             }
         }
 
-        auto CID = (CtrlComp && CtrlComp->HasCachedAthenaLoadout()) ? CtrlComp->CachedAthenaLoadout.Character : nullptr;
-        if (!CID && PlayerController->HasCosmeticLoadoutPC())
-            CID = PlayerController->CosmeticLoadoutPC.Character;
+        auto CID = PlayerController->HasCosmeticLoadoutPC() ? PlayerController->CosmeticLoadoutPC.Character : nullptr;
+        if (!CID && CtrlComp && CtrlComp->HasCachedAthenaLoadout())
+            CID = CtrlComp->CachedAthenaLoadout.Character;
+
+        if (CID && CID->HasHeroDefinition() && CID->HeroDefinition && PlayerController->PlayerState)
+        {
+            auto PS = (AFortPlayerStateAthena*)PlayerController->PlayerState;
+
+            if (PS->HasHeroType())
+            {
+                PS->HeroType = (const UObject*)CID->HeroDefinition;
+
+                static int hn = 0;
+
+                if (Utils::LogBudget(hn, 8, "[Cosmetics] herotype"))
+                    printf("[Boron][Cosmetics] HeroType <- %s (from %s)\n", CID->HeroDefinition->Name.ToString().c_str(), CID->Name.ToString().c_str());
+            }
+        }
 
         int partsWritten = 0;
         bool bSlotLoadout = CtrlComp && CtrlComp->HasCosmeticLoadout() && CtrlComp->CosmeticLoadout.Slots.Num() > 0;
