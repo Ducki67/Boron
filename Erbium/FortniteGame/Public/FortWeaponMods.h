@@ -587,6 +587,43 @@ namespace WeaponMods
 
         return Applied;
     }
+    inline bool WriteEntrySlot(FFortItemEntry* Entry, const UFortWeaponModItemDefinition* Mod)
+    {
+        if (!Entry || !Mod || !FFortItemEntry::HasWeaponModSlots() || !FFortWeaponModSlot::HasWeaponMod())
+            return false;
+
+        auto SlotSize = FFortWeaponModSlot::Size();
+
+        if (SlotSize <= 0)
+            return false;
+
+        auto& Slots = Entry->GetWeaponModSlots();
+        int Cat = Category(Mod);
+
+        for (int i = 0; i < Slots.Num(); i++)
+        {
+            auto& S = Slots.Get(i, SlotSize);
+
+            if (S.WeaponMod && Category((const UFortWeaponModItemDefinition*)S.WeaponMod) == Cat)
+            {
+                S.WeaponMod = (const UFortItemDefinition*)Mod;
+                return true;
+            }
+        }
+
+        for (int i = 0; i < Slots.Num(); i++)
+        {
+            auto& S = Slots.Get(i, SlotSize);
+
+            if (!S.WeaponMod)
+            {
+                S.WeaponMod = (const UFortItemDefinition*)Mod;
+                return true;
+            }
+        }
+
+        return false;
+    }
     inline int RollForPickup(UObject* Pickup, const UFortItemDefinition* Def, int Rarity)
     {
         if (!Pickup || !Def || !HasPickupNative())
@@ -633,7 +670,15 @@ namespace WeaponMods
             auto Mod = Pool[rand() % Pool.size()];
 
             if (UFortWeaponModFunctionLibrary::ApplyWeaponModToPickup(Pickup, (UFortWeaponModItemDefinition*)Mod))
+            {
+                bool Wrote = WriteEntrySlot(&((AFortPickupAthena*)Pickup)->PrimaryPickupItemEntry, Mod);
+                static int wn = 0;
+
+                if (Utils::LogBudget(wn, 12, "[Mods] entry write"))
+                    printf("[Boron][Mods] %s <- %s entryWrite=%d\n", WeaponName.c_str(), Mod->Name.ToString().c_str(), Wrote);
+
                 Applied++;
+            }
         }
 
         static int pn = 0;
@@ -644,6 +689,53 @@ namespace WeaponMods
         return Applied;
     }
 
+    inline int StoreFromEntry(FFortItemEntry* Src, const FGuid& Guid)
+    {
+        if (!Src || !FFortItemEntry::HasWeaponModSlots() || !FFortWeaponModSlot::HasWeaponMod())
+            return 0;
+
+        auto SlotSize = FFortWeaponModSlot::Size();
+
+        if (SlotSize <= 0)
+            return 0;
+
+        RemoveStore(Guid);
+
+        auto& Slots = Src->GetWeaponModSlots();
+        int Stored = 0;
+
+        for (int i = 0; i < Slots.Num(); i++)
+        {
+            auto& S = Slots.Get(i, SlotSize);
+
+            if (S.WeaponMod && !IsDefaultMod(S.WeaponMod))
+            {
+                PushStore(Guid, (const UFortWeaponModItemDefinition*)S.WeaponMod);
+                Stored++;
+            }
+        }
+
+        return Stored;
+    }
+
+    inline int ApplyStoredToPickup(UObject* Pickup, const FGuid& Guid)
+    {
+        auto Entry = FindStore(Guid);
+
+        if (!Entry || Entry->Count <= 0 || !Pickup || !HasPickupNative())
+            return 0;
+
+        int Applied = 0;
+
+        for (int i = 0; i < Entry->Count; i++)
+            if (Entry->Mods[i] && UFortWeaponModFunctionLibrary::ApplyWeaponModToPickup(Pickup, (UFortWeaponModItemDefinition*)Entry->Mods[i]))
+            {
+                WriteEntrySlot(&((AFortPickupAthena*)Pickup)->PrimaryPickupItemEntry, Entry->Mods[i]);
+                Applied++;
+            }
+
+        return Applied;
+    }
     inline void ApplyToSpawnedPickup(AFortPickupAthena* Pickup, FFortItemEntry* Source)
     {
         if (VersionInfo.EngineVersion < 5.4 || !Pickup || !Pickup->PrimaryPickupItemEntry.ItemDefinition)
@@ -654,6 +746,20 @@ namespace WeaponMods
         if (!Def->Cast<UFortWeaponItemDefinition>() || Def->Cast<UFortWeaponMeleeItemDefinition>())
             return;
 
+        int FromStore = Source->HasItemGuid() ? ApplyStoredToPickup(Pickup, Source->ItemGuid) : 0;
+
+        if (FromStore > 0)
+        {
+            RemoveStore(Source->ItemGuid);
+
+            static int cn = 0;
+
+            if (Utils::LogBudget(cn, 20, "[Mods] keep on drop"))
+                printf("[Boron][Mods] %s kept %d mod(s) on drop (store)\n", Def->Name.ToString().c_str(), FromStore);
+
+            return;
+        }
+
         int Existing = EntryModCount(Source);
 
         if (Existing > 0)
@@ -661,10 +767,10 @@ namespace WeaponMods
             CarryEntryMods(Source, &Pickup->PrimaryPickupItemEntry);
 
             int Reapplied = ReapplyEntryMods(Source, Pickup);
-            static int cn = 0;
+            static int cn2 = 0;
 
-            if (Utils::LogBudget(cn, 20, "[Mods] keep on drop"))
-                printf("[Boron][Mods] %s kept %d/%d mod(s) on drop\n", Def->Name.ToString().c_str(), Reapplied, Existing);
+            if (Utils::LogBudget(cn2, 20, "[Mods] keep on drop entry"))
+                printf("[Boron][Mods] %s kept %d/%d mod(s) on drop (entry)\n", Def->Name.ToString().c_str(), Reapplied, Existing);
 
             return;
         }

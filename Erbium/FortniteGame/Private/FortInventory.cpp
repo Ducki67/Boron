@@ -143,11 +143,26 @@ UFortWorldItem* AFortInventory::GiveItem(FFortItemEntry& entry, int Count, bool 
 
     if (Item && VersionInfo.EngineVersion >= 5.4)
     {
-        int Carried = WeaponMods::CarryEntryMods(&entry, &Item->ItemEntry);
+        WeaponMods::CarryEntryMods(&entry, &Item->ItemEntry);
+
+        FGuid RealGuid = Item->ItemEntry.HasItemGuid() ? Item->ItemEntry.ItemGuid : FGuid();
+
+        for (int i = Inventory.ReplicatedEntries.Num() - 1; i >= 0; i--)
+        {
+            auto& Rep = Inventory.ReplicatedEntries[i];
+
+            if (Rep.ItemDefinition == entry.ItemDefinition && Rep.HasItemGuid())
+            {
+                RealGuid = Rep.ItemGuid;
+                break;
+            }
+        }
+
+        int Stored = WeaponMods::StoreFromEntry(&entry, RealGuid);
         static int gn = 0;
 
-        if (Carried > 0 && Utils::LogBudget(gn, 20, "[Mods] keep on pickup"))
-            printf("[Boron][Mods] %s kept %d mod(s) into inventory\n", entry.ItemDefinition ? entry.ItemDefinition->Name.ToString().c_str() : "?", Carried);
+        if (Stored > 0 && Utils::LogBudget(gn, 20, "[Mods] keep on pickup"))
+            printf("[Boron][Mods] %s stored %d mod(s) under inventory guid\n", entry.ItemDefinition ? entry.ItemDefinition->Name.ToString().c_str() : "?", Stored);
     }
 
     return Item;
