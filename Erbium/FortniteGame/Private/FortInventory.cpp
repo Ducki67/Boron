@@ -146,23 +146,30 @@ UFortWorldItem* AFortInventory::GiveItem(FFortItemEntry& entry, int Count, bool 
         WeaponMods::CarryEntryMods(&entry, &Item->ItemEntry);
 
         FGuid RealGuid = Item->ItemEntry.HasItemGuid() ? Item->ItemEntry.ItemGuid : FGuid();
+        FFortItemEntry* RepEntry = nullptr;
 
         for (int i = Inventory.ReplicatedEntries.Num() - 1; i >= 0; i--)
         {
-            auto& Rep = Inventory.ReplicatedEntries[i];
+            auto& Rep = Inventory.ReplicatedEntries.Get(i, FFortItemEntry::Size());
 
             if (Rep.ItemDefinition == entry.ItemDefinition && Rep.HasItemGuid())
             {
                 RealGuid = Rep.ItemGuid;
+                RepEntry = &Rep;
                 break;
             }
         }
 
         int Stored = WeaponMods::StoreFromEntry(&entry, RealGuid);
+        int Shown = Stored > 0 && RepEntry ? WeaponMods::ShowOnEntry(RepEntry, RealGuid) : 0;
+
+        if (Shown > 0)
+            SetRequiresUpdate();
+
         static int gn = 0;
 
         if (Stored > 0 && Utils::LogBudget(gn, 20, "[Mods] keep on pickup"))
-            printf("[Boron][Mods] %s stored %d mod(s) under inventory guid\n", entry.ItemDefinition ? entry.ItemDefinition->Name.ToString().c_str() : "?", Stored);
+            printf("[Boron][Mods] %s stored %d mod(s), %d shown on entry (rep=%p)\n", entry.ItemDefinition ? entry.ItemDefinition->Name.ToString().c_str() : "?", Stored, Shown, (void*)RepEntry);
     }
 
     return Item;

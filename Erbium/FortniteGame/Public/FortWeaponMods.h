@@ -718,6 +718,21 @@ namespace WeaponMods
         return Stored;
     }
 
+    inline int ShowOnEntry(FFortItemEntry* Dst, const FGuid& Guid)
+    {
+        auto Entry = FindStore(Guid);
+
+        if (!Entry || Entry->Count <= 0 || !Dst)
+            return 0;
+
+        int Shown = 0;
+
+        for (int i = 0; i < Entry->Count; i++)
+            if (Entry->Mods[i] && WriteEntrySlot(Dst, Entry->Mods[i]))
+                Shown++;
+
+        return Shown;
+    }
     inline int ApplyStoredToPickup(UObject* Pickup, const FGuid& Guid)
     {
         auto Entry = FindStore(Guid);
