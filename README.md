@@ -51,6 +51,7 @@ A modifiyed/forked Erbium gameserver with my own features and fixes
 Currently the only versions that are "supported" are **31.41 C5S4** and **30.20 C5S3**
 
 Progress (31.41): **37% Done**
+Progress (30.20): **~40% Done**
 
 **31.41 Features (currently a lot missing)**
 - In-game (Br, Reload)
@@ -67,11 +68,13 @@ Progress (31.41): **37% Done**
 - Kinda scuffed pickup (dont ask why)
 
 **30.20 Features (currently unsable for the beime being)
+
+
+
 - In-game (BR and Reload squads)
 - Looting
 - Some weapon mods stuff
 - No mantleing (for now)
-- No proper Ping (yet, currently being fixed)
 - and a bit more which i kinda forgot...
 
 
