@@ -25,6 +25,8 @@ uint64 FindPickTeam();
 uint64 FindCantBuild();
 uint64 FindReplaceBuildingActor();
 uint64 FindKickPlayer();
+uint64 FindKickPlayerVirtual();
+uint64 FindSpawnActorTrackingGate();
 uint64 FindEncryptionPatch();
 uint64 FindRemoveInventoryItem();
 uint64 FindRemoveInventoryStateValue();

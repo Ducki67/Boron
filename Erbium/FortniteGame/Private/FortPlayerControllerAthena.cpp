@@ -41,12 +41,29 @@ uint64_t InitializePlayerGameplayAbilities_;
 static uint32_t gLastExecCode = 0;
 static uint64_t gLastExecFaultAddr = 0;
 static uint64_t gLastExecFaultOp = 0;
+static uint64_t gLastExecStack[10] = {};
+static int gLastExecStackN = 0;
 
 static int ExecFilter(EXCEPTION_POINTERS* ep)
 {
     gLastExecCode = ep->ExceptionRecord->ExceptionCode;
     gLastExecFaultAddr = (uint64_t)ep->ExceptionRecord->ExceptionAddress;
     gLastExecFaultOp = ep->ExceptionRecord->NumberParameters >= 2 ? (uint64_t)ep->ExceptionRecord->ExceptionInformation[1] : 0;
+
+    gLastExecStackN = 0;
+    CONTEXT ctx = *ep->ContextRecord;
+    while (gLastExecStackN < 10 && ctx.Rip)
+    {
+        gLastExecStack[gLastExecStackN++] = ctx.Rip;
+        DWORD64 UnwindImageBase = 0;
+        auto Entry = RtlLookupFunctionEntry(ctx.Rip, &UnwindImageBase, nullptr);
+        if (!Entry)
+            break;
+        void* HandlerData = nullptr;
+        DWORD64 EstablisherFrame = 0;
+        RtlVirtualUnwind(UNW_FLAG_NHANDLER, UnwindImageBase, ctx.Rip, Entry, &ctx, &HandlerData, &EstablisherFrame, nullptr);
+    }
+
     return EXCEPTION_EXECUTE_HANDLER;
 }
 
@@ -935,6 +952,16 @@ void AFortPlayerControllerAthena::ServerExecuteInventoryItem_(UObject* Context, 
                    gLastExecCode, (unsigned long long)gLastExecFaultAddr,
                    (unsigned long long)(gLastExecFaultAddr ? gLastExecFaultAddr - imgBase : 0),
                    (unsigned long long)gLastExecFaultOp, (void*)NativePawn, (void*)ItemDefinition);
+
+            static bool loggedEquipStack = false;
+            if (!eqOk && gLastExecStackN && !loggedEquipStack)
+            {
+                loggedEquipStack = true;
+                printf("[Boron][Equip] fault stack (rva):");
+                for (int si = 0; si < gLastExecStackN; si++)
+                    printf(" %llX", (unsigned long long)(gLastExecStack[si] - imgBase));
+                printf("\n");
+            }
         }
 
         return;
@@ -1335,7 +1362,7 @@ void AFortPlayerControllerAthena::ServerCreateBuildingActor(UObject* Context, FF
     }
 
     TArray<ABuildingSMActor*> RemoveBuildings;
-    if (VersionInfo.FortniteVersion >= 27)
+    if (CantBuild_ && VersionInfo.FortniteVersion >= 27)
     {
         char _Unk_OutVar1;
         auto CantBuild = (__int64 (*)(UWorld*, TSubclassOf<AActor>&, _Pad_0x18, _Pad_0x18, bool, TArray<ABuildingSMActor*>*, char*))CantBuild_;
@@ -1343,7 +1370,7 @@ void AFortPlayerControllerAthena::ServerCreateBuildingActor(UObject* Context, FF
         if (CantBuild(UWorld::GetWorld(), BuildingClass, *(_Pad_0x18*)&BuildLoc, *(_Pad_0x18*)&BuildRot, bMirrored, &RemoveBuildings, &_Unk_OutVar1))
             return;
     }
-    else
+    else if (CantBuild_)
     {
         char _Unk_OutVar1;
         auto CantBuild = (__int64 (*)(UWorld*, const UClass*, _Pad_0xC, _Pad_0xC, bool, TArray<ABuildingSMActor*>*, char*))CantBuild_;
@@ -5119,6 +5146,8 @@ void AFortPlayerControllerAthena::PostLoadHook()
         // PostInitializeSpawnedBuildingActor_ = FindPostInitializeSpawnedBuildingActor();
     }
     CantBuild_ = FindCantBuild();
+    if (!CantBuild_)
+        printf("[Boron][Build] CantBuild not found - placement validation skipped\n");
     ReplaceBuildingActor_ = FindReplaceBuildingActor(); // pre-cache building offsets
     RemoveFromAlivePlayers_ = FindRemoveFromAlivePlayers();
     GiveAbilityAndActivateOnce = FindGiveAbilityAndActivateOnce();

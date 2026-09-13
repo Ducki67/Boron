@@ -624,6 +624,7 @@ void AFortPlayerPawnAthena::OnCapsuleBeginOverlap_(UObject* Context, FFrame& Sta
 
     auto Pawn = (AFortPlayerPawnAthena*)Context;
 
+#if 0
     if (VersionInfo.EngineVersion >= 5.4)
     {
         static auto ProbePickupCls = FindClass("FortPickupAthena");
@@ -684,6 +685,7 @@ void AFortPlayerPawnAthena::OnCapsuleBeginOverlap_(UObject* Context, FFrame& Sta
                    P->HasOverrideInteractAimRadius() ? P->OverrideInteractAimRadius : -1.f);
         }
     }
+#endif
 
     static auto FortPCClass = FindClass("FortPlayerController");
 

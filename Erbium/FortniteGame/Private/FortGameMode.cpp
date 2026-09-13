@@ -1292,8 +1292,25 @@ AActor* AFortGameMode::SpawnDefaultPawnFor_Native(AFortGameMode* GameMode, AFort
                (void*)NewPlayer->MyFortPawn, (void*)NewPlayer->Pawn);
     }
 
-    printf("[Boron][Pawn] SpawnDefaultPawnFor_Native -> Pawn=%p StartSpot=%p native=%s\n",
-           (void*)Pawn, (void*)StartSpot, SpawnDefaultPawnFor_NativeOG ? "yes" : "no");
+    int AircraftNum = -1;
+    void* Aircraft0 = nullptr;
+
+    if (auto AthenaGS = (AFortGameStateAthena*)GameMode->GameState)
+    {
+        if (auto PhaseLogic = UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Get(AthenaGS))
+        {
+            if (PhaseLogic->HasAircrafts_GameState())
+            {
+                AircraftNum = PhaseLogic->Aircrafts_GameState.Num();
+
+                if (AircraftNum > 0)
+                    Aircraft0 = (void*)PhaseLogic->Aircrafts_GameState[0].Get();
+            }
+        }
+    }
+
+    printf("[Boron][Pawn] SpawnDefaultPawnFor_Native -> Pawn=%p StartSpot=%p native=%s aircraftNum=%d aircraft0=%p\n",
+           (void*)Pawn, (void*)StartSpot, SpawnDefaultPawnFor_NativeOG ? "yes" : "no", AircraftNum, Aircraft0);
 
     return Pawn;
 }
@@ -1955,6 +1972,33 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
                WM->HasSaveFrequency_Seconds() ? WM->SaveFrequency_Seconds : 0);
     }
 
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        static const wchar_t* StreamingBudgetLate[] = {
+            L"s.OnlyProcessRequiredPackagesWhenSyncLoading 1",
+            L"s.StreamableFlushAllAsyncLoadRequestsOnWait 0",
+            L"s.World.ForceFlushAllAsyncLoadsDuringLevelStreaming 0",
+            L"wp.Runtime.BlockOnSlowStreaming 0",
+            L"s.AdaptiveAddToWorld.Enabled 1",
+            L"s.AllowLevelRequestsWhileAsyncLoadingInMatch 1",
+            L"wp.Runtime.UpdateStreamingStateTimeLimit 8",
+            L"s.AsyncLoadingTimeLimit 16",
+            L"s.AsyncLoadingUseFullTimeLimit 1",
+            L"s.PriorityAsyncLoadingExtraTime 40",
+            L"s.LevelStreamingActorsUpdateTimeLimit 8",
+            L"s.UnregisterComponentsTimeLimit 8",
+            L"s.MaxIncomingRequestsToStall 0",
+            L"s.MaxReadyRequestsToStallMB 0",
+            L"log LogGameFeatures off",
+        };
+
+        for (auto Command : StreamingBudgetLate)
+            UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(Command), nullptr);
+
+        printf("[Boron][Streaming] re-applied %d cvars at FinishWorldInitialization (world=%p)\n",
+               (int)(sizeof(StreamingBudgetLate) / sizeof(StreamingBudgetLate[0])), (void*)UWorld::GetWorld());
+    }
+
     // CH5 (UE5.4+): ReadyToStartMatch is called natively and bypasses its ExecHook, so the
     // listen setup there never runs. FinishWorldInitialization is an address-detour hook that
     // DOES fire on CH5 (this Athena-specific function) -> bring the listen server up here, once.
@@ -2284,9 +2328,9 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
                                         AddToTierData(Override.Second.LootTierData.Get(), LTDTempData);
                         }
                         else
-                            for (auto& Tag : Playlist->GameplayTagContainer.GameplayTags)
+                            for (int TagIdx = 0; TagIdx < Playlist->GameplayTagContainer.GameplayTags.Num(); TagIdx++)
                                 for (auto& Override : PlaylistOverrideLootTableDataLWC)
-                                    if (Tag.TagName.ComparisonIndex == Override.First)
+                                    if (Playlist->GameplayTagContainer.GameplayTags.Get(TagIdx, FGameplayTag::Size()).TagName.ComparisonIndex == Override.First)
                                         AddToTierData(Override.Second.LootTierData.Get(), LTDTempData);
                     }
 
@@ -2320,9 +2364,9 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
                                         AddToPackages(Override.Second.LootPackageData.Get(), LPTempData);
                         }
                         else
-                            for (auto& Tag : Playlist->GameplayTagContainer.GameplayTags)
+                            for (int TagIdx = 0; TagIdx < Playlist->GameplayTagContainer.GameplayTags.Num(); TagIdx++)
                                 for (auto& Override : PlaylistOverrideLootTableDataLWC)
-                                    if (Tag.TagName.ComparisonIndex == Override.First)
+                                    if (Playlist->GameplayTagContainer.GameplayTags.Get(TagIdx, FGameplayTag::Size()).TagName.ComparisonIndex == Override.First)
                                         AddToPackages(Override.Second.LootPackageData.Get(), LPTempData);
                     }
 
@@ -2415,8 +2459,8 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
             }
             else
             {
-                for (auto& Tag : Spawner->FiltersTags.GameplayTags)
-                    printf("Fix: Tag: %s\n", Tag.TagName.ToString().c_str());
+                for (int TagIdx = 0; TagIdx < Spawner->FiltersTags.GameplayTags.Num(); TagIdx++)
+                    printf("Fix: Tag: %s\n", Spawner->FiltersTags.GameplayTags.Get(TagIdx, FGameplayTag::Size()).TagName.ToString().c_str());
             }
         }
         Spawners.Free();

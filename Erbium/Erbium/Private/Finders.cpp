@@ -1302,6 +1302,9 @@ uint64_t FindKickPlayer()
             pattern =
                 Memcury::Scanner::FindPattern("48 89 5C 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 45 33 F6 48 89 4C 24 ? 45 8B FE").Get();
 
+        if (!pattern)
+            pattern = Memcury::Scanner::FindPattern("48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 40 48 8B DA 48 8B F1 48 8D 15 ? ? ? ? 49 8B F8 48 8D 4C 24 20 E8 ? ? ?").Get();
+
         return pattern;
     }
     else if (VersionInfo.EngineVersion >= 5.0)
@@ -1353,6 +1356,22 @@ uint64_t FindKickPlayer()
         }
 
     return Memcury::Scanner::FindPattern("40 53 41 56 48 81 EC ? ? ? ? 48 8B 01 48 8B DA 4C 8B F1 FF 90").Get();
+}
+
+uint64_t FindKickPlayerVirtual()
+{
+    if (VersionInfo.EngineVersion < 5.4)
+        return 0;
+
+    return Memcury::Scanner::FindPattern("48 8B C4 48 89 58 08 48 89 68 10 48 89 70 18 57 48 83 EC 40 48 8B DA 48 8B E9 48 8D 15 ? ? ? ? 49 8B F0 48 8D 48 D8").Get();
+}
+
+uint64_t FindSpawnActorTrackingGate()
+{
+    if (VersionInfo.EngineVersion < 5.4)
+        return 0;
+
+    return Memcury::Scanner::FindPattern("80 3D ? ? ? ? 01 0F 85 ? ? ? ? 48 8B CF E8 ? ? ? ? 4C 8B B7 00 02 00 00").Get();
 }
 
 uint64_t FindEncryptionPatch()
@@ -3595,6 +3614,7 @@ void FindNullsAndRetTrues()
             RetTrueFuncs.push_back(Memcury::Scanner::FindPattern("48 8B C4 48 89 58 08 48 89 70 10 48 89 78 18 4C 89 60 20 55 41 56 41 57 48 8B EC 48 83 EC 60 49 8B D9 45 8A").Get());
     }
     RetTrueFuncs.push_back(FindKickPlayer());
+    RetTrueFuncs.push_back(FindKickPlayerVirtual());
 
     if (VersionInfo.FortniteVersion >= 23)
     {

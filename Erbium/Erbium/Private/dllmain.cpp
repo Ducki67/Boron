@@ -262,10 +262,37 @@ void Main()
             L"s.UnregisterComponentsTimeLimit 8",
             L"s.MaxIncomingRequestsToStall 0",
             L"s.MaxReadyRequestsToStallMB 0",
+            L"s.OnlyProcessRequiredPackagesWhenSyncLoading 1",
+            L"s.StreamableFlushAllAsyncLoadRequestsOnWait 0",
+            L"s.World.ForceFlushAllAsyncLoadsDuringLevelStreaming 0",
+            L"wp.Runtime.BlockOnSlowStreaming 0",
+            L"s.AdaptiveAddToWorld.Enabled 1",
+            L"s.AllowLevelRequestsWhileAsyncLoadingInMatch 1",
+            L"wp.Runtime.UpdateStreamingStateTimeLimit 8",
         };
 
         for (auto Command : StreamingBudget)
             UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(Command), nullptr);
+
+        static const wchar_t* StreamingProbe[] = {
+            L"s.OnlyProcessRequiredPackagesWhenSyncLoading",
+            L"s.StreamableFlushAllAsyncLoadRequestsOnWait",
+            L"s.World.ForceFlushAllAsyncLoadsDuringLevelStreaming",
+            L"wp.Runtime.BlockOnSlowStreaming",
+            L"s.AdaptiveAddToWorld.Enabled",
+            L"s.AllowLevelRequestsWhileAsyncLoadingInMatch",
+            L"wp.Runtime.UpdateStreamingStateTimeLimit",
+            L"wp.Runtime.EnableServerStreaming",
+            L"wp.Runtime.EnableServerStreamingOut",
+            L"s.AsyncLoadingThreadEnabled",
+            L"s.EventDrivenLoaderEnabled",
+            L"s.UseBackgroundLevelStreaming",
+        };
+
+        printf("[Boron][Streaming] cvar readback follows\n");
+
+        for (auto Probe : StreamingProbe)
+            UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(Probe), nullptr);
     }
     UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"log LogSpecialEventScript VeryVerbose"), nullptr);
 
@@ -306,6 +333,24 @@ void Main()
         Hooking::Patch<uint8_t>(RetTrueFunc + 4, 0xc3);
     }
 
+    auto SpawnTrackingGate = FindSpawnActorTrackingGate();
+    if (SpawnTrackingGate)
+    {
+        auto Base = (uint64_t)GetModuleHandleW(nullptr);
+        auto Flag = (uint8_t*)(SpawnTrackingGate + 7 + *(int32_t*)(SpawnTrackingGate + 2));
+        printf("[Boron][SpawnGate] gate=%llX flag=%llX value=%u\n",
+               (unsigned long long)(SpawnTrackingGate - Base), (unsigned long long)((uint64_t)Flag - Base), (unsigned)*Flag);
+
+        if (*Flag == 1)
+        {
+            auto Jne = SpawnTrackingGate + 7;
+            auto Rel = *(int32_t*)(Jne + 2);
+            Hooking::Patch<uint8_t>(Jne, 0xE9);
+            Hooking::Patch<uint32_t>(Jne + 1, (uint32_t)(Rel + 1));
+            Hooking::Patch<uint8_t>(Jne + 5, 0x90);
+            printf("[Boron][SpawnGate] forced skip of uninitialised spawn-tracking block\n");
+        }
+    }
     auto GameSessionPatch = FindGameSessionPatch();
     if (GameSessionPatch)
         Hooking::Patch<uint8_t>(GameSessionPatch, 0x85);
@@ -344,6 +389,10 @@ void Main()
     else if (VersionInfo.FortniteVersion >= 12.00 && wcsstr(FConfig::Playlist, L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2"))
         terrainOpen = L"open Creative_NoApollo_Terrain";
     // temp for now
+    else if (VersionInfo.FortniteVersion == 30.20 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_BlastBerrySquad.Playlist_BlastBerrySquad"))
+        terrainOpen = L"open BlastBerry_Terrain";
+
+
     else if (VersionInfo.FortniteVersion == 31.41 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_SunflowerSolo.Playlist_SunflowerSolo"))
         terrainOpen = L"open BlastBerry_Terrain";
     /*

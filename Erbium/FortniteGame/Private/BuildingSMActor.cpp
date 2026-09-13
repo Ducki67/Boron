@@ -521,7 +521,7 @@ _out:
     };
 
     TArray<ABuildingSMActor*> RemoveBuildings;
-    if (VersionInfo.FortniteVersion >= 27)
+    if (CantBuild_ && VersionInfo.FortniteVersion >= 27)
     {
         char _Unk_OutVar1;
         auto CantBuild = (__int64 (*)(UWorld*, TSubclassOf<AActor>&, _Pad_0x18, _Pad_0x18, bool, TArray<ABuildingSMActor*>*, char*))CantBuild_;
@@ -529,7 +529,7 @@ _out:
         if (CantBuild(UWorld::GetWorld(), BuildingClass, *(_Pad_0x18*)&BuildingLocation, *(_Pad_0x18*)&BuildingRotation, false, &RemoveBuildings, &_Unk_OutVar1))
             return;
     }
-    else
+    else if (CantBuild_)
     {
         char _Unk_OutVar1;
         auto CantBuild = (__int64 (*)(UWorld*, const UClass*, _Pad_0xC, _Pad_0xC, bool, TArray<ABuildingSMActor*>*, char*))CantBuild_;

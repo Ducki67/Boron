@@ -92,7 +92,10 @@ struct FConfig
     //  also if u looking for playlist ids look at: https://github.com/Ducki67/OGFN-Build-Dumps  i have some ids there and might upload some more
     
     
+
+    // static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_BlastBerrySquad.Playlist_BlastBerrySquad"; // 30.20 reload venture!
     static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo";
+    ///static inline wchar_t Playlist[9999] = L"/BlueCheese/Playlists/Playlist_ShowdownAlt_BlueCheese_Trios.Playlist_ShowdownAlt_BlueCheese_Trios"; // Bugha's LateGame Arena trios (17.20)
     
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Showdown/Playlist_ShowdownAlt_Solo.Playlist_ShowdownAlt_Solo";
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2";  // creative
@@ -106,29 +109,29 @@ struct FConfig
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Titanium/Playlist_Titanium_Solo.Playlist_Titanium_Solo"; // Rags to Riches (its s13 only and TODO: weapon uprgadas)
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Tutorial/Playlist_Tutorial_1.Playlist_Tutorial_1"; // tutorial  (works lmao)
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/gg/Playlist_Gg_Reverse.Playlist_Gg_Reverse"; // gungame (maybe ill add this but dont ask bruh :/ )
-
+    // static inline wchar_t Playlist[9999] = L"/Melt/Playlists/Playlist_ShowdownTournament_Melt_Solo_A.Playlist_ShowdownTournament_Melt_Solo_A"; // 29.40 Midas' Floor is lava
 
     /*  31.41 Testing playlists*/
     // static inline wchar_t Playlist[9999] = L"/BRPlaylists/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo"; // BR
-    //static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_SunflowerSolo.Playlist_SunflowerSolo"; // venture Reload (testing)
-
-
+    // static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_SunflowerSolo.Playlist_SunflowerSolo"; // venture Reload (testing)
+    
 
     /* static inline wchar_t Playlist[9999] = L"";
     static inline wchar_t Playlist[9999] = L"";
-    static inline wchar_t Playlist[9999] = L"";*/
+    static inline wchar_t Playlist[9999] = L"";
+    */
 
 
 
 
-    static inline auto MaxTickRate = 30;
+    static inline auto MaxTickRate = 120;
 
     static inline auto Port = 7777; // can be 7777  or 7778
     static inline auto bEnableIris = true;
-    static inline constexpr auto bGUI = true;
+    static inline constexpr auto bGUI = false; // for now dont use this for  s30+  versions it might crash teh build more than it should
     static inline constexpr auto bCustomCrashReporter = true;
-    static inline constexpr auto bUseStdoutLog = false;
-    static inline constexpr auto bSaveConsoleLog = false; // for 31.41 use this to check for some logs Boron_Console.txt  btw) 
+    static inline constexpr auto bUseStdoutLog = true;
+    static inline constexpr auto bSaveConsoleLog = true; // for 31.41 use this to check for some logs Boron_Console.txt  btw) 
 
     struct CreativeModeConfig
     {   // TODO: fix island not laoding on s7 creative  i swear its the same code but on s8+ works but not on s7 what thge helly :sob:
