@@ -978,8 +978,8 @@ void AFortGameMode::ReadyToStartMatch_(UObject* Context, FFrame& Stack, bool* Re
 
         GUI::gsStatus = Joinable;
         sprintf_s(GUI::windowTitle,
-                  VersionInfo.EngineVersion >= 5.0 ? "Erbium (FN %.2f, UE %.1f): Joinable"
-                                                   : (VersionInfo.FortniteVersion >= 5.00 || VersionInfo.FortniteVersion < 1.2 ? "Erbium (FN %.2f, UE %.2f): Joinable" : "Erbium (FN %.1f, UE %.2f): Joinable"),
+                  VersionInfo.EngineVersion >= 5.0 ? "Boron (FN %.2f, UE %.1f): Joinable"
+                                                   : (VersionInfo.FortniteVersion >= 5.00 || VersionInfo.FortniteVersion < 1.2 ? "Boron (FN %.2f, UE %.2f): Joinable" : "Boron (FN %.1f, UE %.2f): Joinable"),
                   VersionInfo.FortniteVersion, VersionInfo.EngineVersion);
         SetConsoleTitleA(GUI::windowTitle);
         GameMode->bWorldIsReady = true;
@@ -1592,8 +1592,8 @@ bool AFortGameMode::StartAircraftPhase(AFortGameMode* GameMode, char a2)
     }
     GUI::gsStatus = StartedMatch;
     sprintf_s(GUI::windowTitle,
-              VersionInfo.EngineVersion >= 5.0 ? "Erbium (FN %.2f, UE %.1f): Match started"
-                                               : (VersionInfo.FortniteVersion >= 5.00 || VersionInfo.FortniteVersion < 1.2 ? "Erbium (FN %.2f, UE %.2f): Match started" : "Erbium (FN %.1f, UE %.2f): Match started"),
+              VersionInfo.EngineVersion >= 5.0 ? "Boron (FN %.2f, UE %.1f): Match started"
+                                               : (VersionInfo.FortniteVersion >= 5.00 || VersionInfo.FortniteVersion < 1.2 ? "Boron (FN %.2f, UE %.2f): Match started" : "Boron (FN %.1f, UE %.2f): Match started"),
               VersionInfo.FortniteVersion, VersionInfo.EngineVersion);
     SetConsoleTitleA(GUI::windowTitle);
 
@@ -1952,7 +1952,11 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
     auto GameState = (AFortGameStateAthena*)GameMode->GameState;
 
     printf("[GameMode] FinishWorldInitialization\n");
+    auto FwiStart = GetTickCount64();
     FinishWorldInitializationOG(_this, WorldManager);
+
+    if (VersionInfo.EngineVersion >= 5.4)
+        printf("[Boron][Perf] FinishWorldInitializationOG took=%llums\n", (unsigned long long)(GetTickCount64() - FwiStart));
 
     if (VersionInfo.EngineVersion >= 5.4 && WorldManager)
     {
@@ -2144,6 +2148,13 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
                 GameMode->bWorldIsReady = true;
 
             printf("[Boron][Playlist] CH5 FWI: DefaultPawnClass=%p bWorldIsReady=1 warmup-count deferred until first client\n", (void*)PawnClass);
+
+            GUI::gsStatus = Joinable;
+            sprintf_s(GUI::windowTitle,
+                      VersionInfo.EngineVersion >= 5.0 ? "Boron (FN %.2f, UE %.1f): Joinable"
+                                                       : "Boron (FN %.2f, UE %.2f): Joinable",
+                      VersionInfo.FortniteVersion, VersionInfo.EngineVersion);
+            SetConsoleTitleA(GUI::windowTitle);
 
             // CH5: generate the flight path so the real Battle Bus can spawn (MapInfo->FlightInfos starts
             // empty on CH5). No-op until FindInitializeFlightPath() returns a verified 31.41 address, in
@@ -2382,15 +2393,36 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
         _this->OnPlaylistLootTablesAppliedDelegate.Process();
     }
 
-    auto FloorLootWarmupC = FindObject<UClass>(L"/Game/Athena/Environments/Blueprints/Tiered_Athena_FloorLoot_Warmup.Tiered_Athena_FloorLoot_Warmup_C");
-    auto FloorLoot01C = FindObject<UClass>(L"/Game/Athena/Environments/Blueprints/Tiered_Athena_FloorLoot_01.Tiered_Athena_FloorLoot_01_C");
+    auto ProbeStart = GetTickCount64();
+
+    const UClass* FloorLootWarmupC = nullptr;
+    const UClass* FloorLoot01C = nullptr;
+
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        FloorLootWarmupC = FindObjectNoLoad<UClass>(L"/Game/Athena/Environments/Blueprints/Tiered_Athena_FloorLoot_Warmup.Tiered_Athena_FloorLoot_Warmup_C");
+        FloorLoot01C = FindObjectNoLoad<UClass>(L"/Game/Athena/Environments/Blueprints/Tiered_Athena_FloorLoot_01.Tiered_Athena_FloorLoot_01_C");
+
+        printf("[Boron][Perf] floor-loot BP probe (no-load) took=%llums Warmup=%p Floor01=%p\n",
+               GetTickCount64() - ProbeStart, (void*)FloorLootWarmupC, (void*)FloorLoot01C);
+    }
+    else
+    {
+        FloorLootWarmupC = FindObject<UClass>(L"/Game/Athena/Environments/Blueprints/Tiered_Athena_FloorLoot_Warmup.Tiered_Athena_FloorLoot_Warmup_C");
+        FloorLoot01C = FindObject<UClass>(L"/Game/Athena/Environments/Blueprints/Tiered_Athena_FloorLoot_01.Tiered_Athena_FloorLoot_01_C");
+    }
 
     if (VersionInfo.EngineVersion >= 5.4)
         printf("[Boron][Loot] tables: TierGroups=%zu LootPackages=%zu | FloorLoot BP: Warmup=%p Floor01=%p (null BP => path wrong for 31.41)\n",
                TierDataMap.size(), LootPackageMap.size(), (void*)FloorLootWarmupC, (void*)FloorLoot01C);
 
+    auto SpawnStart = GetTickCount64();
+
     UFortLootPackage::SpawnFloorLootForContainer(FloorLootWarmupC);
     UFortLootPackage::SpawnFloorLootForContainer(FloorLoot01C);
+
+    if (VersionInfo.EngineVersion >= 5.4)
+        printf("[Boron][Perf] SpawnFloorLootForContainer x2 took=%llums\n", GetTickCount64() - SpawnStart);
 
     if (VersionInfo.EngineVersion >= 5.4)
     {
@@ -2415,8 +2447,13 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
     TArray<ABGAConsumableSpawner*> ConsumableSpawners{};
     Utils::GetAll<ABGAConsumableSpawner>(ConsumableSpawners);
 
+    auto ConsumableStart = GetTickCount64();
+
     for (auto& Spawner : ConsumableSpawners)
         UFortLootPackage::SpawnConsumableActor(Spawner);
+
+    printf("[Boron][Perf] consumable spawn loop: spawners=%d took=%llums\n",
+           ConsumableSpawners.Num(), (unsigned long long)(GetTickCount64() - ConsumableStart));
 
     ConsumableSpawners.Free();
 
@@ -2434,6 +2471,9 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
             { FName(L"Athena.Vehicle.SpawnLocation.Valet.SportsCar.Upgraded"),  FindObject<UClass>(L"/Valet/SportsCar/Valet_SportsCar_Vehicle_Upgrade.Valet_SportsCar_Vehicle_Upgrade_C")            },
             { FName(L"Athena.Vehicle.SpawnLocation.Valet.BasicCar.Upgraded"),   FindObject<UClass>(L"/Valet/BasicCar/Valet_BasicCar_Vehicle_Upgrade.Valet_BasicCar_Vehicle_Upgrade_C")               }
         };
+
+        auto VehicleStart = GetTickCount64();
+        int VehiclesSpawned = 0;
 
         for (auto& Spawner : Spawners)
         {
@@ -2455,6 +2495,8 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
 
                 if (auto Car = Vehicle->Cast<AFortDagwoodVehicle>())
                     Car->SetFuel(100.f);
+
+                VehiclesSpawned++;
                 // printf("Spawned a %s\n", Spawner->Name.ToString().c_str());
             }
             else
@@ -2463,6 +2505,9 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
                     printf("Fix: Tag: %s\n", Spawner->FiltersTags.GameplayTags.Get(TagIdx, FGameplayTag::Size()).TagName.ToString().c_str());
             }
         }
+
+        printf("[Boron][Perf] vehicle spawn loop: spawners=%d spawned=%d took=%llums\n",
+               Spawners.Num(), VehiclesSpawned, (unsigned long long)(GetTickCount64() - VehicleStart));
         Spawners.Free();
     }
     // not an else here because they still use spawners for boats, and fully on s27
@@ -2596,6 +2641,9 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
         Hooking::ExecHook((UFunction*)FindObject<UFunction>(L"/Game/Athena/Items/Gameplay/VendingMachine/B_Athena_VendingMachine.B_Athena_VendingMachine_C:VendWobble__FinishedFunc"), VendWobble__FinishedFunc,
                           VendWobble__FinishedFuncOG);
     }
+
+    if (VersionInfo.EngineVersion >= 5.4)
+        printf("[Boron][Perf] FinishWorldInitialization TOTAL took=%llums\n", (unsigned long long)(GetTickCount64() - FwiStart));
     // Hooking::ExecHook((UFunction*)FindObject<UFunction>(L"/Game/Athena/Items/Consumables/Parents/GA_Athena_MedConsumable_Parent.GA_Athena_MedConsumable_Parent_C:Triggered_4C02BFB04B18D9E79F84848FFE6D2C32"),
     // AFortPlayerPawnAthena::Athena_MedConsumable_Triggered, AFortPlayerPawnAthena::Athena_MedConsumable_TriggeredOG);
 }
@@ -2619,22 +2667,32 @@ void AFortGameMode::TickCH5FloorLoot()
     if ((tick++ % 600) != 0)
         return;
 
+    auto WaveStart = GetTickCount64();
+
     static std::vector<const UClass*> LootClasses;
     static std::unordered_set<unsigned long long> DoneLocs;
     static int wave = 0;
     wave++;
 
     static const UClass* Floor01C = nullptr;
-    if (!Floor01C)
+    static bool Floor01Resolved = false;
+    if (!Floor01C && !Floor01Resolved)
     {
+        Floor01Resolved = true;
+
         Floor01C = FindObject<UClass>(L"/Game/Athena/Environments/Blueprints/Tiered_Athena_FloorLoot_01.Tiered_Athena_FloorLoot_01_C");
         if (Floor01C)
         {
             LootClasses.push_back(Floor01C);
             printf("[Boron][Loot] wave %d: resolved Tiered_Athena_FloorLoot_01_C=%p\n", wave, (void*)Floor01C);
         }
+        else
+        {
+            printf("[Boron][Loot] Tiered_Athena_FloorLoot_01_C not present on FN %.2f - not retrying (was a blocking load every wave)\n", VersionInfo.FortniteVersion);
+        }
     }
 
+#if 0
     if (wave <= 24 && (wave % 4) == 1)
     {
         static std::unordered_set<std::string> DiagSeen;
@@ -2675,6 +2733,7 @@ void AFortGameMode::TickCH5FloorLoot()
         }
         CSpawners.Free();
     }
+#endif
 
     {
         TArray<ABuildingContainer*> AllContainers;
@@ -2693,6 +2752,13 @@ void AFortGameMode::TickCH5FloorLoot()
 
                 if (strstr(cn.c_str(), "Tiered_Chest") || strstr(cn.c_str(), "Tiered_Ammo"))
                     AnchorClasses.insert((const void*)C->Class);
+
+                if (strstr(cn.c_str(), "FloorLoot") && !strstr(cn.c_str(), "Warmup") &&
+                    std::find(LootClasses.begin(), LootClasses.end(), (const UClass*)C->Class) == LootClasses.end())
+                {
+                    printf("[Boron][Loot] wave %d: new floor-loot class %s (%p)\n", wave, cn.c_str(), (void*)C->Class);
+                    LootClasses.push_back((const UClass*)C->Class);
+                }
             }
         }
 
@@ -2780,6 +2846,8 @@ void AFortGameMode::TickCH5FloorLoot()
         }
         Containers.Free();
     }
+
+    printf("[Boron][Perf] floor-loot wave %d took=%llums\n", wave, (unsigned long long)(GetTickCount64() - WaveStart));
 }
 
 void AFortGameMode::TickCH5PickupDummies()
@@ -2791,6 +2859,8 @@ void AFortGameMode::TickCH5PickupDummies()
     static int interval = 300;
     if ((tick++ % interval) != 150)
         return;
+
+    auto DummyStart = GetTickCount64();
 
     TArray<AFortPickupAthena*> Pickups;
     Utils::GetAll<AFortPickupAthena>(Pickups);
@@ -2823,6 +2893,11 @@ void AFortGameMode::TickCH5PickupDummies()
                fixed, firstFixed ? (void*)firstFixed->PrimaryPickupDummyItem : nullptr);
 
     interval = fixed ? 300 : (interval < 2400 ? interval * 2 : 2400);
+
+    static int perfLogged = 0;
+    if (perfLogged++ < 10)
+        printf("[Boron][Perf] dummy tick: scanned=%d fixed=%d took=%llums\n",
+               Pickups.Num(), fixed, (unsigned long long)(GetTickCount64() - DummyStart));
 
     Pickups.Free();
 }

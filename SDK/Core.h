@@ -1119,6 +1119,17 @@ namespace SDK
         return Object ? Object : StaticLoadObject(ObjectPath, Class);
     }
 
+    static const UObject* FindObjectNoLoad(const wchar_t* ObjectPath, const UClass* Class)
+    {
+        return StaticFindObject(ObjectPath, Class);
+    }
+
+    template <typename _Ot>
+    static const _Ot* FindObjectNoLoad(const wchar_t* ObjectPath, const UClass* Class = _Ot::StaticClass())
+    {
+        return (const _Ot*)FindObjectNoLoad(ObjectPath, Class);
+    }
+
     template <typename _Ot>
     static const _Ot* FindObject(const wchar_t* ObjectPath, const UClass* Class = _Ot::StaticClass())
     {

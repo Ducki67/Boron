@@ -179,6 +179,7 @@ public:
 
     DEFINE_FUNC(ServerAttemptAircraftJump, void);
     DEFINE_FUNC(KickFromAircraft, void);
+    DEFINE_PROP(CurrentAircraft, AActor*);
 };
 
 struct FQuickBarSlot

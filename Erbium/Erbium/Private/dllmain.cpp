@@ -249,6 +249,7 @@ void Main()
             L"log LogPhysics off",
             L"log LogSanitizeVehicleGamepadBindings off",
             L"log LogFortLinkDataManager off",
+            L"log LogFort off",
         };
 
         for (auto Category : NoisyCategories)
@@ -269,6 +270,9 @@ void Main()
             L"s.AdaptiveAddToWorld.Enabled 1",
             L"s.AllowLevelRequestsWhileAsyncLoadingInMatch 1",
             L"wp.Runtime.UpdateStreamingStateTimeLimit 8",
+
+            L"wp.Runtime.EnableServerStreaming 1",
+            L"wp.Runtime.EnableServerStreamingOut 1",
         };
 
         for (auto Command : StreamingBudget)

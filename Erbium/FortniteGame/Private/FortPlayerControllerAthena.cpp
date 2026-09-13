@@ -804,12 +804,30 @@ void AFortPlayerControllerAthena::ServerAttemptAircraftJump_(UObject* Context, F
         else
             PlayerController = (AFortPlayerControllerAthena*)Context;
 
+        static int JumpN = 0;
+        JumpN++;
+
+        auto AircraftComp = PlayerController->GetAircraftComponent();
+        void* CurAircraft = (AircraftComp && AircraftComp->HasCurrentAircraft()) ? (void*)AircraftComp->CurrentAircraft : nullptr;
+
+        printf("[Boron][Jump] #%d inAircraft=%d comp=%p currentAircraft=%p pawn=%p\n",
+               JumpN, (int)PlayerController->IsInAircraft(), (void*)AircraftComp, CurAircraft, (void*)PlayerController->Pawn);
+
+        if (VersionInfo.EngineVersion >= 5.4 && !PlayerController->IsInAircraft())
+        {
+            printf("[Boron][Jump] #%d ignored - not in aircraft\n", JumpN);
+            return;
+        }
+
         PlayerController->StateName = FName(L"Inactive");
 
         if (PlayerController->Pawn)
             PlayerController->UnPossess(PlayerController->Pawn);
 
         GameMode->RestartPlayer(PlayerController);
+
+        printf("[Boron][Jump] #%d after restart pawn=%p myFortPawn=%p\n",
+               JumpN, (void*)PlayerController->Pawn, (void*)PlayerController->MyFortPawn);
         // PlayerController->ServerRestartPlayer();
         PlayerController->SetControlRotation(Rotation);
 
