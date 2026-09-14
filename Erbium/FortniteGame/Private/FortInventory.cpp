@@ -7,12 +7,44 @@
 #include "../Public/FortWeapon.h"
 #include "../Public/FortWeaponMods.h"
 #include <ShlObj.h>
+#include <DbgHelp.h>
+#include <intrin.h>
+#pragma comment(lib, "dbghelp.lib")
 
 uint32_t OnItemInstanceAddedVft;
+extern const char* g_GiveTag;
+
+static void LogGiveCaller(void* Ret)
+{
+    static bool symInit = false;
+    auto prc = GetCurrentProcess();
+    if (!symInit) { symInit = true; SymSetOptions(SYMOPT_LOAD_LINES | SYMOPT_DEFERRED_LOADS); SymInitialize(prc, nullptr, TRUE); }
+
+    char buf[sizeof(IMAGEHLP_SYMBOL64) + 512]{};
+    auto sym = (IMAGEHLP_SYMBOL64*)buf;
+    sym->SizeOfStruct = sizeof(IMAGEHLP_SYMBOL64);
+    sym->MaxNameLength = 500;
+
+    DWORD64 disp64 = 0;
+    const char* name = SymGetSymFromAddr64(prc, (ULONG64)Ret, &disp64, sym) ? sym->Name : "?";
+
+    IMAGEHLP_LINE64 line{};
+    line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
+    DWORD disp32 = 0;
+
+    if (SymGetLineFromAddr64(prc, (ULONG64)Ret, &disp32, &line))
+        printf("[Boron][GiveTrace] caller=%s [%s:%lu]\n", name, line.FileName, line.LineNumber);
+    else
+        printf("[Boron][GiveTrace] caller=%s (no line info) addr=%p\n", name, Ret);
+}
 
 UFortWorldItem* AFortInventory::GiveItem(const UFortItemDefinition* Def, int Count, int LoadedAmmo, int Level, bool ShowPickupNoti, bool updateInventory, int PhantomReserveAmmo,
                                          TArray<FFortItemEntryStateValue> StateValues)
 {
+    static int gtn = 0;
+    if (gtn++ < 8)
+        LogGiveCaller(_ReturnAddress());
+
     if (!this || !Def || !Count)
         return nullptr;
     UFortWorldItem* Item = (UFortWorldItem*)Def->CreateTemporaryItemInstanceBP(Count, Level);
@@ -39,8 +71,8 @@ UFortWorldItem* AFortInventory::GiveItem(const UFortItemDefinition* Def, int Cou
 
                     static int mn = 0;
 
-                    if (mn++ < 10)
-                        printf("[Boron][Mods] %s spawned with %d mod slot(s)\n", Def->Name.ToString().c_str(), Slots.Num());
+                    if (mn++ < 40)
+                        printf("[Boron][Mods] %s spawned with %d mod slot(s) via=%s\n", Def->Name.ToString().c_str(), Slots.Num(), g_GiveTag);
                 }
             }
         }

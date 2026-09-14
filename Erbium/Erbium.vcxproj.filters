@@ -245,6 +245,7 @@
       <Filter>FortniteGame\Public</Filter>
     </ClInclude>
     <ClInclude Include="Erbium\Public\Mythics.h" />
+    <ClInclude Include="FortniteGame\Public\FortWeaponMods.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Erbium\Private\dllmain.cpp">

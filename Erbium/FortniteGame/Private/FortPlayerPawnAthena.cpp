@@ -49,6 +49,8 @@ public:
 uint64_t SetPickupTarget_ = 0;
 
 static void (*ServerHandlePickupProbeOG)(UObject*, FFrame&) = nullptr;
+static bool g_PickupInfoLive = false;
+const char* g_GiveTag = "?";
 static bool BeginPickupFlight(AFortPickupAthena* Pickup, AFortPlayerPawnAthena* Pawn, float InFlyTime, FVector& InStartDirection, bool bPlayPickupSound)
 {
     if (!Pickup || !Pawn || !Pickup->PickupLocationData.HasPickupTarget())
@@ -66,7 +68,9 @@ static bool BeginPickupFlight(AFortPickupAthena* Pickup, AFortPlayerPawnAthena* 
     if (Pickup->PickupLocationData.HasbPlayPickupSound())
         Pickup->PickupLocationData.bPlayPickupSound = bPlayPickupSound;
 
+    g_GiveTag = "onrep-loc";
     Pickup->OnRep_PickupLocationData();
+    g_GiveTag = "idle";
 
     return true;
 }
@@ -76,7 +80,9 @@ static void FinishPickup(AFortPickupAthena* Pickup, AFortPlayerPawnAthena* Pawn,
     if (!Pickup->bPickedUp)
     {
         Pickup->bPickedUp = true;
+        g_GiveTag = "onrep-picked";
         Pickup->OnRep_bPickedUp();
+        g_GiveTag = "idle";
     }
 
     if (bFlew)
@@ -115,6 +121,14 @@ static void ServerHandlePickupProbe(UObject* Context, FFrame& Stack)
 
     if (Pickup && Pickup->bPickedUp)
         return;
+
+    if (g_PickupInfoLive)
+    {
+        static int dup = 0;
+        if (dup++ < 5)
+            printf("[Boron][Pickup] ServerHandlePickup suppressed - ServerHandlePickupInfo already handles pickups on FN %.2f\n", VersionInfo.FortniteVersion);
+        return;
+    }
 
     int before = -1, after = -1;
 
@@ -257,6 +271,8 @@ void AFortPlayerPawnAthena::ServerHandlePickupInfo(UObject* Context, FFrame& Sta
     {
         auto PC = Pawn->Controller ? (AFortPlayerControllerAthena*)Pawn->Controller : nullptr;
 
+        g_PickupInfoLive = true;
+
         // pickup shit
         static int pn = 0;
         if (pn++ < 25)
@@ -393,8 +409,10 @@ void AFortPlayerPawnAthena::ServerHandlePickupInfo(UObject* Context, FFrame& Sta
 
             if (!bBlocked)
             {
+                g_GiveTag = "rpc";
                 if (Remaining > 0)
                     Inv->GiveItem(Entry, Remaining);
+                g_GiveTag = "idle";
 
                 bool bFlew = BeginPickupFlight(Pickup, Pawn, FlyTime, Direction, bPlayPickupSound);
                 FinishPickup(Pickup, Pawn, bFlew, "rpc");
@@ -550,7 +568,7 @@ bool AFortPlayerPawnAthena::FinishedTargetSpline(void* _Pickup)
             AFortInventory::SpawnPickup(PlayerController->GetViewTarget()->K2_GetActorLocation(), Pickup->PrimaryPickupItemEntry, EFortPickupSourceTypeFlag::GetPlayer(), EFortPickupSpawnSource::GetUnset(),
                                         PlayerController->MyFortPawn, -1, true, true, true, nullptr, FinalLoc);
     }
-    else
+    else if (!g_PickupInfoLive)
         PlayerController->InternalPickup(&Pickup->PrimaryPickupItemEntry);
 
     return FinishedTargetSplineOG(Pickup);
@@ -1057,7 +1075,8 @@ void UClamberingComponent::Configure(AActor* Pawn)
 
     if (bLog)
         printf("[Boron][Clamber] pawn=%p comp=%p enabled=%.2f indicator=%.2f maxDist=%.0f failDelay=%.2f syncDelay=%.2f mme=%p isEnabled=%d autoClamber=%d\n",
-               (void*)Pawn, (void*)Comp, Enabled, Comp->HasClamberIndicatorEnabled() ? Comp->ClamberIndicatorEnabled.Evaluate() : -1.f, MaxDist, FailDelay,
+               (void*)Pawn, (void*)Comp, Enabled, Comp->HasClamberIndicatorEnabled() ? Comp->ClamberIndicatorEnabled.Evaluate() : -1.f,
+               Comp->HasServerValidatePlayerMaxDistance() ? Comp->ServerValidatePlayerMaxDistance.Evaluate() : -1.f, FailDelay,
                SyncDelay, Comp->HasMovementModeExtension() ? (void*)Comp->MovementModeExtension : nullptr,
                Comp->GetFunction("IsClamberingEnabled") ? (int)Comp->IsClamberingEnabled() : -1,
                Comp->GetFunction("IsAutoClamberingEnabled") ? (int)Comp->IsAutoClamberingEnabled() : -1);

@@ -94,7 +94,7 @@ struct FConfig
     
 
     // static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_BlastBerrySquad.Playlist_BlastBerrySquad"; // 30.20 reload venture!
-    static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo";
+    //static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo";
     ///static inline wchar_t Playlist[9999] = L"/BlueCheese/Playlists/Playlist_ShowdownAlt_BlueCheese_Trios.Playlist_ShowdownAlt_BlueCheese_Trios"; // Bugha's LateGame Arena trios (17.20)
     
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Showdown/Playlist_ShowdownAlt_Solo.Playlist_ShowdownAlt_Solo";
@@ -109,7 +109,7 @@ struct FConfig
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Titanium/Playlist_Titanium_Solo.Playlist_Titanium_Solo"; // Rags to Riches (its s13 only and TODO: weapon uprgadas)
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Tutorial/Playlist_Tutorial_1.Playlist_Tutorial_1"; // tutorial  (works lmao)
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/gg/Playlist_Gg_Reverse.Playlist_Gg_Reverse"; // gungame (maybe ill add this but dont ask bruh :/ )
-    // static inline wchar_t Playlist[9999] = L"/Melt/Playlists/Playlist_ShowdownTournament_Melt_Solo_A.Playlist_ShowdownTournament_Melt_Solo_A"; // 29.40 Midas' Floor is lava
+    static inline wchar_t Playlist[9999] = L"/Melt/Playlists/Playlist_Melt_Squads.Playlist_Melt_Squads"; // 29.40 Midas' Floor is lava (broken mme or sum)
 
     /*  31.41 Testing playlists*/
     // static inline wchar_t Playlist[9999] = L"/BRPlaylists/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo"; // BR

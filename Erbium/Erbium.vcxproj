@@ -209,6 +209,7 @@
     <ClInclude Include="FortniteGame\Public\FortSafeZoneIndicator.h" />
     <ClInclude Include="FortniteGame\Public\FortVolume.h" />
     <ClInclude Include="FortniteGame\Public\FortWeapon.h" />
+    <ClInclude Include="FortniteGame\Public\FortWeaponMods.h" />
     <ClInclude Include="FortniteGame\Public\GameplayTagContainer.h" />
     <ClInclude Include="FortniteGame\Public\LevelStreamingDynamic.h" />
     <ClInclude Include="framework.h" />

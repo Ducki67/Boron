@@ -83,15 +83,27 @@ static UFortPlaylistAthena* FindLoadedPlaylist()
 
 void SetupPlaylist(AFortGameMode* GameMode, AFortGameStateAthena* GameState)
 {
+    const char* PlaylistSource = "config";
     auto Playlist = FindObject<UFortPlaylistAthena>(FConfig::Playlist);
 
     if (!Playlist)
+    {
+        PlaylistSource = "FALLBACK-DefaultSolo";
         Playlist = FindObject<UFortPlaylistAthena>(L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo");
+    }
 
     if (!Playlist)
+    {
+        PlaylistSource = "FALLBACK-FindLoaded";
         Playlist = FindLoadedPlaylist();
+    }
 
-    printf("[Boron][Playlist] SetupPlaylist -> Playlist=%p\n", (void*)Playlist);
+    printf("[Boron][Playlist] SetupPlaylist -> Playlist=%p obj=%s id=%d source=%s want='%ls'\n",
+           (void*)Playlist,
+           Playlist ? Playlist->Name.ToString().c_str() : "none",
+           (Playlist && Playlist->HasPlaylistId()) ? Playlist->PlaylistId : -1,
+           PlaylistSource,
+           FConfig::Playlist);
 
     if (Playlist)
     {
@@ -2845,6 +2857,59 @@ void AFortGameMode::TickCH5FloorLoot()
             fresh++;
         }
         Containers.Free();
+    }
+
+    {
+        static const UClass* GoldenLavaClass = nullptr;
+        static bool MeltProbed = false;
+
+        if (!MeltProbed)
+        {
+            MeltProbed = true;
+            GoldenLavaClass = FindClass("DSA_BR_Ch5S2_GoldenLava_C");
+
+            auto MeltMutatorClass = FindClass("FortAthenaMutator_Melt");
+            auto AbilitySetClass = FindClass("FortAbilitySet");
+
+            printf("[Boron][Melt] mutatorClass=%p goldenLavaClass=%p\n", (void*)MeltMutatorClass, (void*)GoldenLavaClass);
+
+            if (AbilitySetClass)
+                for (int i = 0; i < TUObjectArray::Num(); i++)
+                {
+                    auto Obj = TUObjectArray::GetObjectByIndex(i);
+
+                    if (!Obj || Obj->IsDefaultObject() || !Obj->IsA(AbilitySetClass))
+                        continue;
+
+                    auto nm = Obj->Name.ToString();
+
+                    if (!strstr(nm.c_str(), "Melt") && !strstr(nm.c_str(), "Lava") && !strstr(nm.c_str(), "Surface")
+                        && !strstr(nm.c_str(), "Clamber") && !strstr(nm.c_str(), "Dash") && !strstr(nm.c_str(), "Hurdle"))
+                        continue;
+
+                    auto Pkg = Obj->Outer;
+                    auto Outer2 = Pkg ? Pkg->Outer : nullptr;
+
+                    printf("[Boron][Melt] set %s outer=%s outer2=%s\n", nm.c_str(),
+                           Pkg ? Pkg->Name.ToString().c_str() : "none",
+                           Outer2 ? Outer2->Name.ToString().c_str() : "none");
+                }
+        }
+
+        if (GoldenLavaClass)
+        {
+            int live = 0;
+
+            for (int i = 0; i < TUObjectArray::Num(); i++)
+            {
+                auto Obj = TUObjectArray::GetObjectByIndex(i);
+
+                if (Obj && !Obj->IsDefaultObject() && Obj->Class == GoldenLavaClass)
+                    live++;
+            }
+
+            printf("[Boron][Melt] wave %d live GoldenLava actors=%d\n", wave, live);
+        }
     }
 
     printf("[Boron][Perf] floor-loot wave %d took=%llums\n", wave, (unsigned long long)(GetTickCount64() - WaveStart));
