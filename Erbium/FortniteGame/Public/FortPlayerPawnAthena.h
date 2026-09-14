@@ -218,6 +218,7 @@ public:
     DEFINE_FUNC(ServerThrowCarriedPlayer, void);
     DEFINE_FUNC(LocalThrowCarriedPlayer, void);
     DEFINE_FUNC(GetVehicleActor, AActor*);
+    DEFINE_FUNC(OnRep_SynchedActionWarpPointInfo, void);
 
     DefUHookOg(ServerHandlePickup_);
     DefUHookOg(ServerHandlePickupInfo); //TODO: needs a fix for crash on 16.xx builds (confirmed a crash on 16.40)

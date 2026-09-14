@@ -2415,6 +2415,12 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
         FloorLootWarmupC = FindObjectNoLoad<UClass>(L"/Game/Athena/Environments/Blueprints/Tiered_Athena_FloorLoot_Warmup.Tiered_Athena_FloorLoot_Warmup_C");
         FloorLoot01C = FindObjectNoLoad<UClass>(L"/Game/Athena/Environments/Blueprints/Tiered_Athena_FloorLoot_01.Tiered_Athena_FloorLoot_01_C");
 
+        if (!FloorLootWarmupC)
+            FloorLootWarmupC = FindClass("Tiered_Athena_FloorLoot_Warmup_C");
+
+        if (!FloorLoot01C)
+            FloorLoot01C = FindClass("Tiered_Athena_FloorLoot_01_C");
+
         printf("[Boron][Perf] floor-loot BP probe (no-load) took=%llums Warmup=%p Floor01=%p\n",
                GetTickCount64() - ProbeStart, (void*)FloorLootWarmupC, (void*)FloorLoot01C);
     }

@@ -1014,7 +1014,19 @@ void UClamberingComponent::ServerStartClambering(UObject* Context, FFrame& Stack
                Comp->HasLocalClamberingState() ? (int)Comp->LocalClamberingState : -1,
                Comp->HasReplicatedClamberingState() ? (int)Comp->ReplicatedClamberingState : -1);
 
-    return ServerStartClamberingOG(Context, Stack);
+    ServerStartClamberingOG(Context, Stack);
+
+    auto WarpPawn = (AFortPlayerPawnAthena*)Comp->Outer;
+
+    if (WarpPawn && WarpPawn->GetFunction("OnRep_SynchedActionWarpPointInfo"))
+    {
+        WarpPawn->OnRep_SynchedActionWarpPointInfo();
+
+        static int w = 0;
+
+        if (w++ < 8)
+            printf("[Boron][Clamber] hand-called OnRep_SynchedActionWarpPointInfo pawn=%p\n", (void*)WarpPawn);
+    }
 }
 
 void UClamberingComponent::NetMulticast_ClamberingLedgeFailed(UObject* Context, FFrame& Stack)
@@ -1074,12 +1086,15 @@ void UClamberingComponent::Configure(AActor* Pawn)
     }
 
     if (bLog)
-        printf("[Boron][Clamber] pawn=%p comp=%p enabled=%.2f indicator=%.2f maxDist=%.0f failDelay=%.2f syncDelay=%.2f mme=%p isEnabled=%d autoClamber=%d\n",
+        printf("[Boron][Clamber] pawn=%p comp=%p enabled=%.2f indicator=%.2f maxDist=%.0f failDelay=%.2f syncDelay=%.2f mme=%p isEnabled=%d autoClamber=%d walkTarget=%d swimTarget=%d showInd=%d\n",
                (void*)Pawn, (void*)Comp, Enabled, Comp->HasClamberIndicatorEnabled() ? Comp->ClamberIndicatorEnabled.Evaluate() : -1.f,
                Comp->HasServerValidatePlayerMaxDistance() ? Comp->ServerValidatePlayerMaxDistance.Evaluate() : -1.f, FailDelay,
                SyncDelay, Comp->HasMovementModeExtension() ? (void*)Comp->MovementModeExtension : nullptr,
                Comp->GetFunction("IsClamberingEnabled") ? (int)Comp->IsClamberingEnabled() : -1,
-               Comp->GetFunction("IsAutoClamberingEnabled") ? (int)Comp->IsAutoClamberingEnabled() : -1);
+               Comp->GetFunction("IsAutoClamberingEnabled") ? (int)Comp->IsAutoClamberingEnabled() : -1,
+               Comp->HasbPerformTargetingWhileWalking() ? (int)Comp->bPerformTargetingWhileWalking : -1,
+               Comp->HasbPerformTargetingWhileSwimming() ? (int)Comp->bPerformTargetingWhileSwimming : -1,
+               Comp->GetFunction("ShouldShowClamberIndicator") ? (int)Comp->ShouldShowClamberIndicator() : -1);
 }
 
 void UClamberingComponent::PostLoadHook()
