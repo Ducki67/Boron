@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "../../../Erbium/Erbium/Public/Configuration.h"
+
 #include "../Public/Client.h"
 #include <thread>
 #include <cstdio>
@@ -40,6 +41,7 @@ void Main()
     freopen_s(&s, "CONIN$", "r", stdin);
     SetConsoleTitleA("BoronClient");
     */
+    
     SDK::Init();
 
 

@@ -246,6 +246,7 @@
     </ClInclude>
     <ClInclude Include="Erbium\Public\Mythics.h" />
     <ClInclude Include="FortniteGame\Public\FortWeaponMods.h" />
+    <ClInclude Include="Erbium\Public\Dumper.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Erbium\Private\dllmain.cpp">
@@ -347,6 +348,7 @@
     <ClCompile Include="Erbium\Private\Hooking.cpp">
       <Filter>Erbium\Private</Filter>
     </ClCompile>
+    <ClCompile Include="Erbium\Private\Dumper.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Library Include="minhook.lib" />
