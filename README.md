@@ -61,7 +61,7 @@ Currently the only versions that are "supported" are below:
 
 - Progress (31.30): **~41% Done**
 
-- Progress (30.20): **~40% Done**
+- Progress (30.40): **~40% Done**
 
 - Progress (30.20): **~40% Done**
 
