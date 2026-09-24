@@ -48,36 +48,22 @@ A modifiyed/forked Erbium gameserver with my own features and fixes
 
 <details>
 
-Currently the only versions that are "supported" are **31.41 C5S4** and **30.20 C5S3**
+Currently the only versions that are "supported" are below:
 
-Progress (31.41): **37% Done**
+| Version | Season | Status
+|---|---|---|
+| v30.20 | Chapter 5 Season 3 | Supported |
+| v30.40 | Chapter 5 Season 3 | Supported |
+| v31.30 | Chapter 5 Season 3 | Supported |
+| v31.41 | Chapter 5 Season 3 | Supported |
 
-Progress (30.20): **~40% Done**
+- Progress (31.41): **~41% Done**
 
-**31.41 Features (currently a lot missing)**
+- Progress (31.30): **~41% Done**
 
-- In-game (Br, Reload)
-- MME stuff (hurdle still needs fix + mantle needs to be added)
-- Chest, Ammo box looting
-- Floor loot (works 50% of the time on BR)
-- No proper NetMode/Ping (yet)
-- There's a tiny pickaxe but but doesnt really effect gameplay imo
-- Building and Editing
-- Reload
-- Reboots in reload (kinda bugged but yea)
-- Mixed Loot pool on reload (i wont fix it i just dont mind it at all)
-- Ch5 guns do damage (no weapon mods yet)
-- Kinda scuffed pickup (dont ask why)
+- Progress (30.20): **~40% Done**
 
-
-
-**30.20 Features (currently a tiny bit more stable for the beime being)**
-
-- In-game (BR and Reload squads)
-- Looting
-- Some weapon mods stuff
-- No mantleing (for now)
-- and a bit more which i kinda forgot...
+- Progress (30.20): **~40% Done**
 
 
 </details>
