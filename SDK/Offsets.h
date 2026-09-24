@@ -220,6 +220,8 @@ namespace SDK
         Offsets::Step = Memcury::Scanner::FindPattern("48 8B 41 20 4C 8B D2 48 8B D1 44 0F B6 08 48 FF").Get();
         if (!Offsets::Step)
             Offsets::Step = Memcury::Scanner::FindPattern("48 8B 41 ? 4C 8B DA 44 0F B6 08").Get();
+        if (!Offsets::Step)
+            Offsets::Step = Memcury::Scanner::FindPattern("48 8B 41 20 4C 8B DA 48 8B D1 44 0F B6 08 4C 8D 50 01").Get();
 
         if (VersionInfo.EngineVersion >= 5.4 || VersionInfo.EngineVersion == 5.2)
             Offsets::StepExplicitProperty = Memcury::Scanner::FindPattern("41 8B 40 ? 4D 8B C8 48 0F BA E0").Get();
@@ -372,6 +374,11 @@ namespace SDK
             if (!Offsets::StaticLoadObject)
                 Offsets::StaticLoadObject = Memcury::Scanner::FindPattern("40 55 53 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 "
                                                                           "85 ? ? ? ? 48 8B 85 ? ? ? ? 33 FF 4C 8B B5 ? ? ? ? 49 8B D8")
+                                                .Get();
+
+            if (!Offsets::StaticLoadObject)
+                Offsets::StaticLoadObject = Memcury::Scanner::FindPattern("40 55 53 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 "
+                                                                          "48 89 85 ? ? ? ? 48 8B 85 ? ? ? ? 45 33 ED 44 8B BD ? ? ? ? 49 8B D8")
                                                 .Get();
         }
         else

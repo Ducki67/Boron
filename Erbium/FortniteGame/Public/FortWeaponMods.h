@@ -310,16 +310,58 @@ namespace WeaponMods
         return UFortWeaponModFunctionLibrary::TryAddWeaponMod((UFortWeaponModItemDefinition*)Mod, Weapon);
     }
 
-    inline void NotifyRep(AFortWeapon* Weapon)
+    inline void SnapshotSlots(AFortWeapon* Weapon, TArray<FFortWeaponModSlot>& Out)
+    {
+        auto SlotSize = FFortWeaponModSlot::Size();
+
+        if (!Weapon || SlotSize <= 0)
+            return;
+
+        auto& Slots = Weapon->WeaponModSlots;
+
+        for (int i = 0; i < Slots.Num(); i++)
+            Out.Add(Slots.Get(i, SlotSize), SlotSize);
+    }
+
+    inline bool SlotsMatch(AFortWeapon* Weapon, const UFortWeaponModItemDefinition* const* Mods, int Count)
+    {
+        auto SlotSize = FFortWeaponModSlot::Size();
+
+        if (!Weapon || SlotSize <= 0)
+            return false;
+
+        auto& Slots = Weapon->WeaponModSlots;
+        int Wanted = 0;
+
+        for (int i = 0; i < Count; i++)
+        {
+            if (!Mods[i])
+                continue;
+
+            Wanted++;
+            bool bFound = false;
+
+            for (int j = 0; j < Slots.Num(); j++)
+                if (Slots.Get(j, SlotSize).WeaponMod == (const UFortItemDefinition*)Mods[i])
+                {
+                    bFound = true;
+                    break;
+                }
+
+            if (!bFound)
+                return false;
+        }
+
+        return Wanted > 0 && Slots.Num() == Wanted;
+    }
+
+    inline void NotifyRep(AFortWeapon* Weapon, TArray<FFortWeaponModSlot>& Previous)
     {
         if (!Weapon)
             return;
 
         if (auto OnRepFn = Weapon->GetFunction("OnRep_ReplicatedWeaponModSlots"))
-        {
-            TArray<FFortWeaponModSlot> Previous{};
             Weapon->ProcessEvent(OnRepFn, &Previous);
-        }
 
         Weapon->ForceNetUpdate();
     }
@@ -335,6 +377,9 @@ namespace WeaponMods
             return 0;
 
         auto& Slots = Weapon->WeaponModSlots;
+
+        TArray<FFortWeaponModSlot> Previous{};
+        SnapshotSlots(Weapon, Previous);
 
         Slots.NumElements = 0;
 
@@ -357,7 +402,8 @@ namespace WeaponMods
             Written++;
         }
 
-        NotifyRep(Weapon);
+        NotifyRep(Weapon, Previous);
+        Previous.Free();
         return Written;
     }
 
@@ -419,11 +465,16 @@ namespace WeaponMods
             return false;
         }
 
+        TArray<FFortWeaponModSlot> Previous{};
+        SnapshotSlots(Weapon, Previous);
+
         bool bNative = NativeAdd(Weapon, Mod);
         int Written = bNative ? Weapon->WeaponModSlots.Num() : WriteSlots(Weapon, Entry->Mods, Entry->Count);
 
         if (bNative)
-            NotifyRep(Weapon);
+            NotifyRep(Weapon, Previous);
+
+        Previous.Free();
 
         printf("[Boron][Mods] apply %s (%s) to %s -> %d slot(s) native=%d\n", Mod->Name.ToString().c_str(), CategoryName(Category(Mod)), WeaponName.c_str(), Written, (int)bNative);
 
@@ -435,6 +486,9 @@ namespace WeaponMods
         if (!IsSupported(Weapon))
             return;
 
+        TArray<FFortWeaponModSlot> Previous{};
+        SnapshotSlots(Weapon, Previous);
+
         if (auto Entry = FindStore(Weapon->ItemEntryGuid))
             if (HasNative())
                 for (int i = 0; i < Entry->Count; i++)
@@ -443,7 +497,8 @@ namespace WeaponMods
 
         RemoveStore(Weapon->ItemEntryGuid);
         Weapon->WeaponModSlots.NumElements = 0;
-        NotifyRep(Weapon);
+        NotifyRep(Weapon, Previous);
+        Previous.Free();
 
         printf("[Boron][Mods] cleared mods on %s\n", Weapon->HasWeaponData() && Weapon->WeaponData ? Weapon->WeaponData->Name.ToString().c_str() : "weapon");
     }
@@ -458,6 +513,19 @@ namespace WeaponMods
         if (!Entry || Entry->Count <= 0)
             return;
 
+        if (SlotsMatch(Weapon, Entry->Mods, Entry->Count))
+        {
+            static int skipped = 0;
+
+            if (skipped++ < 20)
+                printf("[Boron][Mods] reapply skipped on equip of %s - mods already on weapon\n", Weapon->HasWeaponData() && Weapon->WeaponData ? Weapon->WeaponData->Name.ToString().c_str() : "weapon");
+
+            return;
+        }
+
+        TArray<FFortWeaponModSlot> Previous{};
+        SnapshotSlots(Weapon, Previous);
+
         int Native = 0;
 
         for (int i = 0; i < Entry->Count; i++)
@@ -467,7 +535,9 @@ namespace WeaponMods
         int Written = Native == Entry->Count ? Native : WriteSlots(Weapon, Entry->Mods, Entry->Count);
 
         if (Native > 0)
-            NotifyRep(Weapon);
+            NotifyRep(Weapon, Previous);
+
+        Previous.Free();
 
         printf("[Boron][Mods] reapplied %d mod(s) on equip of %s native=%d\n", Written, Weapon->HasWeaponData() && Weapon->WeaponData ? Weapon->WeaponData->Name.ToString().c_str() : "weapon", Native);
     }

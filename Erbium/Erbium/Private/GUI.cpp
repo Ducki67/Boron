@@ -834,6 +834,9 @@ void GUI::Init()
             ImGui::BulletText("Sarah (@ustruct on Discord)");
             ImGui::Text("Bosses on C2S4");
             ImGui::BulletText("Andreu");
+            ImGui::Text("30.40 and other Hi-Season exes");
+            ImGui::BulletText("Fmgnio");
+
         }
 
 

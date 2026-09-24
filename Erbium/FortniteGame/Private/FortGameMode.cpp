@@ -375,6 +375,22 @@ void AFortGameMode::ReadyToStartMatch_(UObject* Context, FFrame& Stack, bool* Re
 
     if (shouldSetup)
     {
+        auto DeferWorld = UWorld::GetWorld();
+
+        if (VersionInfo.EngineVersion >= 5.4 && VersionInfo.FortniteVersion >= 30.40 && DeferWorld && !DeferWorld->NetDriver)
+        {
+            static bool deferLogged = false;
+
+            if (!deferLogged)
+            {
+                deferLogged = true;
+                printf("[Boron][RTSM] FN %.2f: no NetDriver yet - waiting for FinishWorldInitialization to start listening\n", VersionInfo.FortniteVersion);
+            }
+
+            *Ret = false;
+            return;
+        }
+
         setup = true;
 
         auto World = UWorld::GetWorld();
@@ -2976,7 +2992,12 @@ void AFortGameMode::TickCH5PickupDummies()
 void AFortGameMode::Hook()
 {
     Hooking::ExecHook(GetDefaultObj()->GetFunction("ReadyToStartMatch"), ReadyToStartMatch_, ReadyToStartMatch_OG);
-    Hooking::Hook(FindFinishWorldInitialization(), FinishWorldInitialization, FinishWorldInitializationOG);
+    auto FwiAddr = FindFinishWorldInitialization();
+
+    if (VersionInfo.EngineVersion >= 5.4)
+        printf("[Boron][Finder] FinishWorldInitialization = 0x%llX (RVA 0x%llX)\n", (unsigned long long)FwiAddr, (unsigned long long)(FwiAddr ? FwiAddr - ImageBase : 0));
+
+    Hooking::Hook(FwiAddr, FinishWorldInitialization, FinishWorldInitializationOG);
     // if (VersionInfo.EngineVersion == 4.16)
     //     Hooking::Hook(Memcury::Scanner::FindPattern("40 55 53 56 41 56 48 8D 6C 24 ? 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 45 ? 48 8B 01 48 8B F1").Get(),
     //     OnWorldInitDone, OnWorldInitDoneOG);
