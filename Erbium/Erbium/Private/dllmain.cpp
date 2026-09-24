@@ -8,6 +8,9 @@
 #include "../Public/GUI.h"
 #include "../Public/Misc.h"
 #include "../Public/Utils.h"
+
+#include "../Public/Dumper.h"
+
 #include <chrono>
 #include <iostream>
 #include <thread>
@@ -392,12 +395,13 @@ void Main()
     }
     else if (VersionInfo.FortniteVersion >= 12.00 && wcsstr(FConfig::Playlist, L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2"))
         terrainOpen = L"open Creative_NoApollo_Terrain";
-    // temp for now
-    else if (VersionInfo.FortniteVersion == 30.20 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_BlastBerrySquad.Playlist_BlastBerrySquad"))
+    
+
+    else if (VersionInfo.FortniteVersion >= 30.20 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_BlastBerrySquad.Playlist_BlastBerrySquad"))
         terrainOpen = L"open BlastBerry_Terrain";
 
-
-    else if (VersionInfo.FortniteVersion == 31.41 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_SunflowerSolo.Playlist_SunflowerSolo"))
+    // forgot to update thsi shit
+    else if (VersionInfo.FortniteVersion >= 31.00 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_SunflowerSolo.Playlist_SunflowerSolo"))
         terrainOpen = L"open BlastBerry_Terrain";
     /*
      else if (VersionInfo.FortniteVersion == 32.00 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_PunchBerrySolo.Playlist_PunchBerrySolo"))
@@ -416,6 +420,9 @@ void Main()
         else if (VersionInfo.FortniteVersion >= 11.00)
             terrainOpen = L"open Apollo_Terrain";
     }
+
+    DumpIfNeeded();
+
 
     UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(terrainOpen), nullptr);
 

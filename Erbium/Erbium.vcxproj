@@ -240,7 +240,6 @@
     <ClCompile Include="Engine\Private\NetDriver.cpp" />
     <ClCompile Include="Erbium\Plugins\CrashReporter\Private\CrashReporter.cpp" />
     <ClCompile Include="Erbium\Private\dllmain.cpp" />
-    <ClCompile Include="Erbium\Private\Dumper.cpp" />
     <ClCompile Include="Erbium\Private\Events.cpp" />
     <ClCompile Include="Erbium\Private\Finders.cpp" />
     <ClCompile Include="Erbium\Private\GUI.cpp" />

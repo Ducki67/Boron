@@ -348,7 +348,6 @@
     <ClCompile Include="Erbium\Private\Hooking.cpp">
       <Filter>Erbium\Private</Filter>
     </ClCompile>
-    <ClCompile Include="Erbium\Private\Dumper.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Library Include="minhook.lib" />
