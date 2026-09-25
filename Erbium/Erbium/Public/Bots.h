@@ -218,6 +218,28 @@ namespace BossAI
         if (ItemsOff == -1)
             return false;
 
+        if (VersionInfo.FortniteVersion < 13.0)
+        {
+            auto& Defs = GetFromOffset<TArray<UFortItemDefinition*>>(Startup, ItemsOff);
+            bool bEquipped = false;
+            int Given = 0;
+            for (int i = 0; i < Defs.Num(); i++)
+            {
+                auto Def = Defs[i];
+                if (!IsValidPtr(Def))
+                    continue;
+                if (!bEquipped && Def->Cast<UFortWeaponRangedItemDefinition>())
+                {
+                    GiveAndEquip(Inv, Bot, (UFortWorldItemDefinition*)Def);
+                    bEquipped = true;
+                }
+                else
+                    Inv->GiveItem(Def, 1);
+                Given++;
+            }
+            return Given > 0;
+        }
+
         auto& Items = GetFromOffset<TArray<FItemAndCount>>(Startup, ItemsOff);
         if (Items.Num() == 0)
             return false;
@@ -253,6 +275,116 @@ namespace BossAI
             printf("[Boron][Bots] startup loadout bot=%p items=%d equipped=%d\n", (void*)Bot, given, (int)equipped);
 
         return given > 0;
+    }
+
+    struct FS12TrackedBot
+    {
+        AFortPlayerPawnAthena* Pawn = nullptr;
+        std::vector<UFortItemDefinition*> Items;
+        FVector LastLoc{};
+        bool bDropped = false;
+    };
+
+    inline std::vector<FS12TrackedBot>& S12Bots()
+    {
+        static std::vector<FS12TrackedBot> Bots;
+        return Bots;
+    }
+
+    inline void TrackS12Bot(AFortPlayerPawnAthena* Bot)
+    {
+        FS12TrackedBot Tracked;
+        Tracked.Pawn = Bot;
+        Tracked.LastLoc = Bot->K2_GetActorLocation();
+        static auto StartupOff = Bot->Controller->GetOffset("StartupInventory");
+        auto Startup = StartupOff != -1 ? GetFromOffset<UObject*>(Bot->Controller, StartupOff) : nullptr;
+        if (IsValidPtr(Startup))
+        {
+            static auto ItemsOff = Startup->GetOffset("Items");
+            if (ItemsOff != -1)
+            {
+                auto& Defs = GetFromOffset<TArray<UFortItemDefinition*>>(Startup, ItemsOff);
+                for (int i = 0; i < Defs.Num(); i++)
+                {
+                    auto Def = Defs[i];
+                    if (!IsValidPtr(Def) || Def->Cast<UFortWeaponMeleeItemDefinition>() || Def->Cast<UFortAmmoItemDefinition>())
+                        continue;
+                    Tracked.Items.push_back(Def);
+                }
+            }
+        }
+        S12Bots().push_back(Tracked);
+    }
+
+    inline void DropS12Bot(FS12TrackedBot& Tracked)
+    {
+        Tracked.bDropped = true;
+        int Dropped = 0;
+        for (auto Def : Tracked.Items)
+        {
+            auto Drop = DroppableVersion(Def);
+            AFortInventory::SpawnPickup(Tracked.LastLoc, Drop, 1, 0);
+            Dropped++;
+            if (Drop->Cast<UFortWeaponRangedItemDefinition>())
+            {
+                auto Ammo = ((UFortWorldItemDefinition*)Drop)->GetAmmoWorldItemDefinition_BP();
+                if (Ammo && (UFortItemDefinition*)Ammo != Drop)
+                {
+                    AFortInventory::SpawnPickup(Tracked.LastLoc, (UFortItemDefinition*)Ammo, 30, 0);
+                    Dropped++;
+                }
+            }
+        }
+    }
+
+    inline void S12DropTick()
+    {
+        auto& Bots = S12Bots();
+        if (Bots.empty())
+            return;
+        static uint32 TickCount = 0;
+        if (++TickCount % 10 != 0)
+            return;
+        for (auto& Tracked : Bots)
+        {
+            if (Tracked.bDropped)
+                continue;
+            if (!IsLiveActor(Tracked.Pawn))
+            {
+                DropS12Bot(Tracked);
+                continue;
+            }
+            static auto IsDeadFn = Tracked.Pawn->GetFunction("IsDead");
+            if (IsDeadFn && Tracked.Pawn->Call<bool>(IsDeadFn))
+            {
+                DropS12Bot(Tracked);
+                continue;
+            }
+            Tracked.LastLoc = Tracked.Pawn->K2_GetActorLocation();
+        }
+        std::erase_if(Bots, [](const FS12TrackedBot& Tracked) { return Tracked.bDropped; });
+    }
+
+    inline void SetupS12Bot(AFortPlayerPawnAthena* Bot)
+    {
+        if (!IsValidPtr(Bot) || !IsValidPtr(Bot->Controller))
+            return;
+        static auto InvOff = Bot->Controller->GetOffset("Inventory");
+        if (InvOff == -1)
+            return;
+        auto Inv = GetFromOffset<AFortInventory*>(Bot->Controller, InvOff);
+        if (!Inv)
+        {
+            Inv = UWorld::SpawnActor<AFortInventory>(AFortInventory::StaticClass(), FVector{ 0, 0, -99999 }, FRotator{}, Bot->Controller);
+            if (!Inv)
+                return;
+            Inv->InventoryType = 0;
+            if (auto OnRepOwnerFn = Inv->GetFunction("OnRep_Owner"))
+                Inv->ProcessEvent(OnRepOwnerFn, nullptr);
+            GetFromOffset<AFortInventory*>(Bot->Controller, InvOff) = Inv;
+        }
+        bool bGave = GiveStartupInventory(Bot, Inv);
+        TrackS12Bot(Bot);
     }
 
     inline void ApplyBotLoadout(AFortPlayerPawnAthena* Bot, UObject* SpawnerCDO)
@@ -617,8 +749,152 @@ namespace BossAI
         return IsValidPtr(Def) ? Def : nullptr;
     }
 
+    inline bool bS12AllowSpawn = false;
+    inline bool bS12DriveDone = false;
+
+    inline AActor* S12SpawnBotDirect(UObject* BotManager, FVector Loc, FRotator Rot, const UObject* BotData)
+    {
+        if (!BotManager || !BotData)
+            return nullptr;
+        auto Fn = BotManager->GetFunction("SpawnBot");
+        if (!Fn)
+            return nullptr;
+        auto FnStruct = (const UStruct*)Fn;
+        auto LocOff = FnStruct->GetOffset("SpawnLoc");
+        auto RotOff = FnStruct->GetOffset("SpawnRot");
+        auto DataOff = FnStruct->GetOffset("BotData");
+        auto RetOff = FnStruct->GetOffset("ReturnValue");
+        int ParmsSize = FnStruct->GetPropertiesSize();
+        uint8 Parms[0x400]{};
+        if (LocOff == (uint32)-1)
+            LocOff = 0;
+        if (RotOff == (uint32)-1)
+            RotOff = LocOff + FVector::Size();
+        if (DataOff == (uint32)-1)
+            DataOff = (RotOff + FRotator::Size() + 7) & ~7u;
+        if (RetOff == (uint32)-1 || ParmsSize <= 0 || ParmsSize > (int)sizeof(Parms))
+        {
+            printf("[Boron][Bots] S12 direct SpawnBot params not found data=%d ret=%d size=%d\n", (int)DataOff, (int)RetOff, ParmsSize);
+            return nullptr;
+        }
+        if (FVector::Size() == 0xc)
+        {
+            *(float*)(Parms + LocOff + 0x0) = (float)Loc.X;
+            *(float*)(Parms + LocOff + 0x4) = (float)Loc.Y;
+            *(float*)(Parms + LocOff + 0x8) = (float)Loc.Z;
+            *(float*)(Parms + RotOff + 0x0) = (float)Rot.Pitch;
+            *(float*)(Parms + RotOff + 0x4) = (float)Rot.Yaw;
+            *(float*)(Parms + RotOff + 0x8) = (float)Rot.Roll;
+        }
+        else
+        {
+            *(double*)(Parms + LocOff + 0x0) = (double)Loc.X;
+            *(double*)(Parms + LocOff + 0x8) = (double)Loc.Y;
+            *(double*)(Parms + LocOff + 0x10) = (double)Loc.Z;
+            *(double*)(Parms + RotOff + 0x0) = (double)Rot.Pitch;
+            *(double*)(Parms + RotOff + 0x8) = (double)Rot.Yaw;
+            *(double*)(Parms + RotOff + 0x10) = (double)Rot.Roll;
+        }
+        *(const UObject**)(Parms + DataOff) = BotData;
+        bS12AllowSpawn = true;
+        bool Ok = SafeProcessEvent(BotManager, Fn, Parms);
+        bS12AllowSpawn = false;
+        auto Pawn = Ok ? *(AActor**)(Parms + RetOff) : nullptr;
+        if (!Pawn)
+            printf("[Boron][Bots] S12 direct SpawnBot failed data=%s ok=%d\n", BotData->Name.ToString().c_str(), Ok);
+        return Pawn;
+    }
+
+    inline void S12SpawnerState(int Check)
+    {
+        static auto SpawnerClass = FindClass("BP_MANG_Spawner_C");
+        if (!SpawnerClass)
+            return;
+        static std::unordered_map<AActor*, bool> Kicked;
+        TArray<AActor*> Spawners;
+        Utils::GetAll<AActor>(SpawnerClass, Spawners);
+        for (int i = 0; i < Spawners.Num(); i++)
+        {
+            auto Spawner = Spawners[i];
+            if (!Spawner)
+                continue;
+            auto ReadOff = [&](const char* Name) { return Spawner->GetOffset(Name); };
+            static auto ManagerOff = ReadOff("ServerBotManager");
+            static auto AllowedOff = ReadOff("NumberOfAIWeAreAllowedToSpawn");
+            static auto BossOff = ReadOff("SpawnBossAtThisPOI");
+            static auto SpawnedOff = ReadOff("Spawned_Bots_Array") != (uint32)-1 ? ReadOff("Spawned_Bots_Array") : ReadOff("Spawned Bots Array");
+            static auto BucketsOff = ReadOff("SpawnGroupBuckets");
+            auto Manager = ManagerOff != (uint32)-1 ? GetFromOffset<UObject*>(Spawner, ManagerOff) : nullptr;
+            int Spawned = SpawnedOff != (uint32)-1 ? GetFromOffset<TArray<AActor*>>(Spawner, SpawnedOff).Num() : -1;
+            if (Check < 3 || Spawned > 0 || Kicked[Spawner])
+                continue;
+            Kicked[Spawner] = true;
+            std::string LevelName = Spawner->Outer && Spawner->Outer->Outer ? Spawner->Outer->Outer->Name.ToString().c_str() : "none";
+            bool bPostDeadpool = VersionInfo.FortniteVersion >= 12.3;
+            bool bLegacyYacht = LevelName.find("Yacht_001") != std::string::npos;
+            bool bTimedPOI = LevelName.find("MANG_HDP") != std::string::npos || LevelName.find("MANG_HMW") != std::string::npos;
+            if ((bLegacyYacht && bPostDeadpool) || (bTimedPOI && !bPostDeadpool))
+                continue;
+            bool bBossPOI = bLegacyYacht || bTimedPOI || LevelName.find("Agency") != std::string::npos || LevelName.find("OilRig") != std::string::npos ||
+                            LevelName.find("SJI") != std::string::npos || LevelName.find("MountainBase") != std::string::npos;
+            auto World = UWorld::GetWorld();
+            auto GameMode = World ? (AFortGameModeAthena*)World->AuthorityGameMode : nullptr;
+            if (ManagerOff != (uint32)-1 && !Manager && GameMode && GameMode->ServerBotManager)
+                GetFromOffset<UObject*>(Spawner, ManagerOff) = GameMode->ServerBotManager;
+            uint8 FnParams[0x400]{};
+            auto CallStep = [&](const char* FnName) {
+                auto Fn = Spawner->GetFunction(FnName);
+                memset(FnParams, 0, sizeof(FnParams));
+                if (!Fn || !SafeProcessEvent(Spawner, Fn, FnParams))
+                    printf("[Boron][Bots] S12 spawner %s step %s failed fn=%p\n", LevelName.c_str(), FnName, Fn);
+            };
+            CallStep("AssignDataToVariables");
+            int PatrolCount = 0;
+            if (BucketsOff != (uint32)-1)
+            {
+                auto& BucketArray = GetFromOffset<TArray<uint8>>(Spawner, BucketsOff);
+                for (int b = 0; b < BucketArray.Num(); b++)
+                    PatrolCount += *(int32*)((uint8*)BucketArray.GetData() + b * 0x28 + 0x18 + 0x8);
+            }
+            if (AllowedOff != (uint32)-1 && GetFromOffset<int32>(Spawner, AllowedOff) <= 0)
+                GetFromOffset<int32>(Spawner, AllowedOff) = PatrolCount > 0 ? PatrolCount : 6;
+            if (BossOff != (uint32)-1 && bBossPOI)
+                GetFromOffset<uint8>(Spawner, BossOff) = 1;
+            CallStep("SetSpawnGroupBucketsIntoPatrolsAndBotData");
+            bS12AllowSpawn = true;
+            CallStep("SpawnAndConfigureAI");
+            bS12AllowSpawn = false;
+        }
+        Spawners.Free();
+        if (Check >= 3)
+            bS12DriveDone = true;
+    }
+
+    inline void S12Watch()
+    {
+        if (VersionInfo.FortniteVersion < 12.0 || VersionInfo.FortniteVersion >= 13.0)
+            return;
+        static ULONGLONG NextCheck = 0;
+        static int Checks = 0;
+        auto Now = GetTickCount64();
+        if (bS12DriveDone || Now < NextCheck)
+            return;
+        NextCheck = Now + 15000;
+
+        auto World = UWorld::GetWorld();
+        auto GameState = World ? World->GameState : nullptr;
+        if (!GameState)
+            return;
+        Checks++;
+
+        if (Checks >= 2)
+            S12SpawnerState(Checks);
+    }
+
     inline void Tick()
     {
+        S12Watch();
+        S12DropTick();
         if (!GameRuleConfig::bBossAI)
             return;
         static uint32 tickCount = 0;
@@ -1010,6 +1286,8 @@ namespace BossAI
 
         for (auto it = St.begin(); it != St.end();)
         {
+            if (!it->second.seen && !it->second.dropped && VersionInfo.FortniteVersion < 13.0)
+                it->second.dropped = true;
             if (!it->second.seen && !it->second.dropped)
             {
                 int dropped = 0;

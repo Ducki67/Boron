@@ -4,6 +4,7 @@
 #include "../../Engine/Public/CurveTable.h"
 #include "../../Engine/Public/DataTableFunctionLibrary.h"
 #include "../../Engine/Public/NetDriver.h"
+#include "../../Erbium/Public/Bots.h"
 #include "../../Erbium/Public/Configuration.h"
 #include "../../Erbium/Public/Events.h"
 #include "../../Erbium/Public/Finders.h"
@@ -13,6 +14,7 @@
 #include "../Public/BattleRoyaleGamePhaseLogic.h"
 #include "../Public/BuildingFoundation.h"
 #include "../Public/BuildingItemCollectorActor.h"
+#include "../Public/FortAthenaMutator.h"
 #include "../Public/FortAthenaCreativePortal.h"
 #include "../Public/FortKismetLibrary.h"
 #include "../Public/FortLootPackage.h"
@@ -189,11 +191,27 @@ void SetupPlaylist(AFortGameMode* GameMode, AFortGameStateAthena* GameState)
                 AdditionalPlaylistLevels.Free();
 
                 auto AdditionalLevelStruct = FAdditionalLevelStreamed::StaticStruct();
+                static std::unordered_set<std::string> S12StreamedLevels;
+                bool bStreamS12Levels = VersionInfo.FortniteVersion >= 12.0 && VersionInfo.FortniteVersion < 13.0;
                 if (Playlist->HasAdditionalLevels())
                     for (auto& Level : Playlist->AdditionalLevels)
                     {
                         bool Success = false;
                         // ULevelStreamingDynamic::LoadLevelInstanceBySoftObjectPtr(UWorld::GetWorld(), Level, FVector(), FRotator(), &Success, FString(), nullptr);
+                        if (bStreamS12Levels)
+                        {
+                            std::string LevelPath = Level.ObjectID.AssetPathName.ToString().c_str();
+                            if (S12StreamedLevels.contains(LevelPath))
+                                Success = true;
+                            else
+                            {
+                                ULevelStreamingDynamic::LoadLevelInstanceBySoftObjectPtr(UWorld::GetWorld(), Level, FVector(), FRotator(), &Success, FString(), nullptr);
+                                if (Success)
+                                    S12StreamedLevels.insert(LevelPath);
+                                else
+                                    printf("[Boron][Bots] S12 failed to stream level %s\n", LevelPath.c_str());
+                            }
+                        }
                         if (AdditionalLevelStruct)
                         {
                             auto level = (FAdditionalLevelStreamed*)malloc(FAdditionalLevelStreamed::Size());
@@ -211,6 +229,8 @@ void SetupPlaylist(AFortGameMode* GameMode, AFortGameStateAthena* GameState)
                 if (Playlist->HasAdditionalLevelsServerOnly())
                     for (auto& Level : Playlist->AdditionalLevelsServerOnly)
                     {
+                        if (bStreamS12Levels)
+                            continue;
                         bool Success = false;
                         // ULevelStreamingDynamic::LoadLevelInstanceBySoftObjectPtr(UWorld::GetWorld(), Level, FVector(), FRotator(), &Success, FString(), nullptr);
 
@@ -319,6 +339,78 @@ public:
 
     DEFINE_FUNC(GetVehicleClass, UClass*);
 };
+
+static void StreamS12ServerLevels(AFortGameStateAthena* GameState)
+{
+    auto Playlist = GameState->HasCurrentPlaylistInfo() ? GameState->CurrentPlaylistInfo.BasePlaylist : nullptr;
+    if (!Playlist || !Playlist->HasAdditionalLevelsServerOnly())
+        return;
+    auto AdditionalLevelStruct = FAdditionalLevelStreamed::StaticStruct();
+    for (auto& Level : Playlist->AdditionalLevelsServerOnly)
+    {
+        bool Success = false;
+        ULevelStreamingDynamic::LoadLevelInstanceBySoftObjectPtr(UWorld::GetWorld(), Level, FVector(), FRotator(), &Success, FString(), nullptr);
+        if (!Success)
+            printf("[Boron][Bots] S12 failed to stream server-only level %s\n", Level.ObjectID.AssetPathName.ToString().c_str());
+        if (Success && AdditionalLevelStruct && GameState->HasAdditionalPlaylistLevelsStreamed())
+        {
+            auto level = (FAdditionalLevelStreamed*)malloc(FAdditionalLevelStreamed::Size());
+            memset((PBYTE)level, 0, FAdditionalLevelStreamed::Size());
+            level->bIsServerOnly = true;
+            level->LevelName = Level.ObjectID.AssetPathName;
+            GameState->AdditionalPlaylistLevelsStreamed.Add(*level, FAdditionalLevelStreamed::Size());
+            free(level);
+        }
+    }
+    if (GameState->HasAdditionalPlaylistLevelsStreamed())
+        GameState->OnRep_AdditionalPlaylistLevelsStreamed();
+    uint8 FinishedParams[0x40]{};
+    auto FinishedFn = GameState->GetFunction("OnFinishedStreamingAdditionalPlaylistLevel");
+    if (FinishedFn)
+        GameState->ProcessEvent(FinishedFn, FinishedParams);
+}
+
+static bool bS12Swapping = false;
+static void (*S12SpawnBotOG)(UObject*, FFrame&, AActor**);
+static void S12SpawnBot(UObject* Context, FFrame& Stack, AActor** Ret)
+{
+    S12SpawnBotOG(Context, Stack, Ret);
+    auto Pawn = Ret ? *Ret : nullptr;
+    if (Pawn && BossAI::bS12DriveDone && !BossAI::bS12AllowSpawn)
+    {
+        auto BlockedController = ((AFortPlayerPawnAthena*)Pawn)->Controller;
+        Pawn->K2_DestroyActor();
+        if (BlockedController)
+            BlockedController->K2_DestroyActor();
+        *Ret = nullptr;
+        return;
+    }
+    if (Pawn && !bS12Swapping && VersionInfo.FortniteVersion >= 12.3)
+    {
+        std::string ClassName = Pawn->Class->Name.ToString().c_str();
+        auto Loc = Pawn->K2_GetActorLocation();
+        double BoxDX = Loc.X + 68996.0, BoxDY = Loc.Y - 80660.0;
+        bool bAtBoxFactory = BoxDX * BoxDX + BoxDY * BoxDY < 20000.0 * 20000.0;
+        if (ClassName.find("Meowscles") != std::string::npos && !bAtBoxFactory)
+        {
+            auto DeadpoolData = FindObject<UObject>(L"/Game/Athena/AI/MANG/BotData/BotData_MANG_POI_HDP.BotData_MANG_POI_HDP");
+            if (DeadpoolData)
+            {
+                auto Rot = Pawn->K2_GetActorRotation();
+                auto OldController = ((AFortPlayerPawnAthena*)Pawn)->Controller;
+                Pawn->K2_DestroyActor();
+                if (OldController)
+                    OldController->K2_DestroyActor();
+                bS12Swapping = true;
+                auto Deadpool = BossAI::S12SpawnBotDirect(Context, Loc, Rot, DeadpoolData);
+                bS12Swapping = false;
+                *Ret = Deadpool;
+                return;
+            }
+        }
+    }
+    BossAI::SetupS12Bot((AFortPlayerPawnAthena*)Pawn);
+}
 
 void AFortGameMode::ReadyToStartMatch_(UObject* Context, FFrame& Stack, bool* Ret)
 {
@@ -593,13 +685,34 @@ void AFortGameMode::ReadyToStartMatch_(UObject* Context, FFrame& Stack, bool* Re
                 GameMode->AIDirector->Call(GameMode->AIDirector->GetFunction("Activate"));
         }
 
-        if (GameMode->HasServerBotManager())
+        bool bS12Bots = VersionInfo.FortniteVersion >= 12.0 && VersionInfo.FortniteVersion < 13.0;
+        if (GameMode->HasServerBotManager() && !(bS12Bots && GameMode->ServerBotManager))
         {
-            if (auto BotManager = (UFortServerBotManagerAthena*)UGameplayStatics::SpawnObject(UFortServerBotManagerAthena::StaticClass(), GameMode))
+            const UClass* BotManagerClass = UFortServerBotManagerAthena::StaticClass();
+            if (bS12Bots)
+            {
+                if (auto PhoebeManagerClass = FindObject<UClass>("/Game/Athena/AI/Phoebe/BP_PhoebeManager.BP_PhoebeManager_C"))
+                    BotManagerClass = PhoebeManagerClass;
+            }
+            if (auto BotManager = (UFortServerBotManagerAthena*)UGameplayStatics::SpawnObject(BotManagerClass, GameMode))
             {
                 GameMode->ServerBotManager = BotManager;
                 BotManager->CachedGameState = GameState;
                 BotManager->CachedGameMode = GameMode;
+
+                if (bS12Bots)
+                {
+                    auto Playlist = GameState->HasCurrentPlaylistInfo() ? GameState->CurrentPlaylistInfo.BasePlaylist : nullptr;
+                    auto ModeAISettingsOff = GameMode->GetOffset("AISettings");
+                    auto PlaylistAISettingsOff = Playlist ? Playlist->GetOffset("AISettings") : (uint32)-1;
+                    UObject* AISettings = nullptr;
+                    if (ModeAISettingsOff != (uint32)-1 && PlaylistAISettingsOff != (uint32)-1)
+                    {
+                        AISettings = *(UObject**)(__int64(Playlist) + PlaylistAISettingsOff);
+                        if (AISettings && !*(UObject**)(__int64(GameMode) + ModeAISettingsOff))
+                            *(UObject**)(__int64(GameMode) + ModeAISettingsOff) = AISettings;
+                    }
+                }
             }
             else
             {
@@ -612,6 +725,13 @@ void AFortGameMode::ReadyToStartMatch_(UObject* Context, FFrame& Stack, bool* Re
             auto GoalManagerClass = GameMode->HasWarmupRequiredPlayerCount() ? FindClass("FortAIGoalManager") : FindObject<UClass>("/Game/AI/GoalSelection/AIGoalManager.AIGoalManager_C");
 
             GameMode->AIGoalManager = UWorld::SpawnActor(GoalManagerClass, FVector{}, GameMode);
+        }
+
+        static bool bS12LevelsStreamed = false;
+        if (bS12Bots && !bS12LevelsStreamed && GameMode->ServerBotManager)
+        {
+            bS12LevelsStreamed = true;
+            StreamS12ServerLevels(GameState);
         }
 
         if (GameMode->HasSpawningPolicyManager() && !GameMode->SpawningPolicyManager)
@@ -2992,6 +3112,13 @@ void AFortGameMode::TickCH5PickupDummies()
 void AFortGameMode::Hook()
 {
     Hooking::ExecHook(GetDefaultObj()->GetFunction("ReadyToStartMatch"), ReadyToStartMatch_, ReadyToStartMatch_OG);
+    if (VersionInfo.FortniteVersion >= 12.0 && VersionInfo.FortniteVersion < 13.0)
+    {
+        auto S12SpawnBotFn = UFortServerBotManagerAthena::GetDefaultObj()->GetFunction("SpawnBot");
+        if (!S12SpawnBotFn)
+            printf("[Boron][Bots] S12 SpawnBot function not found, bosses will not get inventories\n");
+        Hooking::ExecHook(S12SpawnBotFn, S12SpawnBot, S12SpawnBotOG);
+    }
     auto FwiAddr = FindFinishWorldInitialization();
 
     if (VersionInfo.EngineVersion >= 5.4)

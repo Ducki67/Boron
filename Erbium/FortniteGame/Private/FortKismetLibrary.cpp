@@ -98,6 +98,20 @@ void UFortKismetLibrary::GiveItemToInventoryOwner(UObject* Object, FFrame& Stack
 
 bool bHasItemVariantGuid = false;
 bool bHasbForceRemoval = false;
+static UFortItemDefinition* KeycardFallback(AFortPlayerControllerAthena* PlayerController, UFortItemDefinition* Wanted)
+{
+    std::string WantedName = Wanted->Name.ToString().c_str();
+    if (WantedName.find("Keycard") == std::string::npos)
+        return Wanted;
+    if (PlayerController->WorldInventory->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& entry) { return entry.ItemDefinition == Wanted; }, FFortItemEntry::Size()))
+        return Wanted;
+    auto Held = PlayerController->WorldInventory->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& entry)
+        { return entry.ItemDefinition && std::string(entry.ItemDefinition->Name.ToString().c_str()).find("Keycard") != std::string::npos; }, FFortItemEntry::Size());
+    if (!Held)
+        return Wanted;
+    return (UFortItemDefinition*)Held->ItemDefinition;
+}
+
 void UFortKismetLibrary::K2_RemoveItemFromPlayer(UObject* Context, FFrame& Stack, int32* Ret)
 {
     AFortPlayerControllerAthena* PlayerController;
@@ -120,6 +134,7 @@ void UFortKismetLibrary::K2_RemoveItemFromPlayer(UObject* Context, FFrame& Stack
         return;
     }
     printf(__FUNCTION__ " %s %d\n", ItemDefinition->Name.ToString().c_str(), AmountToRemove);
+    ItemDefinition = KeycardFallback(PlayerController, ItemDefinition);
 
     auto ItemP = PlayerController->WorldInventory->Inventory.ItemInstances.Search([&](UFortWorldItem* entry) { return entry->ItemEntry.ItemDefinition == ItemDefinition; });
     auto itemEntry = PlayerController->WorldInventory->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& entry) { return entry.ItemDefinition == ItemDefinition; }, FFortItemEntry::Size());
@@ -322,6 +337,7 @@ int32 RemoveItemFromPlayer(AFortPlayerControllerAthena* PlayerController, UFortI
         return 0;
 
     printf(__FUNCTION__ " %s %d\n", ItemDefinition->Name.ToString().c_str(), AmountToRemove);
+    ItemDefinition = KeycardFallback(PlayerController, ItemDefinition);
 
     auto ItemP = PlayerController->WorldInventory->Inventory.ItemInstances.Search([&](UFortWorldItem* entry) { return entry->ItemEntry.ItemDefinition == ItemDefinition; });
     auto itemEntry = PlayerController->WorldInventory->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& entry) { return entry.ItemDefinition == ItemDefinition; }, FFortItemEntry::Size());

@@ -20,6 +20,7 @@ public:
     DEFINE_STATIC_FUNC(TryRemoveWeaponMod, bool);
     DEFINE_STATIC_FUNC(CanApplyModToWeapon, bool);
     DEFINE_STATIC_FUNC(ModAllowedOnWeapon, bool);
+    DEFINE_STATIC_FUNC(ModAllowedOnWeaponDefinition, bool);
     DEFINE_STATIC_FUNC(ApplyWeaponModToPickup, bool);
 };
 
@@ -262,10 +263,30 @@ namespace WeaponMods
             Entry->Mods[Entry->Count++] = Mod;
     }
 
-    inline bool IsCompatible(const UFortWeaponModItemDefinition* Mod, const std::string& WeaponName)
+    inline bool IsCompatible(const UFortWeaponModItemDefinition* Mod, const std::string& WeaponName, const UFortItemDefinition* WeaponDef = nullptr)
     {
         if (!Mod)
             return false;
+
+        static int NativeCheck = -1;
+
+        if (NativeCheck == -1)
+        {
+            auto Lib = FindClass("FortWeaponModFunctionLibrary") ? UFortWeaponModFunctionLibrary::GetDefaultObj() : nullptr;
+            NativeCheck = (Lib && Lib->GetFunction("ModAllowedOnWeaponDefinition")) ? 1 : 0;
+            printf("[Boron][Mods] native ModAllowedOnWeaponDefinition available=%d\n", NativeCheck);
+        }
+
+        if (NativeCheck == 1 && WeaponDef)
+        {
+            bool bAllowed = UFortWeaponModFunctionLibrary::ModAllowedOnWeaponDefinition((UFortWeaponModItemDefinition*)Mod, (UFortItemDefinition*)WeaponDef);
+            static int rejected = 0;
+
+            if (!bAllowed && rejected++ < 10)
+                printf("[Boron][Mods] game rejects %s on %s\n", Mod->Name.ToString().c_str(), WeaponName.c_str());
+
+            return bAllowed;
+        }
 
         auto ModName = Mod->Name.ToString().c_str();
         auto Weapon = WeaponName;
@@ -446,7 +467,7 @@ namespace WeaponMods
 
         std::string WeaponName = Weapon->HasWeaponData() && Weapon->WeaponData ? Weapon->WeaponData->Name.ToString().c_str() : "";
 
-        if (!bForce && !IsCompatible(Mod, WeaponName))
+        if (!bForce && !IsCompatible(Mod, WeaponName, Weapon->HasWeaponData() ? (const UFortItemDefinition*)Weapon->WeaponData : nullptr))
         {
             if (OutReason)
                 *OutReason = "not compatible with this weapon";
@@ -731,7 +752,7 @@ namespace WeaponMods
             std::vector<const UFortWeaponModItemDefinition*> Pool;
 
             for (auto Mod : Discovered)
-                if (Category(Mod) == Order[i] && IsCompatible(Mod, WeaponName))
+                if (Category(Mod) == Order[i] && IsCompatible(Mod, WeaponName, Def))
                     Pool.push_back(Mod);
 
             if (Pool.empty())

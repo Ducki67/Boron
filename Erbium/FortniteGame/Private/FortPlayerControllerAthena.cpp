@@ -786,6 +786,7 @@ void AFortPlayerControllerAthena::ServerAcknowledgePossession_Native(AFortPlayer
 }
 
 uint32 ServerAttemptAircraftJumpVft;
+
 void AFortPlayerControllerAthena::ServerAttemptAircraftJump_(UObject* Context, FFrame& Stack)
 {
     FRotator Rotation;
@@ -2883,7 +2884,7 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
                     std::vector<const UFortWeaponModItemDefinition*> Pool;
 
                     for (auto Mod : WeaponMods::Discovered)
-                        if (WeaponMods::Category(Mod) == Cat && WeaponMods::IsCompatible(Mod, WeaponName)
+                        if (WeaponMods::Category(Mod) == Cat && WeaponMods::IsCompatible(Mod, WeaponName, Held->HasWeaponData() ? (const UFortItemDefinition*)Held->WeaponData : nullptr)
                             && WeaponMods::Lower(Mod->Name.ToString().c_str()).find("ironsights") == std::string::npos)
                             Pool.push_back(Mod);
 
