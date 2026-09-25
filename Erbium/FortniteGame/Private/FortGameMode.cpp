@@ -1212,6 +1212,13 @@ void AFortGameMode::SpawnDefaultPawnFor(UObject* Context, FFrame& Stack, AActor*
     if (!NewPlayer || !StartSpot)
         return;
 
+    static auto PlayerControllerClass = AFortPlayerControllerAthena::StaticClass();
+    if (PlayerControllerClass && !NewPlayer->IsA(PlayerControllerClass))
+    {
+        *Ret = nullptr;
+        return;
+    }
+
     auto GameState = GameMode->GameState;
     AFortPlayerPawnAthena* Pawn = nullptr;
 

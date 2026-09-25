@@ -365,26 +365,99 @@ namespace BossAI
         std::erase_if(Bots, [](const FS12TrackedBot& Tracked) { return Tracked.bDropped; });
     }
 
-    inline void SetupS12Bot(AFortPlayerPawnAthena* Bot)
+    inline AFortInventory* EnsureBotInventory(AFortPlayerPawnAthena* Bot)
     {
         if (!IsValidPtr(Bot) || !IsValidPtr(Bot->Controller))
-            return;
+            return nullptr;
         static auto InvOff = Bot->Controller->GetOffset("Inventory");
         if (InvOff == -1)
-            return;
+            return nullptr;
         auto Inv = GetFromOffset<AFortInventory*>(Bot->Controller, InvOff);
         if (!Inv)
         {
             Inv = UWorld::SpawnActor<AFortInventory>(AFortInventory::StaticClass(), FVector{ 0, 0, -99999 }, FRotator{}, Bot->Controller);
             if (!Inv)
-                return;
+                return nullptr;
             Inv->InventoryType = 0;
             if (auto OnRepOwnerFn = Inv->GetFunction("OnRep_Owner"))
                 Inv->ProcessEvent(OnRepOwnerFn, nullptr);
             GetFromOffset<AFortInventory*>(Bot->Controller, InvOff) = Inv;
         }
-        bool bGave = GiveStartupInventory(Bot, Inv);
+        return Inv;
+    }
+
+    inline void SetupS12Bot(AFortPlayerPawnAthena* Bot)
+    {
+        auto Inv = EnsureBotInventory(Bot);
+        if (!Inv)
+            return;
+        GiveStartupInventory(Bot, Inv);
         TrackS12Bot(Bot);
+    }
+
+    inline void TrackBotFromInventory(AFortPlayerPawnAthena* Bot, AFortInventory* Inv)
+    {
+        FS12TrackedBot Tracked;
+        Tracked.Pawn = Bot;
+        Tracked.LastLoc = Bot->K2_GetActorLocation();
+        auto& Entries = Inv->Inventory.ReplicatedEntries;
+        for (int e = 0; e < Entries.Num(); e++)
+        {
+            auto& Entry = Entries.Get(e, FFortItemEntry::Size());
+            auto Def = (UFortItemDefinition*)Entry.ItemDefinition;
+            if (!IsValidPtr(Def) || Def->Cast<UFortWeaponMeleeItemDefinition>() || Def->Cast<UFortAmmoItemDefinition>())
+                continue;
+            Tracked.Items.push_back(Def);
+        }
+        if (!Tracked.Items.empty())
+            S12Bots().push_back(Tracked);
+    }
+
+    inline void S13BotTick()
+    {
+        if (VersionInfo.FortniteVersion < 13.0 || VersionInfo.FortniteVersion >= 14.0)
+            return;
+        static uint32 TickCount = 0;
+        if (++TickCount % 30 != 0)
+            return;
+        static std::unordered_map<void*, int> Scans;
+        static std::unordered_map<void*, bool> Handled;
+        std::unordered_map<void*, int> NextScans;
+        std::unordered_map<void*, bool> NextHandled;
+        TArray<AFortPlayerPawnAthena*> Pawns;
+        Utils::GetAll<AFortPlayerPawnAthena>(Pawns);
+        for (int i = 0; i < Pawns.Num(); i++)
+        {
+            auto Bot = Pawns[i];
+            if (!IsLiveActor(Bot) || !Bot->Controller || !IsLiveActor((AActor*)Bot->Controller) || Bot->Controller->IsA<AFortPlayerControllerAthena>())
+                continue;
+            if (Handled.contains(Bot))
+            {
+                NextHandled[Bot] = true;
+                continue;
+            }
+            int Count = Scans[Bot] + 1;
+            NextScans[Bot] = Count;
+            static auto InvOff = Bot->Controller->GetOffset("Inventory");
+            auto Inv = InvOff != -1 ? GetFromOffset<AFortInventory*>(Bot->Controller, InvOff) : nullptr;
+            bool bHasRanged = Inv && Inv->Inventory.ReplicatedEntries.Search([](FFortItemEntry& Entry) {
+                return Entry.ItemDefinition && Entry.ItemDefinition->Cast<UFortWeaponRangedItemDefinition>();
+            }, FFortItemEntry::Size());
+            if (!bHasRanged)
+            {
+                if (Count < 3)
+                    continue;
+                Inv = EnsureBotInventory(Bot);
+                if (!Inv)
+                    continue;
+                GiveStartupInventory(Bot, Inv);
+            }
+            NextHandled[Bot] = true;
+            TrackBotFromInventory(Bot, Inv);
+        }
+        Pawns.Free();
+        Scans = NextScans;
+        Handled = NextHandled;
     }
 
     inline void ApplyBotLoadout(AFortPlayerPawnAthena* Bot, UObject* SpawnerCDO)
@@ -521,7 +594,100 @@ namespace BossAI
                    CID->Name.ToString().c_str(), applied);
     }
 
-    inline void SpawnAIOnPaths(const UClass* SpawnerClass, const std::string& Name, bool bAllPaths)
+    inline void TrackSpawnedBot(AFortPlayerPawnAthena* Bot, UObject* SpawnerCDO, const std::string& Name)
+    {
+        if (!IsValidPtr(Bot) || !SpawnerCDO)
+            return;
+        FS12TrackedBot Tracked;
+        Tracked.Pawn = Bot;
+        Tracked.LastLoc = Bot->K2_GetActorLocation();
+        static auto InvCompOff = SpawnerCDO->GetOffset("InventoryComponent");
+        auto InvCompCDO = InvCompOff != -1 ? FindCDO(GetFromOffset<UClass*>(SpawnerCDO, InvCompOff)) : nullptr;
+        if (InvCompCDO)
+        {
+            static auto ItemsOff = InvCompCDO->GetOffset("Items");
+            if (ItemsOff != -1)
+            {
+                auto& Items = GetFromOffset<TArray<FItemAndCount>>(InvCompCDO, ItemsOff);
+                for (int i = 0; i < Items.Num(); i++)
+                {
+                    auto Def = Items.Get(i, FItemAndCount::Size()).GetItem();
+                    if (!IsValidPtr(Def) || Def->Cast<UFortAmmoItemDefinition>())
+                        continue;
+                    if (Def->Cast<UFortWeaponMeleeItemDefinition>())
+                    {
+                        if (std::string(Def->Name.ToString().c_str()).find("Wasabi") != std::string::npos)
+                        {
+                            static auto Claws = FindObject<UFortItemDefinition>(L"/HighTower/Items/Wasabi/Claws/CoreBR/WID_HighTower_Wasabi_Claws_CoreBR.WID_HighTower_Wasabi_Claws_CoreBR");
+                            static auto Fish = FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Consumables/Flopper/Effective/WID_Athena_Flopper_Effective.WID_Athena_Flopper_Effective");
+                            if (Claws)
+                                Tracked.Items.push_back((UFortItemDefinition*)Claws);
+                            if (Fish)
+                            {
+                                Tracked.Items.push_back((UFortItemDefinition*)Fish);
+                                Tracked.Items.push_back((UFortItemDefinition*)Fish);
+                            }
+                        }
+                        continue;
+                    }
+                    Tracked.Items.push_back(Def);
+                }
+            }
+        }
+        if (Name == "Nightmare")
+        {
+            static auto Cloak = FindObject<UFortItemDefinition>(L"/NightmareGameplay/Items/Cloak/WID_Nightmare_Cloak.WID_Nightmare_Cloak");
+            static auto Slurpfish = FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Consumables/Flopper/Effective/WID_Athena_Flopper_Effective.WID_Athena_Flopper_Effective");
+            if (Cloak)
+                Tracked.Items.push_back((UFortItemDefinition*)Cloak);
+            if (Slurpfish)
+                Tracked.Items.push_back((UFortItemDefinition*)Slurpfish);
+        }
+        if (!Tracked.Items.empty())
+            S12Bots().push_back(Tracked);
+    }
+
+    inline void AddNPCSpecialActor(AFortPlayerPawnAthena* Bot, UObject* SpawnerCDO)
+    {
+        if (!IsValidPtr(Bot) || !SpawnerCDO || FVector::Size() != 0xc)
+            return;
+        static auto ConvOff = SpawnerCDO->GetOffset("ConversationComponent");
+        auto ConvCDO = ConvOff != -1 ? FindCDO(GetFromOffset<UClass*>(SpawnerCDO, ConvOff)) : nullptr;
+        if (!ConvCDO)
+            return;
+        static auto SpecialOff = ConvCDO->GetOffset("SpecialActorComponentClass");
+        auto SpecialClass = SpecialOff != -1 ? GetFromOffset<UClass*>(ConvCDO, SpecialOff) : nullptr;
+        if (!SpecialClass)
+            return;
+        static auto AddFn = Bot->GetFunction("AddComponentByClass");
+        if (!AddFn)
+        {
+            static bool bWarned = false;
+            if (!bWarned)
+                printf("[Boron][Bots] S15 AddComponentByClass not found, NPCs will have no map icon\n");
+            bWarned = true;
+            return;
+        }
+        auto FnStruct = (const UStruct*)AddFn;
+        static auto ClassOff = FnStruct->GetOffset("Class");
+        static auto TransformOff = FnStruct->GetOffset("RelativeTransform");
+        static auto RetOff = FnStruct->GetOffset("ReturnValue");
+        static int ParmsSize = FnStruct->GetPropertiesSize();
+        uint8 Parms[0x100]{};
+        if (TransformOff == (uint32)-1 || RetOff == (uint32)-1 || ParmsSize <= 0 || ParmsSize > (int)sizeof(Parms))
+            return;
+        *(UClass**)(Parms + (ClassOff != (uint32)-1 ? ClassOff : 0)) = SpecialClass;
+        *(float*)(Parms + TransformOff + 0xC) = 1.f;
+        *(float*)(Parms + TransformOff + 0x20) = 1.f;
+        *(float*)(Parms + TransformOff + 0x24) = 1.f;
+        *(float*)(Parms + TransformOff + 0x28) = 1.f;
+        bool Ok = SafeProcessEvent(Bot, AddFn, Parms);
+        auto Comp = Ok ? *(UObject**)(Parms + RetOff) : nullptr;
+        if (!Comp)
+            printf("[Boron][Bots] S15 special actor %s failed ok=%d\n", SpecialClass->Name.ToString().c_str(), Ok);
+    }
+
+    inline void SpawnAIOnPaths(const UClass* SpawnerClass, const std::string& Name, bool bAllPaths, bool bExactLeaf = false, int MaxPaths = 0)
     {
         if (!SpawnerClass)
             return;
@@ -554,11 +720,39 @@ namespace BossAI
             if (Tags.Num() == 0)
                 continue;
 
-            auto TagName = Tags.Get(0, FGameplayTag::Size()).TagName.ToString();
-            if (TagName.length() >= Name.length() && TagName.compare(TagName.length() - Name.length(), Name.length(), Name) == 0)
+            std::string TagName = Tags.Get(0, FGameplayTag::Size()).TagName.ToString().c_str();
+            bool bMatch = bExactLeaf ? TagName.substr(TagName.rfind('.') + 1) == Name
+                                     : (TagName.length() >= Name.length() && TagName.compare(TagName.length() - Name.length(), Name.length(), Name) == 0);
+            if (bMatch)
                 Matches.push_back(Path);
         }
         Found.Free();
+
+        if (auto ProviderClass = FindClass("FortAthenaPatrolPathPointProvider"))
+        {
+            TArray<AActor*> Providers;
+            Utils::GetAll<AActor>(ProviderClass, Providers);
+            for (int i = 0; i < Providers.Num(); i++)
+            {
+                auto Provider = Providers[i];
+                if (!Provider)
+                    continue;
+                static auto FiltersOffset = Provider->GetOffset("FiltersTags");
+                static auto AssociatedOffset = Provider->GetOffset("AssociatedPatrolPath");
+                if (FiltersOffset == -1 || AssociatedOffset == -1)
+                    break;
+                auto& Tags = GetFromOffset<FGameplayTagContainer>(Provider, FiltersOffset).GameplayTags;
+                auto Associated = GetFromOffset<AActor*>(Provider, AssociatedOffset);
+                if (Tags.Num() == 0 || !Associated)
+                    continue;
+                std::string TagName = Tags.Get(0, FGameplayTag::Size()).TagName.ToString().c_str();
+                bool bMatch = bExactLeaf ? TagName.substr(TagName.rfind('.') + 1) == Name
+                                         : (TagName.length() >= Name.length() && TagName.compare(TagName.length() - Name.length(), Name.length(), Name) == 0);
+                if (bMatch && std::find(Matches.begin(), Matches.end(), Associated) == Matches.end())
+                    Matches.push_back(Associated);
+            }
+            Providers.Free();
+        }
 
         if (Matches.empty())
             return;
@@ -603,6 +797,8 @@ namespace BossAI
                 Matches[i] = Matches[j];
                 Matches[j] = Temp;
             }
+            if (MaxPaths > 0 && (int)Matches.size() > MaxPaths)
+                Matches.resize(MaxPaths);
         }
         else
         {
@@ -619,11 +815,12 @@ namespace BossAI
                 break;
 
             auto& Points = GetFromOffset<TArray<AActor*>>(Matches[i], PointsOffset);
-            if (Points.Num() == 0 || !Points[0])
+            AActor* SpawnPoint = Points.Num() > 0 && Points[0] ? Points[0] : (bExactLeaf ? Matches[i] : nullptr);
+            if (!SpawnPoint)
                 continue;
 
-            auto LocV = Points[0]->K2_GetActorLocation();
-            auto RotV = Points[0]->K2_GetActorRotation();
+            auto LocV = SpawnPoint->K2_GetActorLocation();
+            auto RotV = SpawnPoint->K2_GetActorRotation();
 
             int vsz = FVector::Size();
             int rsz = FRotator::Size();
@@ -658,6 +855,10 @@ namespace BossAI
                 spawned++;
                 ApplyBotLoadout((AFortPlayerPawnAthena*)spawnedPawn, SpawnerCDO);
                 ApplyBotCosmetics((AFortPlayerPawnAthena*)spawnedPawn, SpawnerCDO);
+                if (VersionInfo.FortniteVersion >= 14.0 && VersionInfo.FortniteVersion < 16.0)
+                    TrackSpawnedBot((AFortPlayerPawnAthena*)spawnedPawn, SpawnerCDO, Name);
+                if (VersionInfo.FortniteVersion >= 15.0 && VersionInfo.FortniteVersion < 16.0)
+                    AddNPCSpecialActor((AFortPlayerPawnAthena*)spawnedPawn, SpawnerCDO);
             }
 
             static int slog = 0;
@@ -891,34 +1092,146 @@ namespace BossAI
             S12SpawnerState(Checks);
     }
 
+    inline void S15Tick()
+    {
+        if (VersionInfo.FortniteVersion < 15.0 || VersionInfo.FortniteVersion >= 16.0)
+            return;
+        static bool bDone = false;
+        static ULONGLONG NextCheck = 0;
+        auto Now = GetTickCount64();
+        if (bDone || Now < NextCheck)
+            return;
+        NextCheck = Now + 5000;
+
+        auto World = UWorld::GetWorld();
+        auto GameState = World ? World->GameState : nullptr;
+        if (!GameState)
+            return;
+        static auto PhaseOff = GameState->GetOffset("GamePhase");
+        if (PhaseOff == -1 || GetFromOffset<uint8>(GameState, PhaseOff) < 3)
+            return;
+        bDone = true;
+
+        static const char* BattlepassNPCs[] = { "Bandolier", "BeefBoss", "BigChuggus", "Bigfoot", "Blaze", "BriteBomber", "Brutus", "Bullseye", "BunkerJonesy", "Burnout",
+                                                "Bushranger", "Cole", "Deadfire", "Doggo", "Dummy", "FarmerSteel", "Fishstick", "FutureSamurai", "Gladiator", "Grimbles",
+                                                "Guide", "Kit", "Kyle", "Longshot", "Outcast", "Outlaw", "Ragnarok", "Rapscallion", "Remedy", "Ruckus", "Shapeshifter", "Sleuth",
+                                                "Snomando", "Sparkplug", "Splode", "Sunflower", "TheReaper", "TomatoHead", "Triggerfish", "Turk", "WeaponsExpert" };
+        struct FS15Spawner { std::string Name; std::string Path; };
+        std::vector<FS15Spawner> Spawners;
+        std::unordered_map<std::string, bool> Seen;
+        auto AddSpawner = [&](const std::string& Name, const std::string& Path) {
+            Seen[Name] = true;
+            Spawners.push_back({ Name, Path });
+        };
+        auto BattlepassPath = [](const std::string& Name, const std::string& File) {
+            return "/BattlepassS15/AI/NPCs/" + Name + "/BP_AIBotSpawnerData_" + File + ".BP_AIBotSpawnerData_" + File + "_C";
+        };
+        auto PluginPath = [](const std::string& Plugin, const std::string& Folder, const std::string& File) {
+            return "/" + Plugin + "/AI/NPCs/" + Folder + "/AISpawnerData/BP_AIBotSpawnerData_" + File + ".BP_AIBotSpawnerData_" + File + "_C";
+        };
+        for (auto Name : BattlepassNPCs)
+            AddSpawner(Name, BattlepassPath(Name, Name));
+        AddSpawner("RuckusH", BattlepassPath("RuckusH", "NPC_RuckusH"));
+        if (VersionInfo.FortniteVersion >= 15.3)
+        {
+            Seen["Cosmos"] = true;
+            AddSpawner("CosmosCantina", PluginPath("CosmosGameplay", "Cosmos", "Cosmos"));
+        }
+        else
+        {
+            Seen["CosmosCantina"] = true;
+            AddSpawner("Cosmos", PluginPath("CosmosGameplay", "Cosmos", "Cosmos"));
+        }
+        AddSpawner("Nightmare", PluginPath("NightmareGameplay", "Nightmare", "Nightmare"));
+        AddSpawner("Grunt", PluginPath("IO_Guard", "IOBase", "IO_Base"));
+        AddSpawner("M", PluginPath("IO_Guard", "IOBase", "IO_Base"));
+        AddSpawner("LG", PluginPath("IO_Guard", "IO_LG", "IO_LG"));
+        AddSpawner("LS", PluginPath("IO_Guard", "IO_LS", "IO_LS"));
+
+        std::string TagLeaves;
+        std::unordered_map<std::string, bool> TagSeen;
+        auto CollectTags = [&](const char* ClassName, const char* TagsProp) {
+            auto Class = FindClass(ClassName);
+            if (!Class)
+                return;
+            TArray<AActor*> Actors;
+            Utils::GetAll<AActor>(Class, Actors);
+            for (int i = 0; i < Actors.Num(); i++)
+            {
+                auto Actor = Actors[i];
+                if (!Actor)
+                    continue;
+                auto TagsOff = Actor->GetOffset(TagsProp);
+                if (TagsOff == -1)
+                    break;
+                auto& Tags = GetFromOffset<FGameplayTagContainer>(Actor, TagsOff).GameplayTags;
+                if (Tags.Num() == 0)
+                    continue;
+                std::string TagName = Tags.Get(0, FGameplayTag::Size()).TagName.ToString().c_str();
+                auto Leaf = TagName.substr(TagName.rfind('.') + 1);
+                if (Leaf.empty() || TagSeen[TagName])
+                    continue;
+                TagSeen[TagName] = true;
+                TagLeaves += TagName + " ";
+                if (!Seen[Leaf])
+                    AddSpawner(Leaf, BattlepassPath(Leaf, Leaf));
+            }
+            Actors.Free();
+        };
+        CollectTags("FortAthenaPatrolPath", "GameplayTags");
+        CollectTags("FortAthenaPatrolPathPointProvider", "FiltersTags");
+        printf("[Boron][Bots] S15 patrol tags: %s\n", TagLeaves.c_str());
+
+        std::string Missing;
+        for (auto& Spawner : Spawners)
+        {
+            auto Class = FindObject<UClass>(Spawner.Path.c_str());
+            if (!Class)
+            {
+                Missing += Spawner.Name + " ";
+                continue;
+            }
+            bool bIOGuard = Spawner.Path.find("/IO_Guard/") != std::string::npos;
+            SpawnAIOnPaths(Class, Spawner.Name, bIOGuard, true, bIOGuard ? (Spawner.Name == "Grunt" ? 15 : 5) : 0);
+        }
+        printf("[Boron][Bots] S15 NPC spawners not found: %s\n", Missing.c_str());
+    }
+
     inline void Tick()
     {
         S12Watch();
+        S15Tick();
+        S13BotTick();
         S12DropTick();
-        if (!GameRuleConfig::bBossAI)
+
+        static bool bRequestedSpawns = false;
+        if (!bRequestedSpawns && VersionInfo.FortniteVersion >= 14.0 && VersionInfo.FortniteVersion < 15.0)
+        {
+            static uint32 spawnTick = 0;
+            if (++spawnTick % 3 == 0)
+            {
+                auto SpawnWorld = UWorld::GetWorld();
+                auto SpawnGS = SpawnWorld ? (AFortGameStateAthena*)SpawnWorld->GameState : nullptr;
+                int spawnPhase = 0;
+                if (SpawnGS)
+                {
+                    static auto PhOff = SpawnGS->GetOffset("GamePhase");
+                    if (PhOff != -1)
+                        spawnPhase = (int)GetFromOffset<uint8>(SpawnGS, PhOff);
+                }
+                if (spawnPhase >= 3)
+                {
+                    bRequestedSpawns = true;
+                    RequestAISpawn();
+                }
+            }
+        }
+
+        if (!GameRuleConfig::bLWM_AI)
             return;
         static uint32 tickCount = 0;
         if (++tickCount % 3 != 0)
             return;
-
-        static bool bRequestedSpawns = false;
-        if (!bRequestedSpawns && VersionInfo.FortniteVersion >= 14.0)
-        {
-            auto SpawnWorld = UWorld::GetWorld();
-            auto SpawnGS = SpawnWorld ? (AFortGameStateAthena*)SpawnWorld->GameState : nullptr;
-            int spawnPhase = 0;
-            if (SpawnGS)
-            {
-                static auto PhOff = SpawnGS->GetOffset("GamePhase");
-                if (PhOff != -1)
-                    spawnPhase = (int)GetFromOffset<uint8>(SpawnGS, PhOff);
-            }
-            if (spawnPhase >= 3)
-            {
-                bRequestedSpawns = true;
-                RequestAISpawn();
-            }
-        }
 
         auto& St = States();
         auto& Pawns = Live();
@@ -1286,7 +1599,7 @@ namespace BossAI
 
         for (auto it = St.begin(); it != St.end();)
         {
-            if (!it->second.seen && !it->second.dropped && VersionInfo.FortniteVersion < 13.0)
+            if (!it->second.seen && !it->second.dropped && VersionInfo.FortniteVersion < 16.0)
                 it->second.dropped = true;
             if (!it->second.seen && !it->second.dropped)
             {

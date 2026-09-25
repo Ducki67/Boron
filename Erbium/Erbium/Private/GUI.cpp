@@ -361,7 +361,7 @@ void GUI::Init()
                     ImGui::SliderInt("Respawn Time (GameMode)", &GameRuleConfig::RespawnTimeGamemode, 1, 25);
                 }
                 ImGui::Checkbox("Creative Extra Ammo (currently bugs inventory out!!)", &GameRuleConfig::bCreativeExtraAmmo);
-                ImGui::Checkbox("Boss AI (move + shoot)", &GameRuleConfig::bBossAI);
+                ImGui::Checkbox("LWM AI (NPC/boss move + shoot)", &GameRuleConfig::bLWM_AI);
                 
                 ImGui::Text("Creative Settings: ");
                 char CustomMapDefBuffer[9999];

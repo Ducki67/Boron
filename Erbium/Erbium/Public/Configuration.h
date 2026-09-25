@@ -62,7 +62,7 @@ struct GameRuleConfig
     static inline auto bAutoRestart = false;
     static inline auto bKeepInventory = false;
     static inline auto bCreativeExtraAmmo = false; // this is buggy btw! fuckes inventory up a bit (dont use it unless u wanna see the bug)
-    static inline auto bBossAI = false; // VERY VERY experimental (might not be fixed later) - patrol/chase/shoot + mythic/keycard drops
+    static inline auto bLWM_AI = false; // NPC + boss AI logic (move/shoot). Bosses/NPCs/henchmen always SPAWN (with guns + drops); turn this off on weak PCs or for less lag while testing
    
     static inline auto bCH5AutoPickupWeapons = false; //temp shit dont use it its ass
 };
