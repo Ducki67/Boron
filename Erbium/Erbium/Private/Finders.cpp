@@ -3347,6 +3347,29 @@ uint64 FindSetIsDoorOpen()
     return 0;
 }
 
+static uint64 OwningFunctionStart(uint64 Address)
+{
+    DWORD64 ImageBase = 0;
+    auto Entry = RtlLookupFunctionEntry(Address, &ImageBase, nullptr);
+    for (int i = 0; Entry && i < 8; i++)
+    {
+        auto Info = (uint8_t*)(ImageBase + Entry->UnwindData);
+        if (((Info[0] >> 3) & UNW_FLAG_CHAININFO) == 0)
+            break;
+        Entry = (PRUNTIME_FUNCTION)(Info + 4 + ((Info[2] + 1) & ~1) * 2);
+    }
+    return Entry ? ImageBase + Entry->BeginAddress : 0;
+}
+
+static uint64 ValidateStringOwner(const char* Name, uint64 Found, uint64 StringRef)
+{
+    auto Owner = OwningFunctionStart(StringRef);
+    if (!Found || !Owner || Owner == Found)
+        return Found;
+    printf("[Boron][Init] %s rejected %p (string is in %p)\n", Name, (void*)Found, (void*)Owner);
+    return 0;
+}
+
 uint64 FindSelectAndSetupMyBuildingLevel()
 {
     auto sRef = Memcury::Scanner::FindStringRef(L"ABuildingFoundation::SelectAndSetupMyBuildingLevel - Cannot get WorldManager!!", false, 0, VersionInfo.FortniteVersion >= 19, false);
@@ -3376,11 +3399,11 @@ uint64 FindSelectAndSetupMyBuildingLevel()
         auto Ptr = (uint8_t*)(SelectAndSetupMyBuildingLevelPart - i);
 
         if (*Ptr == 0x48 && *(Ptr + 1) == 0x8B && *(Ptr + 2) == 0xC4)
-            return uint64_t(Ptr);
+            return ValidateStringOwner("SelectAndSetupMyBuildingLevel", uint64_t(Ptr), sRef.Get());
         else if (*Ptr == 0x48 && *(Ptr + 1) == 0x89 && *(Ptr + 2) == 0x5C)
-            return uint64_t(Ptr);
+            return ValidateStringOwner("SelectAndSetupMyBuildingLevel", uint64_t(Ptr), sRef.Get());
         else if (*Ptr == 0x40 && *(Ptr + 1) == 0x55)
-            return uint64_t(Ptr);
+            return ValidateStringOwner("SelectAndSetupMyBuildingLevel", uint64_t(Ptr), sRef.Get());
     }
 
     return 0;
@@ -3416,11 +3439,11 @@ uint64 FindStreamInMyBuilding()
         auto Ptr = (uint8_t*)(StreamInMyBuildingPart - i);
 
         if (*Ptr == 0x48 && *(Ptr + 1) == 0x8B && *(Ptr + 2) == 0xC4)
-            return uint64_t(Ptr);
+            return ValidateStringOwner("StreamInMyBuilding", uint64_t(Ptr), sRef.Get());
         else if (*Ptr == 0x48 && *(Ptr + 1) == 0x89 && *(Ptr + 2) == 0x5C)
-            return uint64_t(Ptr);
+            return ValidateStringOwner("StreamInMyBuilding", uint64_t(Ptr), sRef.Get());
         else if (*Ptr == 0x40 && *(Ptr + 1) == 0x55)
-            return uint64_t(Ptr);
+            return ValidateStringOwner("StreamInMyBuilding", uint64_t(Ptr), sRef.Get());
     }
 
     return 0;

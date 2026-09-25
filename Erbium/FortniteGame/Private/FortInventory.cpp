@@ -41,9 +41,11 @@ static void LogGiveCaller(void* Ret)
 UFortWorldItem* AFortInventory::GiveItem(const UFortItemDefinition* Def, int Count, int LoadedAmmo, int Level, bool ShowPickupNoti, bool updateInventory, int PhantomReserveAmmo,
                                          TArray<FFortItemEntryStateValue> StateValues)
 {
+#if 0
     static int gtn = 0;
     if (gtn++ < 8)
         LogGiveCaller(_ReturnAddress());
+#endif
 
     if (!this || !Def || !Count)
         return nullptr;

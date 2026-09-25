@@ -10,6 +10,8 @@
 #include "../../Erbium/Public/Configuration.h"
 #include "../../Erbium/Public/Events.h"
 #include "../../Erbium/Public/GUI.h"
+#include "../../Erbium/Public/Conversation.h"
+#include "../../Erbium/Public/WeaponUpgrade.h"
 #include "../../Erbium/Public/ItemAliases.h"
 #include "../../Erbium/Public/LateGame.h"
 #include "../Public/BattleRoyaleGamePhaseLogic.h"
@@ -3938,7 +3940,9 @@ void AFortPlayerControllerAthena::ServerSetMultiProductCosmeticLoadout_(UObject*
         ((void (*)(AActor*, AActor*, int))ApplyCharacterCustomization)(PlayerController->PlayerState, Pawn, 0);
 }
 
+#if 0
 static void TryWeaponUpgrade(AFortPlayerControllerAthena* PC, uint8 InteractionByte);
+#endif
 
 void AFortPlayerControllerAthena::ServerAttemptInteract_(UObject* Context, FFrame& Stack)
 {
@@ -3998,6 +4002,13 @@ void AFortPlayerControllerAthena::ServerAttemptInteract_(UObject* Context, FFram
         // TargetTags.ParentTags.Free();
     };
 
+    if (ReceivingActor && NPCConversation::TryStart(PlayerController, ReceivingActor))
+    {
+        sendStat();
+        return;
+    }
+
+#if 0
     if (ReceivingActor && VersionInfo.FortniteVersion >= 11.0 && VersionInfo.FortniteVersion < 15.0)
     {
         auto ActorName = ReceivingActor->Class->Name.ToString();
@@ -4007,6 +4018,17 @@ void AFortPlayerControllerAthena::ServerAttemptInteract_(UObject* Context, FFram
             printf("[Boron][Wumba] interact actor=%s byte=%d\n", ActorName.c_str(), (int)InteractionByte);
             TryWeaponUpgrade(PlayerController, InteractionByte);
         }
+    }
+#endif
+
+    static auto WeaponUpgradeClass = FindClass("BuildingItemWeaponUpgradeActor");
+    if (ReceivingActor && WeaponUpgradeClass && ReceivingActor->IsA(WeaponUpgradeClass))
+    {
+        static auto InteractionOffset = Stack.Node ? ((const UStruct*)Stack.Node)->GetOffset("InteractionBeingAttempted") : (uint32)-1;
+        uint8 InteractionBeingAttempted = *(uint8*)(Stack.Locals + (InteractionOffset != (uint32)-1 ? InteractionOffset : 0x20));
+        WeaponUpgrade::UseBench(PlayerController, ReceivingActor, InteractionBeingAttempted, [&]() { ServerAttemptInteract_OG(Context, Stack); });
+        sendStat();
+        return;
     }
 
     if (auto Container = bDidntFind ? ReceivingActor->Cast<ABuildingContainer>() : nullptr)
@@ -4514,6 +4536,7 @@ inline std::string CleanupString(std::string& s)
     return s;
 }
 // i think this is some stw shit  i wont touch it but intresting
+#if 0
 static void TryWeaponUpgrade(AFortPlayerControllerAthena* PC, uint8 InteractionByte)
 {
     if (!PC || !PC->Pawn || !PC->WorldInventory)
@@ -4651,6 +4674,7 @@ static void TryWeaponUpgrade(AFortPlayerControllerAthena* PC, uint8 InteractionB
 
     printf("[Boron][Wumba] upgrade done (cost w=%d s=%d m=%d)\n", WoodCost, StoneCost, MetalCost);
 }
+#endif
 
 void AFortPlayerControllerAthena::ServerCraftSchematic(UObject* Context, FFrame& Stack)
 {

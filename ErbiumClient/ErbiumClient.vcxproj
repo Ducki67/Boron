@@ -20,8 +20,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ErbiumClient\Public\Client.h" />
+    <ClInclude Include="ErbiumClient\Public\FortCheatManager.h" />
     <ClInclude Include="ErbiumClient\Public\FortPlayerControllerAthena.h" />
     <ClInclude Include="ErbiumClient\Public\FortPlaylistAthena.h" />
+    <ClInclude Include="framework.h" />
     <ClInclude Include="pch.h" />
   </ItemGroup>
   <ItemGroup>

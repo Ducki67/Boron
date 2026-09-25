@@ -2110,6 +2110,19 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
     auto FwiStart = GetTickCount64();
     FinishWorldInitializationOG(_this, WorldManager);
 
+    if (VersionInfo.FortniteVersion < 30.0)
+    {
+        for (auto Category : { L"LogPhysics", L"LogFortQuest", L"LogAthenaBots", L"LogAISpawnerData", L"LogFortAI", L"LogAnalytics", L"LogFortWorld", L"LogAbilitySystem",
+                               L"LogUObjectGlobals", L"LogFortPhysics", L"LogBuilding", L"LogCore", L"LogEQS", L"LogOnline", L"LogOnlineFriend", L"LogOnlinePresence",
+                               L"LogOnlineInteractions", L"LogOnlineSession", L"LogOnlineGame", L"LogHttpSerialization", L"LogEOSSDK", L"LogEpicCMS", L"LogFortPlayerSurvey",
+                               L"LogPRMContext", L"LogParty", L"LogFortChat", L"LogCurveTable", L"LogDataTable", L"LogBlueprint", L"LogFortPerformance", L"LogGameFeatures",
+                               L"LogHotfixManager", L"LogFortUI", L"LogUIActionRouter", L"LogFortReplicationGraph", L"PacketHandlerLog", L"LogFortInvServiceComp",
+                               L"LogFortAIDirector" })
+            UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString((std::wstring(L"log ") + Category + L" NoLogging").c_str()), nullptr);
+        UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"log LogFort Error"), nullptr);
+        UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"log LogStreaming Error"), nullptr);
+    }
+
     if (VersionInfo.EngineVersion >= 5.4)
         printf("[Boron][Perf] FinishWorldInitializationOG took=%llums\n", (unsigned long long)(GetTickCount64() - FwiStart));
 
@@ -2711,8 +2724,12 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
     {
         TArray<ABuildingItemCollectorActor*> Collectors{};
         Utils::GetAll<ABuildingItemCollectorActor>(Collectors);
+        static auto WeaponUpgradeClass = FindClass("BuildingItemWeaponUpgradeActor");
         for (auto& CollectorActor : Collectors)
         {
+            if (WeaponUpgradeClass && CollectorActor->IsA(WeaponUpgradeClass))
+                continue;
+
             if (Sum > Weight)
             {
             PickNum:

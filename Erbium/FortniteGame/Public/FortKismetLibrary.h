@@ -35,6 +35,7 @@ public:
     DEFINE_STATIC_FUNC(SpawnProjectileWithParams, void);
     DEFINE_STATIC_FUNC(OpenActor, void);
     DEFINE_STATIC_FUNC(CloseActor, void);
+    DEFINE_STATIC_FUNC(GetUpgradedWeaponItemVerticalToRarity, UFortItemDefinition*);
     // DEFINE_STATIC_FUNC(K2_GetResourceItemDefinition, UFortItemDefinition*);
 
     static const UFortItemDefinition* K2_GetResourceItemDefinition(EFortResourceType Type)

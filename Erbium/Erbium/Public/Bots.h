@@ -11,6 +11,7 @@
 #include "../../FortniteGame/Public/FortPlayerControllerAthena.h"
 #include "../../FortniteGame/Public/FortInventory.h"
 #include "../../FortniteGame/Public/FortGameMode.h"
+#include "Conversation.h"
 
 namespace BossAI
 {
@@ -519,14 +520,8 @@ namespace BossAI
             }
             given++;
 
-            static int ilog = 0;
-            if (ilog++ < 40)
-                printf("[Boron][Bots] loadout item bot=%p [%s] x%d\n", (void*)Bot, Def->Name.ToString().c_str(), cnt);
         }
 
-        static int llog = 0;
-        if (llog++ < 12)
-            printf("[Boron][Bots] loadout bot=%p items=%d equipped=%d\n", (void*)Bot, given, (int)equipped);
     }
 
     inline void ApplyBotCosmetics(AFortPlayerPawnAthena* Bot, UObject* SpawnerCDO)
@@ -588,10 +583,6 @@ namespace BossAI
                     for (auto& PartSoft : Spec->CharacterParts)
                         Choose(PartSoft.Get());
 
-        static int clog = 0;
-        if (clog++ < 12)
-            printf("[Boron][Bots] cosmetics bot=%p character=%s parts=%d\n", (void*)Bot,
-                   CID->Name.ToString().c_str(), applied);
     }
 
     inline void TrackSpawnedBot(AFortPlayerPawnAthena* Bot, UObject* SpawnerCDO, const std::string& Name)
@@ -808,6 +799,7 @@ namespace BossAI
         }
 
         int spawned = 0;
+        double FirstX = 0, FirstY = 0, FirstZ = 0;
         for (size_t i = 0; i < Matches.size(); i++)
         {
             static auto PointsOffset = Matches[i]->GetOffset("PatrolPoints");
@@ -821,6 +813,12 @@ namespace BossAI
 
             auto LocV = SpawnPoint->K2_GetActorLocation();
             auto RotV = SpawnPoint->K2_GetActorRotation();
+            if (!spawned)
+            {
+                FirstX = LocV.X;
+                FirstY = LocV.Y;
+                FirstZ = LocV.Z;
+            }
 
             int vsz = FVector::Size();
             int rsz = FRotator::Size();
@@ -858,17 +856,18 @@ namespace BossAI
                 if (VersionInfo.FortniteVersion >= 14.0 && VersionInfo.FortniteVersion < 16.0)
                     TrackSpawnedBot((AFortPlayerPawnAthena*)spawnedPawn, SpawnerCDO, Name);
                 if (VersionInfo.FortniteVersion >= 15.0 && VersionInfo.FortniteVersion < 16.0)
+                {
                     AddNPCSpecialActor((AFortPlayerPawnAthena*)spawnedPawn, SpawnerCDO);
+                    static auto ConvOff = SpawnerCDO->GetOffset("ConversationComponent");
+                    auto ConvClass = ConvOff != -1 ? GetFromOffset<UClass*>(SpawnerCDO, ConvOff) : nullptr;
+                    if (ConvClass)
+                        NPCConversation::SetupNPC((AFortPlayerPawnAthena*)spawnedPawn, ConvClass->GetDefaultObj());
+                }
             }
 
-            static int slog = 0;
-            if (slog++ < 8)
-                printf("[Boron][Bots] SpawnAI %s path=%zu ok=%d pawn=%p list=%p vsz=%d loc=(%.0f,%.0f,%.0f)\n",
-                       Name.c_str(), i, (int)ok, (void*)spawnedPawn, (void*)CreateParams.ReturnValue, vsz,
-                       LocV.X, LocV.Y, LocV.Z);
         }
 
-        printf("[Boron][Bots] spawn %s: %d/%d paths\n", Name.c_str(), spawned, (int)Matches.size());
+        printf("[Boron][Bots] spawn %s: %d/%d paths at (%.0f,%.0f,%.0f)\n", Name.c_str(), spawned, (int)Matches.size(), FirstX, FirstY, FirstZ);
     }
 
     inline void RequestAISpawn()
@@ -1111,6 +1110,7 @@ namespace BossAI
         if (PhaseOff == -1 || GetFromOffset<uint8>(GameState, PhaseOff) < 3)
             return;
         bDone = true;
+        NPCConversation::Init();
 
         static const char* BattlepassNPCs[] = { "Bandolier", "BeefBoss", "BigChuggus", "Bigfoot", "Blaze", "BriteBomber", "Brutus", "Bullseye", "BunkerJonesy", "Burnout",
                                                 "Bushranger", "Cole", "Deadfire", "Doggo", "Dummy", "FarmerSteel", "Fishstick", "FutureSamurai", "Gladiator", "Grimbles",
@@ -1180,7 +1180,6 @@ namespace BossAI
         };
         CollectTags("FortAthenaPatrolPath", "GameplayTags");
         CollectTags("FortAthenaPatrolPathPointProvider", "FiltersTags");
-        printf("[Boron][Bots] S15 patrol tags: %s\n", TagLeaves.c_str());
 
         std::string Missing;
         for (auto& Spawner : Spawners)

@@ -24,6 +24,12 @@
     <ClInclude Include="ErbiumClient\Public\Client.h">
       <Filter>ErbiumClient\Public</Filter>
     </ClInclude>
+    <ClInclude Include="ErbiumClient\Public\FortCheatManager.h">
+      <Filter>ErbiumClient\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="framework.h">
+      <Filter>ErbiumClient\Public</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">

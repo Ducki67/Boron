@@ -265,7 +265,9 @@ void ProgressQuest(UFortQuestManager* _this, AFortPlayerControllerAthena* Player
         }
     }
 
+#if 0
     printf("[Quests] %s Completed: %s\n", BackendName.ToString().c_str(), (AcheivedCount + Count == QuestObjective->RequiredCount) ? "true" : "false");
+#endif
     // keep it the same damnit
     _this->SelfCompletedUpdatedQuest(PlayerController, QuestDefinition, BackendName, AcheivedCount + Count, Count, nullptr, AcheivedCount + Count == QuestObjective->RequiredCount, bAllObjectivesCompleted);
 
@@ -426,7 +428,9 @@ void UFortQuestManager::SendStatEvent__Internal(AActor* PlayerController, long l
                     if (!IsConditionMet(Row->Condition, TargetTags, SourceTags, ContextTags))
                         continue;
 
+#if 0
                     printf("[Quests] Update: %s\n", Objective.BackendName.ToString().c_str());
+#endif
                     ProgressQuest(this, FortPC, Quest, Objective.BackendName, Count);
                 }
             }
@@ -496,7 +500,9 @@ void UFortQuestManager::SendStatEvent(AActor* PlayerController, long long StatEv
 
     GetSourceAndContextTags(&PlayerSourceTags, &ContextTags);
 
+#if 0
     printf("[QuestManager] SendStatEvent (Event: %lld)\n", StatEvent);
+#endif
 
     auto GameMode = (AFortGameModeAthena*)UWorld::GetWorld()->AuthorityGameMode;
     auto GameState = (AFortGameStateAthena*)GameMode->GameState;
@@ -543,7 +549,9 @@ void SendComplexCustomStatEvent(UObject* Context, FFrame& Stack)
 void QueueStatEvent(UFortQuestManager* QuestManager, uint8_t InType, UObject* InTargetObject, FGameplayTagContainer* InTargetTags, FGameplayTagContainer* InSourceTags, FGameplayTagContainer* InContextTags,
                     void* InObjectiveStat, FName InObjectiveBackendName, int InCount)
 {
+#if 0
     printf("[QuestManager] QueueStatEvent (Event: %d)\n", InType);
+#endif
 
     auto GameMode = (AFortGameModeAthena*)UWorld::GetWorld()->AuthorityGameMode;
     auto GameState = (AFortGameStateAthena*)GameMode->GameState;

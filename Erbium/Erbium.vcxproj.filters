@@ -31,6 +31,9 @@
     <Filter Include="Erbium\Private">
       <UniqueIdentifier>{cbee2d3e-a608-4025-842c-261bc8d3e0d4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="libcurl">
+      <UniqueIdentifier>{5d0c2f41-8e7b-4a6d-9c3e-2b7f1a9e6c54}</UniqueIdentifier>
+    </Filter>
     <Filter Include="ImGui">
       <UniqueIdentifier>{2665ea75-93ff-4597-8707-9410bd0d274e}</UniqueIdentifier>
     </Filter>
@@ -228,25 +231,63 @@
     <ClInclude Include="Erbium\Public\Hooking.hpp">
       <Filter>Erbium\Public</Filter>
     </ClInclude>
-    <ClInclude Include="libcurl\curl.h" />
-    <ClInclude Include="libcurl\curlver.h" />
-    <ClInclude Include="libcurl\easy.h" />
-    <ClInclude Include="libcurl\header.h" />
-    <ClInclude Include="libcurl\mprintf.h" />
-    <ClInclude Include="libcurl\multi.h" />
-    <ClInclude Include="libcurl\options.h" />
-    <ClInclude Include="libcurl\stdcheaders.h" />
-    <ClInclude Include="libcurl\system.h" />
-    <ClInclude Include="libcurl\typecheck-gcc.h" />
-    <ClInclude Include="libcurl\urlapi.h" />
-    <ClInclude Include="Erbium\Public\ItemAliases.h" />
-    <ClInclude Include="Erbium\Public\Bots.h" />
+    <ClInclude Include="libcurl\curl.h">
+      <Filter>libcurl</Filter>
+    </ClInclude>
+    <ClInclude Include="libcurl\curlver.h">
+      <Filter>libcurl</Filter>
+    </ClInclude>
+    <ClInclude Include="libcurl\easy.h">
+      <Filter>libcurl</Filter>
+    </ClInclude>
+    <ClInclude Include="libcurl\header.h">
+      <Filter>libcurl</Filter>
+    </ClInclude>
+    <ClInclude Include="libcurl\mprintf.h">
+      <Filter>libcurl</Filter>
+    </ClInclude>
+    <ClInclude Include="libcurl\multi.h">
+      <Filter>libcurl</Filter>
+    </ClInclude>
+    <ClInclude Include="libcurl\options.h">
+      <Filter>libcurl</Filter>
+    </ClInclude>
+    <ClInclude Include="libcurl\stdcheaders.h">
+      <Filter>libcurl</Filter>
+    </ClInclude>
+    <ClInclude Include="libcurl\system.h">
+      <Filter>libcurl</Filter>
+    </ClInclude>
+    <ClInclude Include="libcurl\typecheck-gcc.h">
+      <Filter>libcurl</Filter>
+    </ClInclude>
+    <ClInclude Include="libcurl\urlapi.h">
+      <Filter>libcurl</Filter>
+    </ClInclude>
+    <ClInclude Include="Erbium\Public\ItemAliases.h">
+      <Filter>Erbium\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="Erbium\Public\Bots.h">
+      <Filter>Erbium\Public</Filter>
+    </ClInclude>
     <ClInclude Include="FortniteGame\Public\FortAthenaSpawningPolicyManager.h">
       <Filter>FortniteGame\Public</Filter>
     </ClInclude>
-    <ClInclude Include="Erbium\Public\Mythics.h" />
-    <ClInclude Include="FortniteGame\Public\FortWeaponMods.h" />
-    <ClInclude Include="Erbium\Public\Dumper.h" />
+    <ClInclude Include="Erbium\Public\Mythics.h">
+      <Filter>Erbium\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="FortniteGame\Public\FortWeaponMods.h">
+      <Filter>FortniteGame\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="Erbium\Public\Dumper.h">
+      <Filter>Erbium\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="Erbium\Public\Conversation.h">
+      <Filter>Erbium\Public</Filter>
+    </ClInclude>
+    <ClInclude Include="Erbium\Public\WeaponUpgrade.h">
+      <Filter>Erbium\Public</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Erbium\Private\dllmain.cpp">
