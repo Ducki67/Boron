@@ -36,7 +36,7 @@ struct LategameConfig // dont use lategame on s30+ plz, for now cuz barely teste
     static inline int CustomSlot5ItemCount = 6;
 
     // zones
-    static inline auto bLateGame = false;
+    static inline auto bLateGame = true;
     static inline auto LateGameZone = 3;          // starting zone
     static inline auto bLateGameLongZone = false; // zone does not close for a long time
     static inline auto bLateGameMovingBus = false;
@@ -94,7 +94,7 @@ struct FConfig
     
 
     // static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_BlastBerrySquad.Playlist_BlastBerrySquad"; // 30.20 reload venture!
-    static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo";
+    // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo";
     ///static inline wchar_t Playlist[9999] = L"/BlueCheese/Playlists/Playlist_ShowdownAlt_BlueCheese_Trios.Playlist_ShowdownAlt_BlueCheese_Trios"; // Bugha's LateGame Arena trios (17.20)
     
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Showdown/Playlist_ShowdownAlt_Solo.Playlist_ShowdownAlt_Solo";
@@ -113,7 +113,7 @@ struct FConfig
 
     /*  S31 Testing playlists*/
     // static inline wchar_t Playlist[9999] = L"/BRPlaylists/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo"; // BR
-    // static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_SunflowerSolo.Playlist_SunflowerSolo"; // venture Reload (testing)
+    static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_SunflowerSolo.Playlist_SunflowerSolo"; // venture Reload (testing)
     
 
     /* static inline wchar_t Playlist[9999] = L"";
