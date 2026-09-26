@@ -36,8 +36,8 @@ struct LategameConfig // dont use lategame on s30+ plz, for now cuz barely teste
     static inline int CustomSlot5ItemCount = 6;
 
     // zones
-    static inline auto bLateGame = true;
-    static inline auto LateGameZone = 3;          // starting zone
+    static inline auto bLateGame = false;
+    static inline auto LateGameZone = 3;          // starting zone  (recomend setting this to 3 if u suing Reload Solo with Lategame so u will have a cool "Reloaded" LateGame"
     static inline auto bLateGameLongZone = false; // zone does not close for a long time
     static inline auto bLateGameMovingBus = false;
 
@@ -114,6 +114,7 @@ struct FConfig
     /*  S31 Testing playlists*/
     // static inline wchar_t Playlist[9999] = L"/BRPlaylists/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo"; // BR
     static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_SunflowerSolo.Playlist_SunflowerSolo"; // venture Reload (testing)
+    //static inline wchar_t Playlist[9999] = L"/ToadJam/Athena/Playlists/ToadJam/Playlist_ToadJam_Sm.Playlist_ToadJam_Sm"; // Day of Doom LTM (testing, 31.20, 31.30)
     
 
     /* static inline wchar_t Playlist[9999] = L"";
