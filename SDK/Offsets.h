@@ -158,6 +158,7 @@ namespace SDK
         Offsets::ObjectItemObject = 0x10;
         Offsets::ObjectItemFlags = 0x4;
         Offsets::ObjectItemSerial = 0x8;
+        Offsets::FieldMask = 0x68;
         Offsets::bEncryptedObjectArray = true;
         Offsets::bIsAUsesSuper = true;
 

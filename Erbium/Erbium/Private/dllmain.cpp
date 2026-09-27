@@ -95,23 +95,6 @@ void Main()
     printf("Initializing SDK...\n");
     SDK::Init();
 
-    if (SDK::Offsets::bEncryptedObjectArray)
-    {
-        auto PawnClass = AFortPlayerPawnAthena::StaticClass();
-        auto StormBit = PawnClass ? (const uint8_t*)PawnClass->GetProperty("bIsInAnyStorm") : nullptr;
-        auto SafeBit = PawnClass ? (const uint8_t*)PawnClass->GetProperty("bIsInsideSafeZone") : nullptr;
-        uint32_t OldMask = SDK::Offsets::FieldMask;
-        for (uint32_t k = 0x60; StormBit && SafeBit && k < 0x90; k++)
-        {
-            if (StormBit[k] == 1 && SafeBit[k] == 2)
-            {
-                SDK::Offsets::FieldMask = k;
-                break;
-            }
-        }
-        printf("[Boron][Init] FieldMask 0x%x -> 0x%x (storm=%p safe=%p)\n", OldMask, SDK::Offsets::FieldMask, StormBit, SafeBit);
-    }
-
     if constexpr (FConfig::bGUI)
     {
         if constexpr (FConfig::bUseStdoutLog)
@@ -465,6 +448,10 @@ void Main()
             *WeaponMetaSound = false;
         if (KeepSlideMomentum)
             *KeepSlideMomentum = false;
+        auto RootMotionPreventsClamber = FindCVar<bool>(L"Clambering.RootMotionPreventsStart");
+        printf("[Boron][Init] RootMotionPreventsClamber=%p(%d)\n", RootMotionPreventsClamber, RootMotionPreventsClamber ? *RootMotionPreventsClamber : -1);
+        if (RootMotionPreventsClamber)
+            *RootMotionPreventsClamber = false;
     }
 
     for (auto& HookFunc : _PostLoadHookFuncs)
