@@ -56,15 +56,20 @@ Currently the only versions that are "supported" are below:
 | v30.40 | Chapter 5 Season 3 | Supported |
 | v31.30 | Chapter 5 Season 3 | Supported |
 | v31.41 | Chapter 5 Season 3 | Supported |
+| v32.00 | Chapter 2 Remix | Supported but unfinished atm |
 
-- Progress (31.41): **~41% Done**
 
-- Progress (31.30): **~41% Done**
 
-- Progress (30.40): **~40% Done**
 
 - Progress (30.20): **~40% Done**
 
+- Progress (30.40): **~40% Done**
+
+- Progress (31.30): **~41% Done**
+
+- Progress (31.41): **~41% Done**
+
+- Progress (32.00): **2% Done** (currently being worked on)
 
 </details>
 
