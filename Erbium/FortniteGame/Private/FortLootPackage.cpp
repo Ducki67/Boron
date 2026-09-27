@@ -437,6 +437,10 @@ void UFortLootPackage::ChooseLootForContainer(TArray<FFortItemEntry*>& LootDrops
 
 bool UFortLootPackage::SpawnLootHook(ABuildingContainer* Container)
 {
+    static int SpawnLootDiag = 0;
+    if (VersionInfo.FortniteVersion >= 32 && SpawnLootDiag++ < 4)
+        printf("[Boron][Chest] SpawnLoot %s searched=%d off=0x%x mask=0x%x\n", Container->Name.ToString().c_str(), (int)Container->bAlreadySearched, ABuildingContainer::bAlreadySearched__Offset, ABuildingContainer::bAlreadySearched__FieldMask);
+
     if (Container->bAlreadySearched)
         return false;
 
@@ -688,6 +692,9 @@ void UFortLootPackage::Hook()
         Hooking::Hook(FindSpawnLoot(), SpawnLootHook);
 
         auto OnAuthorityRandomUpgradeAppliedAddr = FindFunctionCall(L"OnAuthorityRandomUpgradeApplied", std::vector<uint8_t>{ 0x48, 0x89, 0x5C });
+        if (VersionInfo.FortniteVersion >= 32 && OnAuthorityRandomUpgradeAppliedAddr)
+            if (auto Owner = FindOwningFunction(OnAuthorityRandomUpgradeAppliedAddr))
+                OnAuthorityRandomUpgradeAppliedAddr = Owner;
         Hooking::Hook(OnAuthorityRandomUpgradeAppliedAddr, OnAuthorityRandomUpgradeApplied, OnAuthorityRandomUpgradeAppliedOG);
         return;
     }

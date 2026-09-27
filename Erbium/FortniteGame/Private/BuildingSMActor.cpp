@@ -14,6 +14,11 @@ void ABuildingSMActor::OnDamageServer(ABuildingSMActor* Actor, float Damage, FGa
     auto GameMode = ((AFortGameMode*)UWorld::GetWorld()->AuthorityGameMode);
     auto Controller = (AFortPlayerControllerAthena*)InstigatedBy;
 
+    static int HarvestDiag = 0;
+    const bool bHarvestDiag = VersionInfo.FortniteVersion >= 32 && HarvestDiag++ < 6;
+    if (bHarvestDiag)
+        printf("[Boron][Harvest] OnDamageServer actor=%s dmg=%.1f inst=%p causer=%p\n", Actor ? Actor->Name.ToString().c_str() : "null", Damage, (void*)InstigatedBy, (void*)DamageCauser);
+
     /*auto bIsWeakspot = Damage == 100.f && Actor->IsA<ABuildingSMActor>() && DamageCauser->IsA<AFortWeapon>() &&
     ((AFortWeapon*)DamageCauser)->WeaponData->IsA(UFortWeaponMeleeItemDefinition::StaticClass());
 
@@ -84,9 +89,12 @@ void ABuildingSMActor::OnDamageServer(ABuildingSMActor* Actor, float Damage, FGa
         }
     }
 
+    if (bHarvestDiag)
+        printf("[Boron][Harvest] resource=%s count=%d\n", Resource->Name.ToString().c_str(), ResCount);
+
     if (ResCount > 0)
     {
-        auto ItemP = Controller->WorldInventory->Inventory.ItemInstances.Search([&](UFortWorldItem* entry) { return entry->ItemEntry.ItemDefinition == Resource; });
+        auto ItemP =Controller->WorldInventory->Inventory.ItemInstances.Search([&](UFortWorldItem* entry) { return entry->ItemEntry.ItemDefinition == Resource; });
         auto itemEntry = Controller->WorldInventory->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& entry) { return entry.ItemDefinition == Resource; }, FFortItemEntry::Size());
 
         if (ItemP)
@@ -595,6 +603,9 @@ void ABuildingSMActor::PostLoadHook()
 
         if (!GetSparseClassData_)
             GetSparseClassData_ = Memcury::Scanner::FindPattern("48 83 EC ? 48 8B 81 ? ? ? ? 45 33 C0 48 85 C0 75").Get();
+
+        if (!GetSparseClassData_ && VersionInfo.FortniteVersion >= 32)
+            GetSparseClassData_ = Memcury::Scanner::FindPattern("48 83 C4 ? 48 8B 81 ? ? ? ? ? 85 C0 74 ? ? 83 EC ? C3 0F B6 D2 85 D2").Get();
     }
     if (VersionInfo.FortniteVersion >= 18)
     {
@@ -605,6 +616,9 @@ void ABuildingSMActor::PostLoadHook()
     auto OnDamageServerAddr = FindFunctionCall(L"OnDamageServer", VersionInfo.EngineVersion == 4.16                                        ? std::vector<uint8_t>{ 0x4C, 0x89, 0x4C }
                                                                   : VersionInfo.EngineVersion == 4.19 || VersionInfo.EngineVersion >= 4.27 ? std::vector<uint8_t>{ 0x48, 0x8B, 0xC4 }
                                                                                                                                            : std::vector<uint8_t>{ 0x40, 0x55 });
+    if (VersionInfo.FortniteVersion >= 32 && OnDamageServerAddr)
+        if (auto Owner = FindOwningFunction(OnDamageServerAddr))
+            OnDamageServerAddr = Owner;
 
     Hooking::Hook(OnDamageServerAddr, OnDamageServer, OnDamageServerOG);
 

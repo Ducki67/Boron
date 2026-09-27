@@ -381,7 +381,7 @@ namespace NPCConversation
         auto Prop = Obj ? Obj->GetProperty(Name) : nullptr;
         if (!Prop)
             return;
-        auto Offset = GetFromOffset<uint32>(Prop, Offsets::Offset_Internal);
+        auto Offset = ReadPropertyOffset(Prop);
         auto Mask = Prop->GetFieldMask();
         auto& Byte = At<uint8>(Obj, Offset);
         if (Mask == 0xFF)

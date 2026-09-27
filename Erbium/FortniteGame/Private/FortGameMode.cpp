@@ -539,7 +539,7 @@ void AFortGameMode::ReadyToStartMatch_(UObject* Context, FFrame& Stack, bool* Re
 
             if (VersionInfo.EngineVersion >= 5.3 && FConfig::bEnableIris)
             {
-                *(bool*)(__int64(&NetDriver->ReplicationDriver) + 0x11) = true;
+                *(bool*)(__int64(&NetDriver->ReplicationDriver) + (VersionInfo.FortniteVersion >= 32 ? 0x19 : 0x11)) = true;
             }
 
             NetDriver->NetDriverName = NetDriverName;
@@ -2249,7 +2249,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
                     NetDriver->World = CurWorld;
 
                     if (VersionInfo.EngineVersion >= 5.3 && FConfig::bEnableIris)
-                        *(bool*)(__int64(&NetDriver->ReplicationDriver) + 0x11) = true;
+                        *(bool*)(__int64(&NetDriver->ReplicationDriver) + (VersionInfo.FortniteVersion >= 32 ? 0x19 : 0x11)) = true;
 
                     for (int i = 0; i < CurWorld->LevelCollections.Num(); i++)
                     {

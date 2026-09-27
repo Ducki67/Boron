@@ -115,8 +115,8 @@ public:
 
         if (Prop)
         {
-            static auto MaxStackSizeSize = GetFromOffset<int32>(Prop, Offsets::ElementSize); // tuff variable name
-            static auto MaxStackSizeOffset = GetFromOffset<int32>(Prop, Offsets::Offset_Internal);
+            static auto MaxStackSizeSize = (int32)ReadElementSize(Prop); // tuff variable name
+            static auto MaxStackSizeOffset = (int32)ReadPropertyOffset(Prop);
 
             if (MaxStackSizeSize == 4) // sizeof(int32)
                 return GetFromOffset<int32>(this, MaxStackSizeOffset);

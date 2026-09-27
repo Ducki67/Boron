@@ -1006,7 +1006,7 @@ namespace SDK
                 const UField* _Prop = *(const UField**)(__int64(this) + Offsets::FFrame_PropertyChainForCompiledIn);
                 if (_Prop)
                 {
-                    *(const UField**)(__int64(this) + Offsets::FFrame_PropertyChainForCompiledIn) = *(const UField**)(__int64(_Prop) + Offsets::FFrame_Next);
+                    *(const UField**)(__int64(this) + Offsets::FFrame_PropertyChainForCompiledIn) = (const UField*)ReadFieldPtr(_Prop, Offsets::FFrame_Next);
                     ((void (*)(FFrame*, void* const, const UField*))Offsets::StepExplicitProperty)(this, Result, _Prop);
                 }
             }
@@ -1025,7 +1025,7 @@ namespace SDK
             else
             {
                 const UField* _Prop = *(const UField**)(__int64(this) + Offsets::FFrame_PropertyChainForCompiledIn);
-                *(const UField**)(__int64(this) + Offsets::FFrame_PropertyChainForCompiledIn) = *(const UField**)(__int64(_Prop) + Offsets::FFrame_Next);
+                *(const UField**)(__int64(this) + Offsets::FFrame_PropertyChainForCompiledIn) = (const UField*)ReadFieldPtr(_Prop, Offsets::FFrame_Next);
                 ((void (*)(FFrame*, void* const, const UField*))Offsets::StepExplicitProperty)(this, _Tm, _Prop);
             }
 

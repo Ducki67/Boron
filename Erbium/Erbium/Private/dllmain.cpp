@@ -410,7 +410,9 @@ void Main()
     {
         if (VersionInfo.FortniteVersion >= 27.00)
         {
-            if (VersionInfo.FortniteVersion >= 28.00)
+            if (VersionInfo.FortniteVersion >= 32.00 && VersionInfo.FortniteVersion < 33.00)
+                terrainOpen = L"open Apollo_Terrain_Retro";
+            else if (VersionInfo.FortniteVersion >= 28.00)
                 terrainOpen = L"open Helios_Terrain";
         }
         else if (VersionInfo.FortniteVersion >= 23.00)
@@ -435,6 +437,17 @@ void Main()
         // net.AllowEncryption 0 disables encryption engine-wide and is version-agnostic (same job).
         printf("Encryption byte-patch not found, falling back to net.AllowEncryption 0 (UE5.4+)\n");
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"net.AllowEncryption 0"), nullptr);
+    }
+
+    if (VersionInfo.FortniteVersion >= 32)
+    {
+        auto WeaponMetaSound = FindCVar<bool>(L"Fort.Rollback.EnableWeaponMetaSoundParameterPack");
+        auto KeepSlideMomentum = FindCVar<bool>(L"Fort.CharacterMovement.KeepMovingPlatformMomentumWhenLandingInSlide");
+        printf("[Boron][Init] WeaponMetaSound=%p(%d) KeepSlideMomentum=%p(%d)\n", WeaponMetaSound, WeaponMetaSound ? *WeaponMetaSound : -1, KeepSlideMomentum, KeepSlideMomentum ? *KeepSlideMomentum : -1);
+        if (WeaponMetaSound)
+            *WeaponMetaSound = false;
+        if (KeepSlideMomentum)
+            *KeepSlideMomentum = false;
     }
 
     for (auto& HookFunc : _PostLoadHookFuncs)

@@ -808,7 +808,7 @@ namespace Memcury
                         {
                             if (PE::Address(&scanBytes[i + q]).RelativeOffset(2).GetAs<void*>() == Pointer)
                             {
-                                auto sub = (scanBytes[i + q - 1] & 0xFB) == 0x48;
+                                auto sub = (scanBytes[i + q - 1] & 0xF9) == 0x48;
                                 add = PE::Address(&scanBytes[i + q - sub]);
 
                                 // LOG_INFO(LogDev, "2add: 0x{:x}", add.Get() - __int64(GetModuleHandleW(0)));
@@ -907,7 +907,7 @@ namespace Memcury
                         if (c)
                         {
                             // if (scanBytes[i + q + 1] == ASM::LEA)
-                            if ((scanBytes[i + q - 1] & 0xFB) == 0x48)
+                            if ((scanBytes[i + q - 1] & 0xF9) == 0x48)
                             {
                                 auto stringAdd = PE::Address(&scanBytes[i + q]).RelativeOffset(2);
 
@@ -995,7 +995,7 @@ namespace Memcury
                         int c = offset & (1 << q);
                         if (c)
                         {
-                            if ((scanBytes[i + q - 1] & 0xFB) == 0x48)
+                            if ((scanBytes[i + q - 1] & 0xF9) == 0x48)
                             {
                                 auto stringAdd = PE::Address(&scanBytes[i + q]).RelativeOffset(2);
 

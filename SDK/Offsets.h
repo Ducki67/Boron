@@ -1,7 +1,10 @@
 #pragma once
 #include "Memcury.h"
+#include <algorithm>
 #include <array>
 #include <cstdio>
+#include <cstring>
+#include <string>
 
 namespace SDK
 {
@@ -47,7 +50,181 @@ namespace SDK
         inline uint32_t FFrame_PropertyChainForCompiledIn = 0;
         inline uint32_t FFrame_CurrentNativeFunction = 0;
         inline uint32_t FFrame_Next = 0;
+        inline uint32_t UObjectFlags = 0x8;
+        inline uint32_t UObjectIndex = 0xC;
+        inline uint32_t UObjectName = 0x18;
+        inline uint32_t ChildProperties = 0x50;
+        inline uint32_t CastFlags = 0;
+        inline uint32_t ObjectItemObject = 0x0;
+        inline uint32_t ObjectItemFlags = 0x8;
+        inline uint32_t ObjectItemSerial = 0x10;
+        inline bool bEncryptedObjectArray = false;
+        inline bool bIsAUsesSuper = false;
+        inline uint64_t FortniteCL = 0;
     } // namespace Offsets
+
+    struct FReflectionCrypto
+    {
+        uint8_t ObjectsRotate = 0;
+        uint64_t ObjectsSubtract = 0;
+        uint8_t ObjectRotate = 0;
+        uint64_t ObjectSubtract = 0;
+        uint32_t NumElementsXor = 0;
+        uint32_t MaxElementsXor = 0;
+        uint32_t NumChunksXor = 0;
+        uint32_t MaxChunksXor = 0;
+        uint32_t IndexXor = 0;
+        uint8_t FieldRotate = 0;
+        uint64_t FieldSubtract = 0;
+        uint8_t FieldClassRotate = 0;
+        uint64_t FieldClassSubtract = 0;
+        uint32_t ElementSizeXor = 0;
+        uint32_t PropertyOffsetXor = 0;
+        uint32_t StructSizeXor = 0;
+        uint8_t PropertyFlagsRotate = 0;
+        uint64_t PropertyFlagsSubtract = 0;
+        uint8_t CastFlagsRotate = 0;
+        uint64_t CastFlagsSubtract = 0;
+    };
+
+    inline FReflectionCrypto Crypto{};
+
+    inline uint64_t Ror64(uint64_t Value, uint8_t Count)
+    {
+        Count &= 63;
+        return Count ? (Value >> Count) | (Value << (64 - Count)) : Value;
+    }
+
+    inline uint64_t DecryptPointer(uint64_t Stored, uint8_t Rotate, uint64_t Subtract)
+    {
+        return Stored ? Ror64(Stored, Rotate) - Subtract : 0;
+    }
+
+    inline uint64_t DecryptValue(uint64_t Stored, uint8_t Rotate, uint64_t Subtract)
+    {
+        return Ror64(Stored, Rotate) - Subtract;
+    }
+
+    inline uint32_t ReadPropertyOffset(const void* Prop)
+    {
+        return *(const uint32_t*)((const uint8_t*)Prop + Offsets::Offset_Internal) ^ Crypto.PropertyOffsetXor;
+    }
+
+    inline uint64_t ReadPropertyFlags(const void* Prop)
+    {
+        return DecryptValue(*(const uint64_t*)((const uint8_t*)Prop + Offsets::PropertyFlags), Crypto.PropertyFlagsRotate, Crypto.PropertyFlagsSubtract);
+    }
+
+    inline uint32_t ReadElementSize(const void* Prop)
+    {
+        return *(const uint32_t*)((const uint8_t*)Prop + Offsets::ElementSize) ^ Crypto.ElementSizeXor;
+    }
+
+    inline int32_t ReadStructSize(const void* Struct)
+    {
+        return (int32_t)(*(const uint32_t*)((const uint8_t*)Struct + Offsets::PropertiesSize) ^ Crypto.StructSizeXor);
+    }
+
+    inline void* ReadFieldPtr(const void* Base, uint32_t Offset)
+    {
+        return (void*)DecryptPointer(*(const uint64_t*)((const uint8_t*)Base + Offset), Crypto.FieldRotate, Crypto.FieldSubtract);
+    }
+
+    inline void* ReadFieldClass(const void* Field)
+    {
+        return (void*)DecryptPointer(*(const uint64_t*)((const uint8_t*)Field + 0x8), Crypto.FieldClassRotate, Crypto.FieldClassSubtract);
+    }
+
+    inline int32_t ReadObjectIndex(const void* Object)
+    {
+        return (int32_t)(*(const uint32_t*)((const uint8_t*)Object + Offsets::UObjectIndex) ^ Crypto.IndexXor);
+    }
+
+    inline void ApplyEncryptedBuildLayout()
+    {
+        if (Offsets::FortniteCL != 37770125)
+            return;
+
+        Offsets::UObjectName = 0x8;
+        Offsets::UObjectFlags = 0xC;
+        Offsets::UObjectIndex = 0x18;
+        Offsets::ChildProperties = 0x48;
+        Offsets::Children = 0x60;
+        Offsets::PropertiesSize = 0x5C;
+        Offsets::Offset_Internal = 0x64;
+        Offsets::PropertyFlags = 0x40;
+        Offsets::ElementSize = 0x2C;
+        Offsets::CastFlags = 0xB0;
+        Offsets::ObjectItemObject = 0x10;
+        Offsets::ObjectItemFlags = 0x4;
+        Offsets::ObjectItemSerial = 0x8;
+        Offsets::bEncryptedObjectArray = true;
+        Offsets::bIsAUsesSuper = true;
+
+        Crypto.ObjectsRotate = 19;
+        Crypto.ObjectsSubtract = 0x137B68A9;
+        Crypto.ObjectRotate = 61;
+        Crypto.ObjectSubtract = 0x0A2B4CE1;
+        Crypto.NumElementsXor = 0xD44EA93A;
+        Crypto.MaxElementsXor = 0x9214ED42;
+        Crypto.NumChunksXor = 0x0DA17552;
+        Crypto.MaxChunksXor = 0x4FDB314A;
+        Crypto.IndexXor = 0xD8F6B71E;
+        Crypto.FieldRotate = 56;
+        Crypto.FieldSubtract = 0xD969BB85;
+        Crypto.FieldClassRotate = 28;
+        Crypto.FieldClassSubtract = 0x21B5D0B5;
+        Crypto.ElementSizeXor = 0xE2F23D2E;
+        Crypto.PropertyOffsetXor = 0x019039A6;
+        Crypto.StructSizeXor = 0x8F40569A;
+        Crypto.PropertyFlagsRotate = 56;
+        Crypto.PropertyFlagsSubtract = 0x92323C85;
+        Crypto.CastFlagsRotate = 14;
+        Crypto.CastFlagsSubtract = 0x10E1364D;
+    }
+
+    inline bool ReadBuildStringFromImage(std::wstring& Out)
+    {
+        auto Base = (uint8_t*)GetModuleHandleW(nullptr);
+        auto Nt = (IMAGE_NT_HEADERS*)(Base + ((IMAGE_DOS_HEADER*)Base)->e_lfanew);
+        auto Section = IMAGE_FIRST_SECTION(Nt);
+        static const char Needle[] = "++Fortnite+Release-";
+        constexpr size_t NeedleLength = sizeof(Needle) - 1;
+
+        for (int i = 0; i < Nt->FileHeader.NumberOfSections; i++, Section++)
+        {
+            if (memcmp(Section->Name, ".rdata", 6) != 0)
+                continue;
+
+            auto Start = Base + Section->VirtualAddress;
+            auto End = Start + Section->Misc.VirtualSize;
+
+            for (auto Hit = std::search(Start, End, Needle, Needle + NeedleLength); Hit != End; Hit = std::search(Hit + 1, End, Needle, Needle + NeedleLength))
+            {
+                auto Tail = (const char*)Hit + NeedleLength;
+                std::string Rest(Tail, strnlen(Tail, (size_t)(End - (uint8_t*)Tail) < 32 ? (size_t)(End - (uint8_t*)Tail) : 32));
+                auto ClPos = Rest.find("-CL-");
+                if (ClPos == std::string::npos || ClPos == 0)
+                    continue;
+
+                auto Version = Rest.substr(0, ClPos);
+                auto CL = Rest.substr(ClPos + 4);
+                if (CL.empty() || CL.find_first_not_of("0123456789") != std::string::npos)
+                    continue;
+
+                auto FortniteVersion = std::stod(Version);
+                if (FortniteVersion < 30.0)
+                    return false;
+
+                std::string Engine = FortniteVersion >= 33.0 ? "5.6.0" : "5.5.0";
+                auto Build = Engine + "-" + CL + "+++Fortnite+Release-" + Version;
+                Out.assign(Build.begin(), Build.end());
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     extern void UpdateNumElemsPerChunk();
     extern void InitializeProcessEventVft(uintptr_t);
@@ -62,22 +239,31 @@ namespace SDK
                 Memcury::Scanner::FindPattern("48 89 5C 24 ? 57 48 83 EC ? 65 48 8B 04 25 ? ? ? ? 48 8B D9 B9 ? ? ? ? 48 8B 10 8B 04 11 39 05 ? ? ? ? 7E ? 48 8D 0D ? ? ? ? E8 ? ? ? ? 83 3D ? ? ? ? ? 75 ? 48 "
                                               "8D 3D ? ? ? ? 48 8B CF E8 ? ? ? ? 48 8D 0D ? ? ? ? 48 89 3D ? ? ? ? E8 ? ? ? ? 48 8D 0D ? ? ? ? E8 ? ? ? ? 48 8B 0D ? ? ? ? 41 B8");
 
+        std::wstring BuildString;
+
         if (auto GetEngineVersion = (FStringNoOps * (*)(FStringNoOps * _Out)) GetEngineVersionMethod1.Get())
         {
             GetEngineVersion(&OutVar);
+            BuildString = OutVar.Data;
         }
         else
         {
-            auto GetEngineVersionMethod2 = Memcury::Scanner::FindPattern("40 53 48 83 EC ? 33 C0 49 8B D8 48 39 42 ? 0F 95 C0 48 01 42 ? E8 ? ? ? ? 41 B8");
-            auto CopyOfMethod2 = GetEngineVersionMethod2;
+            auto GetEngineVersionMethod2 = Memcury::Scanner::FindPattern("40 53 48 83 EC ? 33 C0 49 8B D8 48 39 42 ? 0F 95 C0 48 01 42 ? E8 ? ? ? ? 41 B8", false);
 
-            auto GetStorage = (void* (*)())GetEngineVersionMethod2.RelativeOffset(23).Get();
-            auto GetEngineVersion2 = (void (*)(void*, FStringNoOps*, int))CopyOfMethod2.RelativeOffset(42).Get();
+            if (GetEngineVersionMethod2.Get())
+            {
+                auto CopyOfMethod2 = GetEngineVersionMethod2;
 
-            GetEngineVersion2(GetStorage(), &OutVar, 4); // no idea why 4 but sure
+                auto GetStorage = (void* (*)())GetEngineVersionMethod2.RelativeOffset(23).Get();
+                auto GetEngineVersion2 = (void (*)(void*, FStringNoOps*, int))CopyOfMethod2.RelativeOffset(42).Get();
+
+                GetEngineVersion2(GetStorage(), &OutVar, 4); // no idea why 4 but sure
+                BuildString = OutVar.Data;
+            }
+            else if (!ReadBuildStringFromImage(BuildString))
+                BuildString = L"0.0-0+++Fortnite+Release-0.0";
         }
 
-        std::wstring BuildString = OutVar.Data;
         std::wstring EngineVersion = BuildString.substr(0, BuildString.find(L'-'));
         std::wstring FortniteCL = BuildString.substr(BuildString.find(L'-') + 1, BuildString.find(L'+') - BuildString.find(L'-') - 1);
 
@@ -88,6 +274,7 @@ namespace SDK
             EngineVersion.erase(EngineVersion.rfind(L'.'));
 
         auto FortniteCLNum = std::stoull(FortniteCL);
+        Offsets::FortniteCL = FortniteCLNum;
 
         VersionInfo.EngineVersion = std::stod(EngineVersion);
         // these builds were just called "Cert"
@@ -150,7 +337,9 @@ namespace SDK
 
         bUE51 = VersionInfo.FortniteVersion >= 24.00;
 
-        Offsets::Realloc = Memcury::Scanner::FindPattern("48 89 5C 24 08 48 89 74 24 10 57 48 83 EC ? 48 8B F1 41 8B D8 48 8B 0D ? ? ? ?").Get();
+        Offsets::Realloc = Memcury::Scanner::FindPattern("48 89 5C 24 08 48 89 74 24 10 57 48 83 EC ? 48 8B F1 41 8B D8 48 8B 0D ? ? ? ?", false).Get();
+        if (!Offsets::Realloc && VersionInfo.FortniteVersion >= 32.00)
+            Offsets::Realloc = Memcury::Scanner::FindPattern("48 89 5C 24 08 48 89 74 24 10 57 4A 83 C4 E0 48 8B F1 41 8B D8 48", false).Get();
 
         auto SRef = Memcury::Scanner::FindStringRef("ForwardShadingQuality_");
         constexpr std::array<const char*, 5> sigs = { "48 8D ? ? 48 8D ? ? E8", "48 8D ? ? ? 48 8D ? ? E8", "48 8D ? ? 49 8B ? E8", "48 8D ? ? ? 49 8B ? E8", "48 8D ? ? 48 8B ? E8" };
@@ -177,7 +366,10 @@ namespace SDK
 
             if (!Offsets::ToString)
                 Offsets::ToString =
-                    Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 84 24 ? ? ? ? 33 ED 48 8B FA 48 89 2A 48 89 6A ? 8B 19").Get();
+                    Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 84 24 ? ? ? ? 33 ED 48 8B FA 48 89 2A 48 89 6A ? 8B 19", false).Get();
+
+            if (!Offsets::ToString && VersionInfo.FortniteVersion >= 32.00)
+                Offsets::ToString = Memcury::Scanner::FindPattern("48 89 5C 24 10 48 89 6C 24 20 56 57 41 56 4A 83 C4 E0 48 8B EA 48", false).Get();
         }
 
         uintptr_t addr = 0;
@@ -190,9 +382,11 @@ namespace SDK
             addr = Memcury::Scanner::FindPattern("40 55 56 57 41 54 41 55 41 56 41 57 48 81 EC ? ? ? ? 48 8D 6C 24 ? 48 89 9D ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C5 48 89 85 ? ? ? ? 45 33 F6").Get();
         else if (VersionInfo.FortniteVersion >= 23.00)
         {
-            addr = Memcury::Scanner::FindPattern("48 85 C9 0F 85 ? ? ? ? F7 87 ? ? ? ? ? ? ? ? ? 8B ?").ScanFor({ 0x40, 0x55 }, false).Get();
+            addr = Memcury::Scanner::FindPattern("48 85 C9 0F 85 ? ? ? ? F7 87 ? ? ? ? ? ? ? ? ? 8B ?", false).ScanFor({ 0x40, 0x55 }, false).Get();
             if (!addr)
-                addr = Memcury::Scanner::FindPattern("41 FF 92 ? ? ? ? E9 ? ? ? ? 49 8B C8").ScanFor({ 0x40, 0x55 }, false).Get();
+                addr = Memcury::Scanner::FindPattern("41 FF 92 ? ? ? ? E9 ? ? ? ? 49 8B C8", false).ScanFor({ 0x40, 0x55 }, false).Get();
+            if (!addr && VersionInfo.FortniteVersion >= 32.00)
+                addr = Memcury::Scanner::FindPattern("42 55 56 57 43 54 41 55 41 56 41 57 48 81 C4 00", false).Get();
         }
         else
             addr = Memcury::Scanner::FindStringRef(L"UMeshNetworkComponent::ProcessEvent: Invalid mesh network node type: %s", true, 0, VersionInfo.FortniteVersion >= 19.00)
@@ -206,7 +400,14 @@ namespace SDK
                 UpdateNumElemsPerChunk();
 
             Offsets::GObjectsChunked =
-                Memcury::Scanner::FindPattern(VersionInfo.FortniteVersion <= 6.02 ? "48 8B 05 ? ? ? ? 48 8B 0C C8 48 8D 04 D1" : "48 8B 05 ? ? ? ? 48 8B 0C C8 48 8B 04 D1").RelativeOffset(3).Get();
+                Memcury::Scanner::FindPattern(VersionInfo.FortniteVersion <= 6.02 ? "48 8B 05 ? ? ? ? 48 8B 0C C8 48 8D 04 D1" : "48 8B 05 ? ? ? ? 48 8B 0C C8 48 8B 04 D1", VersionInfo.FortniteVersion < 32.00).RelativeOffset(3).Get();
+
+            if (!Offsets::GObjectsChunked && VersionInfo.FortniteVersion >= 32.00)
+            {
+                auto EncryptedObjects = Memcury::Scanner::FindPattern("4E 8B 0D ? ? ? ? 46 8B C1 49 C1 C9 13 4B C1 E8 10 0F B7 C9 48 8D 14 49", false);
+                if (EncryptedObjects.Get())
+                    Offsets::GObjectsChunked = EncryptedObjects.RelativeOffset(3).Get() - 0x18;
+            }
         }
         else
         {
@@ -224,7 +425,11 @@ namespace SDK
             Offsets::Step = Memcury::Scanner::FindPattern("48 8B 41 20 4C 8B DA 48 8B D1 44 0F B6 08 4C 8D 50 01").Get();
 
         if (VersionInfo.EngineVersion >= 5.4 || VersionInfo.EngineVersion == 5.2)
-            Offsets::StepExplicitProperty = Memcury::Scanner::FindPattern("41 8B 40 ? 4D 8B C8 48 0F BA E0").Get();
+        {
+            Offsets::StepExplicitProperty = Memcury::Scanner::FindPattern("41 8B 40 ? 4D 8B C8 48 0F BA E0", VersionInfo.FortniteVersion < 32.00).Get();
+            if (!Offsets::StepExplicitProperty && VersionInfo.FortniteVersion >= 32.00)
+                Offsets::StepExplicitProperty = Memcury::Scanner::FindPattern("49 8B 40 40 4D 8B C8 48 C1 C8 38 48 2D 85", false).Get();
+        }
         else if (VersionInfo.EngineVersion == 5.3)
             Offsets::StepExplicitProperty = Memcury::Scanner::FindPattern("48 8B C4 48 89 58 ? 48 89 68 ? 48 89 70 ? 48 89 78 ? 41 54 41 56 41 57 48 83 EC ? 41 8B 40 ? 49 8B D8 48 8B F2").Get();
         else if (VersionInfo.FortniteVersion >= 20.20)
@@ -253,7 +458,10 @@ namespace SDK
                         Offsets::GetInterfaceAddress = Memcury::Scanner::FindPattern("4C 8B DC 49 89 5B ? 49 89 73 ? 57 48 83 EC ? 33 DB 48 8B FA 48 8B F1").Get();
 
                     if (!Offsets::GetInterfaceAddress)
-                        Offsets::GetInterfaceAddress = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 74 24 ? 57 48 81 EC ? ? ? ? 33 DB 48 8B FA").Get();
+                        Offsets::GetInterfaceAddress = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 74 24 ? 57 48 81 EC ? ? ? ? 33 DB 48 8B FA", VersionInfo.FortniteVersion < 32.00).Get();
+
+                    if (!Offsets::GetInterfaceAddress && VersionInfo.FortniteVersion >= 32.00)
+                        Offsets::GetInterfaceAddress = Memcury::Scanner::FindPattern("48 89 5C 24 08 48 89 74 24 10 48 89 7C 24 18 41 56 4A 83 C4 E0 33 DB 48 85", false).Get();
                 }
             }
         }
@@ -267,7 +475,10 @@ namespace SDK
 
             if (!Offsets::StaticFindObject)
                 Offsets::StaticFindObject =
-                    Memcury::Scanner::FindPattern("48 89 5C 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 48 83 FA FF").Get();
+                    Memcury::Scanner::FindPattern("48 89 5C 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 48 83 FA FF", VersionInfo.FortniteVersion < 32.00).Get();
+
+            if (!Offsets::StaticFindObject && VersionInfo.FortniteVersion >= 32.00)
+                Offsets::StaticFindObject = Memcury::Scanner::FindPattern("48 89 5C 24 18 55 56 57 43 54 43 55 43 56 41 57 48 8D AC 24 70 FC", false).Get();
         }
         else if (VersionInfo.EngineVersion == 5.2)
             Offsets::StaticFindObject = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 74 24 ? 48 89 7C 24 ? 55 41 56 41 57 48 8B EC 48 83 EC ? 33 DB 4C 8B F9").Get();
@@ -378,8 +589,12 @@ namespace SDK
 
             if (!Offsets::StaticLoadObject)
                 Offsets::StaticLoadObject = Memcury::Scanner::FindPattern("40 55 53 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 "
-                                                                          "48 89 85 ? ? ? ? 48 8B 85 ? ? ? ? 45 33 ED 44 8B BD ? ? ? ? 49 8B D8")
+                                                                          "48 89 85 ? ? ? ? 48 8B 85 ? ? ? ? 45 33 ED 44 8B BD ? ? ? ? 49 8B D8",
+                                                                          VersionInfo.FortniteVersion < 32.00)
                                                 .Get();
+
+            if (!Offsets::StaticLoadObject && VersionInfo.FortniteVersion >= 32.00)
+                Offsets::StaticLoadObject = Memcury::Scanner::FindPattern("42 55 53 56 57 43 54 41 55 41 56 43 57 48 8D AC 24 58 FB", false).Get();
         }
         else
         {
@@ -425,6 +640,7 @@ namespace SDK
         Offsets::FFrame_PropertyChainForCompiledIn = VersionInfo.FortniteVersion >= 20.20 ? 0x88 : 0x80;
         Offsets::FFrame_CurrentNativeFunction = VersionInfo.FortniteVersion >= 20.20 ? 0x90 : 0x88;
         Offsets::FFrame_Next = VersionInfo.FortniteVersion >= 24.30 ? 0x18 : (VersionInfo.FortniteVersion >= 12.10 ? 0x20 : 0x28);
+        ApplyEncryptedBuildLayout();
 
         if (VersionInfo.EngineVersion < 4.22)
             Offsets::ExecFunction = 0xB0;

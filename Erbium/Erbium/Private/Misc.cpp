@@ -7,6 +7,7 @@
 #include "../../FortniteGame/Public/FortWeapon.h"
 #include "../Public/Configuration.h"
 #include "../Public/Finders.h"
+#include "../Public/hde64.hpp"
 #include <algorithm>
 
 int Misc::GetNetMode()
@@ -109,6 +110,22 @@ void PatchAllNetModes(uintptr_t AttemptDeriveFromURL)
     const auto sizeOfImage = Memcury::PE::GetNTHeaders()->OptionalHeader.SizeOfImage;
     const auto scanBytes = reinterpret_cast<std::uint8_t*>(Memcury::PE::GetModuleBase());
 
+    uint8 NetDriverOffset = 0x38;
+    uint32 DemoNetDriverOffset = 0xF0;
+    const bool bBoundToOwner = VersionInfo.FortniteVersion >= 32;
+    if (bBoundToOwner)
+    {
+        auto WorldClass = UWorld::StaticClass();
+        auto NetDriverOff = WorldClass ? WorldClass->GetOffset("NetDriver") : uint32(-1);
+        auto DemoOff = WorldClass ? WorldClass->GetOffset("DemoNetDriver") : uint32(-1);
+        printf("[Boron][Init] PatchAllNetModes NetDriver=0x%x DemoNetDriver=0x%x\n", NetDriverOff, DemoOff);
+        if (NetDriverOff >= 0x80 || DemoOff == uint32(-1))
+            return;
+        NetDriverOffset = (uint8)NetDriverOff;
+        DemoNetDriverOffset = DemoOff;
+    }
+    int Patched = 0;
+
     for (auto i = 0ul; i < sizeOfImage - 5; ++i)
     {
         if (scanBytes[i] == 0xE8 || scanBytes[i] == 0xE9)
@@ -117,24 +134,38 @@ void PatchAllNetModes(uintptr_t AttemptDeriveFromURL)
             {
                 add = Memcury::PE::Address(&scanBytes[i]);
 
+                uint64 Owner = 0;
+                int MinJ = -0x100000;
+                if (bBoundToOwner)
+                {
+                    Owner = FindOwningFunction(uint64(&scanBytes[i]));
+                    if (!Owner)
+                        continue;
+                    MinJ = -int(uint64(&scanBytes[i]) - Owner) - 1;
+                }
+
                 // scan for the read of World->NetDriver
 
-                for (auto j = 0; j > -0x100000; j--) // so we find everything. no func is actually 1mb
+                for (auto j = 0; j > MinJ; j--) // so we find everything. no func is actually 1mb
                 {
                     if ((scanBytes[i + j] & 0xF8) == 0x48 && ((scanBytes[i + j + 1] & 0xFC) == 0x80 || (scanBytes[i + j + 1] & 0xF8) == 0x38) && (scanBytes[i + j + 2] & 0xF0) != 0xC0 &&
-                        (scanBytes[i + j + 2] & 0xF0) != 0xE0 && scanBytes[i + j + 2] != 0x65 && scanBytes[i + j + 2] != 0xBB && scanBytes[i + j + 3] == 0x38 &&
-                        ((scanBytes[i + j + 1] & 0xFC) != 0x80 || scanBytes[i + j + 4] == 0x0))
+                        (scanBytes[i + j + 2] & 0xF0) != 0xE0 && scanBytes[i + j + 2] != 0x65 && scanBytes[i + j + 2] != 0xBB && scanBytes[i + j + 3] == NetDriverOffset &&
+                        ((scanBytes[i + j + 1] & 0xFC) != 0x80 || scanBytes[i + j + 4] == 0x0) &&
+                        (!Owner || FindOwningFunction(uint64(&scanBytes[i + j])) == Owner))
                     {
                         // now, scan for if (NetDriver) return NM_Client;
 
                         bool found = false;
                         for (auto k = 4; k < 0x104; k++)
                         {
+                            if (Owner && FindOwningFunction(uint64(&scanBytes[i + j + k])) != Owner)
+                                break;
+
                             if (scanBytes[i + j + k] == 0x75)
                             {
                                 auto Scuffness = __int64(&scanBytes[i + j + k + 5]);
 
-                                if (*(uint32_t*)Scuffness != 0xF0 && (scanBytes[i + j + k + 4] != 0xC || scanBytes[i + j + k + 5] != 0xB) && scanBytes[i + j + k + 4] != 0x09)
+                                if (*(uint32_t*)Scuffness != DemoNetDriverOffset && (scanBytes[i + j + k + 4] != 0xC || scanBytes[i + j + k + 5] != 0xB) && scanBytes[i + j + k + 4] != 0x09)
                                     continue;
 
                                 Hooking::Patch<uint16_t>(__int64(&scanBytes[i + j + k]), 0x9090);
@@ -158,7 +189,7 @@ void PatchAllNetModes(uintptr_t AttemptDeriveFromURL)
                                 auto Scuffness = __int64(&scanBytes[i + j + k]);
                                 Scuffness = (Scuffness + 2) + *(int8_t*)(Scuffness + 1);
 
-                                if (*(uint32_t*)(Scuffness + 3) != 0xF0 && (*(uint8_t*)(Scuffness + 2) != 0xC || *(uint8_t*)(Scuffness + 3) != 0xB) && *(uint8_t*)(Scuffness + 2) != 0x09)
+                                if (*(uint32_t*)(Scuffness + 3) != DemoNetDriverOffset && (*(uint8_t*)(Scuffness + 2) != 0xC || *(uint8_t*)(Scuffness + 3) != 0xB) && *(uint8_t*)(Scuffness + 2) != 0x09)
                                     continue;
 
                                 Hooking::Patch<uint8_t>(__int64(&scanBytes[i + j + k]), 0xeb);
@@ -181,7 +212,7 @@ void PatchAllNetModes(uintptr_t AttemptDeriveFromURL)
                             {
                                 auto Scuffness = __int64(&scanBytes[i + j + k + 9]);
 
-                                if (*(uint32_t*)Scuffness != 0xF0 && (scanBytes[i + j + k + 8] != 0xC || scanBytes[i + j + k + 9] != 0xB) && scanBytes[i + j + k + 8] != 0x09)
+                                if (*(uint32_t*)Scuffness != DemoNetDriverOffset && (scanBytes[i + j + k + 8] != 0xC || scanBytes[i + j + k + 9] != 0xB) && scanBytes[i + j + k + 8] != 0x09)
                                     continue;
 
                                 DWORD og;
@@ -209,7 +240,7 @@ void PatchAllNetModes(uintptr_t AttemptDeriveFromURL)
                                 auto Scuffness = __int64(&scanBytes[i + j + k]);
                                 Scuffness = (Scuffness + 6) + *(int32_t*)(Scuffness + 2);
 
-                                if (*(uint32_t*)(Scuffness + 3) != 0xF0 && (*(uint8_t*)(Scuffness + 2) != 0xC || *(uint8_t*)(Scuffness + 3) != 0xB) && *(uint8_t*)(Scuffness + 2) != 0x09)
+                                if (*(uint32_t*)(Scuffness + 3) != DemoNetDriverOffset && (*(uint8_t*)(Scuffness + 2) != 0xC || *(uint8_t*)(Scuffness + 3) != 0xB) && *(uint8_t*)(Scuffness + 2) != 0x09)
                                     continue;
 
                                 Hooking::Patch<uint16_t>(__int64(&scanBytes[i + j + k]), 0xe990);
@@ -230,12 +261,18 @@ void PatchAllNetModes(uintptr_t AttemptDeriveFromURL)
                             }
                         }
                         if (found)
+                        {
+                            Patched++;
                             break;
+                        }
                     }
                 }
             }
         }
     }
+
+    if (bBoundToOwner)
+        printf("[Boron][Init] PatchAllNetModes patched %d\n", Patched);
 }
 
 bool RetFalse()
@@ -378,7 +415,7 @@ bool Listen()
 
     if (VersionInfo.EngineVersion >= 5.3 && FConfig::bEnableIris)
     {
-        *(bool*)(__int64(&NetDriver->ReplicationDriver) + 0x11) = true;
+        *(bool*)(__int64(&NetDriver->ReplicationDriver) + (VersionInfo.FortniteVersion >= 32 ? 0x19 : 0x11)) = true;
     }
 
     NetDriver->NetDriverName = NetDriverName;
@@ -546,6 +583,177 @@ void InitializeCosmeticLoadout(UFortAthenaAIBotCustomizationData* BotData, AFort
         Pawn->ServerChoosePart(PartType, Part);
 }
 
+static bool IsMovOrLea(const hde64s& Insn)
+{
+    if ((Insn.opcode >= 0x88 && Insn.opcode <= 0x8B) || Insn.opcode == 0x8D || (Insn.opcode >= 0xB0 && Insn.opcode <= 0xBF))
+        return true;
+
+    return (Insn.opcode == 0xC6 || Insn.opcode == 0xC7) && Insn.modrm_reg == 0;
+}
+
+static bool IsFlagNeutral(const hde64s& Insn)
+{
+    if (Insn.opcode == 0x0F)
+    {
+        switch (Insn.opcode2)
+        {
+        case 0x10: case 0x11: case 0x14: case 0x28: case 0x29: case 0x2A: case 0x57: case 0x58: case 0x59:
+        case 0x5A: case 0x5C: case 0x5E: case 0x6E: case 0x6F: case 0x7E: case 0x7F: case 0xB6: case 0xB7:
+        case 0xBE: case 0xBF: case 0xC6: case 0xD6:
+            return true;
+        }
+
+        return false;
+    }
+
+    return IsMovOrLea(Insn) || Insn.opcode == 0x63 || Insn.opcode == 0x90;
+}
+
+static bool IsDemoNetDriverCheck(uint8_t* Code)
+{
+    hde64s Insn;
+
+    for (int i = 0; i < 4; i++)
+    {
+        auto Len = hde64_disasm(Code, &Insn);
+
+        if (!Len || (Insn.flags & F_ERROR))
+            return false;
+
+        if (Insn.opcode == 0x8B && Insn.rex_w && Insn.modrm_mod != 3)
+        {
+            auto Register = Insn.modrm_reg | (Insn.rex_r << 3);
+            bool bTested = false;
+
+            Code += Len;
+
+            for (int x = 0; x < 5; x++)
+            {
+                Len = hde64_disasm(Code, &Insn);
+
+                if (!Len || (Insn.flags & F_ERROR))
+                    return false;
+
+                if (!bTested && Insn.opcode == 0x85 && Insn.rex_w && Insn.modrm_mod == 3 && (Insn.modrm_reg | (Insn.rex_r << 3)) == Register &&
+                    (Insn.modrm_rm | (Insn.rex_b << 3)) == Register)
+                    bTested = true;
+                else if (bTested && (Insn.opcode == 0x74 || (Insn.opcode == 0x0F && Insn.opcode2 == 0x84)))
+                    return true;
+                else if (!IsMovOrLea(Insn))
+                    return false;
+
+                Code += Len;
+            }
+
+            return false;
+        }
+
+        if (!IsMovOrLea(Insn))
+            return false;
+
+        Code += Len;
+    }
+
+    return false;
+}
+
+static void PatchInlinedNetModes(uintptr_t AttemptDeriveFromURL)
+{
+    auto WorldClass = UWorld::StaticClass();
+    auto NetDriverOffset = WorldClass ? WorldClass->GetOffset("NetDriver") : uint32(-1);
+    printf("[Boron][Init] PatchInlinedNetModes NetDriver=0x%x\n", NetDriverOffset);
+    if (!AttemptDeriveFromURL || NetDriverOffset >= 0x80)
+        return;
+
+    auto TextSection = Memcury::PE::Section::GetSection(".text");
+    auto TextStart = TextSection.GetSectionStart().GetAs<uint8_t*>();
+    auto TextSize = (uint32)TextSection.GetSectionSize();
+    int Calls = 0;
+    int Patched = 0;
+
+    for (uint32 i = 0; i + 5 < TextSize; i++)
+    {
+        if (TextStart[i] != 0xE8 && TextStart[i] != 0xE9)
+            continue;
+
+        if (uintptr_t(TextStart + i + 5 + *(int32*)(TextStart + i + 1)) != AttemptDeriveFromURL)
+            continue;
+
+        Calls++;
+
+        for (uint32 Back = 1; Back < 0x1000 && Back <= i; Back++)
+        {
+            auto Compare = TextStart + i - Back;
+
+            if ((*Compare & 0xF8) != 0x48)
+                continue;
+
+            hde64s CompareInsn;
+            auto CompareLen = hde64_disasm(Compare, &CompareInsn);
+
+            if (!CompareLen || (CompareInsn.flags & F_ERROR) || !CompareInsn.rex_w || CompareInsn.modrm_mod != 1 || CompareInsn.modrm_rm == 4 ||
+                CompareInsn.disp.disp8 != NetDriverOffset)
+                continue;
+
+            if (!(CompareInsn.opcode == 0x39 || (CompareInsn.opcode == 0x83 && CompareInsn.modrm_reg == 7 && CompareInsn.imm.imm8 == 0)))
+                continue;
+
+            auto Branch = Compare + CompareLen;
+            hde64s BranchInsn;
+            bool bFoundBranch = false;
+
+            for (int x = 0; x < 12; x++)
+            {
+                auto Len = hde64_disasm(Branch, &BranchInsn);
+
+                if (!Len || (BranchInsn.flags & F_ERROR))
+                    break;
+
+                if (BranchInsn.opcode == 0x74 || BranchInsn.opcode == 0x75 || (BranchInsn.opcode == 0x0F && (BranchInsn.opcode2 == 0x84 || BranchInsn.opcode2 == 0x85)))
+                {
+                    bFoundBranch = true;
+                    break;
+                }
+
+                if (!IsFlagNeutral(BranchInsn))
+                    break;
+
+                Branch += Len;
+            }
+
+            if (!bFoundBranch)
+                continue;
+
+            bool bNear = BranchInsn.opcode == 0x0F;
+            bool bJumpsIfNetDriver = bNear ? BranchInsn.opcode2 == 0x85 : BranchInsn.opcode == 0x75;
+            auto Target = Branch + BranchInsn.len + (bNear ? (int32)BranchInsn.imm.imm32 : (int8)BranchInsn.imm.imm8);
+
+            if (!IsDemoNetDriverCheck(bJumpsIfNetDriver ? Branch + BranchInsn.len : Target))
+                continue;
+
+            for (uint32 x = 0; x < CompareLen; x++)
+                Hooking::Patch<uint8_t>(uintptr_t(Compare + x), 0x90);
+
+            if (bJumpsIfNetDriver)
+            {
+                for (uint32 x = 0; x < BranchInsn.len; x++)
+                    Hooking::Patch<uint8_t>(uintptr_t(Branch + x), 0x90);
+            }
+            else if (bNear)
+                Hooking::Patch<uint16_t>(uintptr_t(Branch), 0xE990);
+            else
+                Hooking::Patch<uint8_t>(uintptr_t(Branch), 0xEB);
+
+            FlushInstructionCache(GetCurrentProcess(), Compare, CompareLen);
+            FlushInstructionCache(GetCurrentProcess(), Branch, BranchInsn.len);
+            Patched++;
+            break;
+        }
+    }
+
+    printf("[Boron][Init] PatchInlinedNetModes patched %d/%d\n", Patched, Calls);
+}
+
 void Misc::Hook()
 {
     if (VersionInfo.FortniteVersion == 23.00 || (VersionInfo.FortniteVersion >= 24.30 && VersionInfo.FortniteVersion != 28.30 && VersionInfo.FortniteVersion != 29.40) || VersionInfo.FortniteVersion >= 30)
@@ -557,9 +765,14 @@ void Misc::Hook()
             AttemptDeriveFromURL = Memcury::Scanner::FindPattern("48 89 5C 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 81 EC ? ? ? ? 4C 8B D1").Get();
         if (!AttemptDeriveFromURL)
             AttemptDeriveFromURL = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 41 54 41 55 41 56 41 57 48 81 EC ? ? ? ? 4C 8B D1").Get();
+        if (!AttemptDeriveFromURL && VersionInfo.FortniteVersion >= 32)
+            AttemptDeriveFromURL = FindAttemptDeriveFromURL();
 
         Hooking::Hook(AttemptDeriveFromURL, GetNetMode);
-        PatchAllNetModes(AttemptDeriveFromURL);
+        if (VersionInfo.FortniteVersion >= 33)
+            PatchInlinedNetModes(AttemptDeriveFromURL);
+        else
+            PatchAllNetModes(AttemptDeriveFromURL);
     }
     else if (VersionInfo.FortniteVersion >= 28)
     {
@@ -641,7 +854,13 @@ void Misc::Hook()
 
         auto patchPoint = pattern.ScanFor(VersionInfo.EngineVersion < 5.5 ? std::vector<uint8_t>{ 0x48, 0x89, 0x5C } : std::vector<uint8_t>{ 0x40, 0x53 }, false).ScanFor({ 0x83, 0xF8, 0x02 }).Get();
 
-        Hooking::Patch<uint8_t>(patchPoint + 2, 0x1);
+        if (!patchPoint && VersionInfo.FortniteVersion >= 32)
+            patchPoint = FindNetModeCheck();
+
+        if (patchPoint)
+            Hooking::Patch<uint8_t>(patchPoint + 2, 0x1);
+        else
+            printf("[Boron][Init] NetModeCheck not found\n");
     }
 
     if (VersionInfo.FortniteVersion >= 24.30)

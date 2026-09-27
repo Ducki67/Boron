@@ -221,11 +221,47 @@ namespace SDK
     {
     public:
         void** Vft;
-        int32 ObjectFlags;
-        int32 Index;
+
+    private:
+        uint8_t HeaderBytes[0x8];
+
+    public:
         class UClass* Class;
-        class FName Name;
+
+    private:
+        uint8_t NameBytes[0x8];
+
+    public:
         UObject* Outer;
+
+        int32 GetObjectFlags() const
+        {
+            return *(int32*)((uint8_t*)this + Offsets::UObjectFlags);
+        }
+
+        void SetObjectFlags(int32 Value)
+        {
+            *(int32*)((uint8_t*)this + Offsets::UObjectFlags) = Value;
+        }
+
+        int32 GetObjectIndex() const
+        {
+            return ReadObjectIndex(this);
+        }
+
+        class FName& GetObjectName() const
+        {
+            return *(class FName*)((uint8_t*)this + Offsets::UObjectName);
+        }
+
+        void SetObjectName(const class FName& Value)
+        {
+            *(class FName*)((uint8_t*)this + Offsets::UObjectName) = Value;
+        }
+
+        __declspec(property(get = GetObjectFlags, put = SetObjectFlags)) int32 ObjectFlags;
+        __declspec(property(get = GetObjectIndex)) int32 Index;
+        __declspec(property(get = GetObjectName, put = SetObjectName)) class FName Name;
 
     public:
         const class UField* GetProperty(const char* Name, uint64_t CastFlags = 0) const;
@@ -240,13 +276,24 @@ namespace SDK
             auto Prop = GetProperty(Name, CastFlags);
             if (!Prop)
                 return -1;
-            return GetFromOffset<uint32>(Prop, Offsets::Offset_Internal);
+            return ReadPropertyOffset(Prop);
         }
 
         bool IsA(const class UClass* Clss) const
         {
             if (!this || !Clss)
                 return false;
+
+            if (Offsets::bIsAUsesSuper)
+            {
+                for (auto _Clss = (const void*)Class; _Clss; _Clss = GetFromOffset<void*>(_Clss, Offsets::Super))
+                {
+                    if (_Clss == Clss)
+                        return true;
+                }
+
+                return false;
+            }
 
             if (VersionInfo.EngineVersion >= 4.22)
             {
@@ -300,7 +347,7 @@ namespace SDK
     public:
         const UField* FField_GetNext() const
         {
-            return GetFromOffset<UField*>(this, Offsets::FField_Next);
+            return (const UField*)ReadFieldPtr(this, Offsets::FField_Next);
         }
 
         FName& FField_GetName() const
@@ -310,12 +357,12 @@ namespace SDK
 
         const UField* GetNext() const
         {
-            return GetFromOffset<UField*>(this, 0x28);
+            return (const UField*)ReadFieldPtr(this, 0x28);
         }
 
         FName& GetName() const
         {
-            return GetFromOffset<FName>(this, 0x18);
+            return GetFromOffset<FName>(this, Offsets::UObjectName);
         }
 
         const uint8 GetFieldMask() const
@@ -334,12 +381,12 @@ namespace SDK
 
         const int32 GetPropertiesSize() const
         {
-            return GetFromOffset<int32>(this, Offsets::PropertiesSize);
+            return ReadStructSize(this);
         }
 
         const UField* GetChildProperties() const
         {
-            return GetFromOffset<UField*>(this, 0x50);
+            return (const UField*)ReadFieldPtr(this, Offsets::ChildProperties);
         }
 
         const UField* GetChildren() const
@@ -355,7 +402,7 @@ namespace SDK
             if (!Prop)
                 return -1;
 
-            return GetFromOffset<uint32>(Prop, Offsets::Offset_Internal);
+            return ReadPropertyOffset(Prop);
         }
     };
 
@@ -380,9 +427,9 @@ namespace SDK
             {
                 for (const UField* Prop = Clss->GetChildProperties(); Prop; Prop = Prop->FField_GetNext())
                 {
-                    if (CastFlags != 0)
+                    if (CastFlags != 0 && !Offsets::bEncryptedObjectArray)
                     {
-                        auto FieldClass = *(void**)(__int64(Prop) + 0x8);
+                        auto FieldClass = ReadFieldClass(Prop);
                         auto FieldFlags = *(uint64_t*)(__int64(FieldClass) + 0x10);
 
                         if ((FieldFlags & CastFlags) == 0)
@@ -549,10 +596,10 @@ namespace SDK
 
             if (VersionInfo.FortniteVersion >= 12.10)
                 for (const UField* _Pr = GetChildProperties(); _Pr; _Pr = _Pr->FField_GetNext())
-                    p.NameOffsetMap.push_back({ GetFromOffset<uint32>(_Pr, Offsets::Offset_Internal), GetFromOffset<uint64>(_Pr, Offsets::PropertyFlags), GetFromOffset<uint32>(_Pr, Offsets::ElementSize) });
+                    p.NameOffsetMap.push_back({ ReadPropertyOffset(_Pr), ReadPropertyFlags(_Pr), ReadElementSize(_Pr) });
             else
                 for (const UField* _Pr = GetChildren(); _Pr; _Pr = _Pr->GetNext())
-                    p.NameOffsetMap.push_back({ GetFromOffset<uint32>(_Pr, Offsets::Offset_Internal), GetFromOffset<uint64>(_Pr, Offsets::PropertyFlags), GetFromOffset<uint32>(_Pr, Offsets::ElementSize) });
+                    p.NameOffsetMap.push_back({ ReadPropertyOffset(_Pr), ReadPropertyFlags(_Pr), ReadElementSize(_Pr) });
 
             p.Size = GetPropertiesSize();
             return p;
@@ -564,12 +611,11 @@ namespace SDK
 
             if (VersionInfo.FortniteVersion >= 12.10)
                 for (const UField* _Pr = GetChildProperties(); _Pr; _Pr = _Pr->FField_GetNext())
-                    p.NameOffsetMap.push_back({ _Pr->FField_GetName().ToSDKString(), GetFromOffset<uint32>(_Pr, Offsets::Offset_Internal), GetFromOffset<uint64>(_Pr, Offsets::PropertyFlags),
-                                                GetFromOffset<uint32>(_Pr, Offsets::ElementSize) });
+                    p.NameOffsetMap.push_back({ _Pr->FField_GetName().ToSDKString(), ReadPropertyOffset(_Pr), ReadPropertyFlags(_Pr), ReadElementSize(_Pr) });
             else
                 for (const UField* _Pr = GetChildren(); _Pr; _Pr = _Pr->GetNext())
                     p.NameOffsetMap.push_back(
-                        { _Pr->GetName().ToSDKString(), GetFromOffset<uint32>(_Pr, Offsets::Offset_Internal), GetFromOffset<uint64>(_Pr, Offsets::PropertyFlags), GetFromOffset<uint32>(_Pr, Offsets::ElementSize) });
+                        { _Pr->GetName().ToSDKString(), ReadPropertyOffset(_Pr), ReadPropertyFlags(_Pr), ReadElementSize(_Pr) });
 
             p.Size = GetPropertiesSize();
             return p;
@@ -675,11 +721,69 @@ namespace SDK
 
     struct FUObjectItem final
     {
+    private:
+        uint8_t Bytes[0x18];
+
     public:
-        class UObject* Object;
-        int32 Flags;
-        int32 ClusterRootIndex;
-        int32 SerialNumber;
+        class UObject* GetItemObject() const
+        {
+            auto Stored = *(uint64_t*)(Bytes + Offsets::ObjectItemObject);
+            return (class UObject*)(Offsets::bEncryptedObjectArray ? DecryptPointer(Stored, Crypto.ObjectRotate, Crypto.ObjectSubtract) : Stored);
+        }
+
+        int32 GetItemFlags() const
+        {
+            return *(int32*)(Bytes + Offsets::ObjectItemFlags);
+        }
+
+        void SetItemFlags(int32 Value)
+        {
+            *(int32*)(Bytes + Offsets::ObjectItemFlags) = Value;
+        }
+
+        int32 GetItemSerialNumber() const
+        {
+            return *(int32*)(Bytes + Offsets::ObjectItemSerial);
+        }
+
+        void SetItemSerialNumber(int32 Value)
+        {
+            *(int32*)(Bytes + Offsets::ObjectItemSerial) = Value;
+        }
+
+        __declspec(property(get = GetItemObject)) class UObject* Object;
+        __declspec(property(get = GetItemFlags, put = SetItemFlags)) int32 Flags;
+        __declspec(property(get = GetItemSerialNumber, put = SetItemSerialNumber)) int32 SerialNumber;
+    };
+
+    class TUObjectArrayEncrypted
+    {
+    public:
+        inline int Num() const
+        {
+            return (int32)(*(const uint32_t*)((const uint8_t*)this + 0x8) ^ Crypto.NumElementsXor);
+        }
+
+        inline int Max() const
+        {
+            return (int32)(*(const uint32_t*)((const uint8_t*)this + 0xC) ^ Crypto.MaxElementsXor);
+        }
+
+        inline FUObjectItem* GetItemByIndex(const int32 Index) const
+        {
+            const int32 ChunkIndex = Index / 0x10000;
+            const int32 ChunkOffset = Index % 0x10000;
+            const int32 NumChunks = (int32)(*(const uint32_t*)((const uint8_t*)this + 0x14) ^ Crypto.NumChunksXor);
+
+            if (Index < 0 || Index >= Num() || ChunkIndex >= NumChunks)
+                return nullptr;
+
+            auto Chunks = (uint8_t**)DecryptPointer(*(const uint64_t*)((const uint8_t*)this + 0x18), Crypto.ObjectsRotate, Crypto.ObjectsSubtract);
+            if (!Chunks || !Chunks[ChunkIndex])
+                return nullptr;
+
+            return (FUObjectItem*)(Chunks[ChunkIndex] + (uint64_t)ChunkOffset * 0x18);
+        }
     };
 
     class TUObjectArrayUnchunked
@@ -750,6 +854,8 @@ namespace SDK
     public:
         static const int32 Num()
         {
+            if (Offsets::bEncryptedObjectArray)
+                return ((TUObjectArrayEncrypted*)Offsets::GObjectsChunked)->Num();
             auto GObjectsChunked = (TUObjectArrayChunked*&)Offsets::GObjectsChunked;
             auto GObjectsUnchunked = (TUObjectArrayUnchunked*&)Offsets::GObjectsUnchunked;
             return GObjectsChunked ? GObjectsChunked->Num() : GObjectsUnchunked->Num();
@@ -757,6 +863,8 @@ namespace SDK
 
         static const int32 Max()
         {
+            if (Offsets::bEncryptedObjectArray)
+                return ((TUObjectArrayEncrypted*)Offsets::GObjectsChunked)->Max();
             auto GObjectsChunked = (TUObjectArrayChunked*&)Offsets::GObjectsChunked;
             auto GObjectsUnchunked = (TUObjectArrayUnchunked*&)Offsets::GObjectsUnchunked;
             return GObjectsChunked ? GObjectsChunked->Max() : GObjectsUnchunked->Max();
@@ -764,6 +872,8 @@ namespace SDK
 
         static FUObjectItem* GetItemByIndex(const int32 Index)
         {
+            if (Offsets::bEncryptedObjectArray)
+                return ((TUObjectArrayEncrypted*)Offsets::GObjectsChunked)->GetItemByIndex(Index);
             auto GObjectsChunked = (TUObjectArrayChunked*&)Offsets::GObjectsChunked;
             auto GObjectsUnchunked = (TUObjectArrayUnchunked*&)Offsets::GObjectsUnchunked;
             return GObjectsChunked ? GObjectsChunked->GetItemByIndex(Index) : GObjectsUnchunked->GetItemByIndex(Index);
@@ -861,6 +971,9 @@ namespace SDK
 
     inline uint64_t UClass::GetCastFlags() const
     {
+        if (Offsets::CastFlags)
+            return DecryptValue(*(uint64_t*)(__int64(this) + Offsets::CastFlags), Crypto.CastFlagsRotate, Crypto.CastFlagsSubtract);
+
         static int32 Offset = 0;
         if (Offset == 0)
         {
@@ -891,7 +1004,7 @@ namespace SDK
             auto ActorClass = FindClass("Actor");
             auto ClassObj = DefaultObjImpl(ClassClass, "Class");
             auto ActorObj = DefaultObjImpl(ActorClass, "Actor");
-            for (int i = 0x28; i < 0x1a0; i += 4)
+            for (int i = 0x28; i < 0x280; i += 4)
             {
                 if (*(UObject**)(__int64(ClassClass) + i) == ClassObj && *(UObject**)(__int64(ActorClass) + i) == ActorObj)
                 {
@@ -900,6 +1013,9 @@ namespace SDK
                 }
             }
         }
+
+        if (Offset == 0)
+            return nullptr;
 
         return *(UObject**)(__int64(this) + Offset);
     }

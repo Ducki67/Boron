@@ -891,9 +891,9 @@ void UNetDriver::TickFlush__Iris(UNetDriver* Driver, float DeltaSeconds)
 
         // 31.41 ReplicationSystem (+0x10 read garbage 0x100)
         // do NOT use +0x10 on 31.41 btw.
-        auto ReplicationSystem = RS8;
+        auto ReplicationSystem = VersionInfo.FortniteVersion >= 32 ? RS10 : RS8;
 
-        if (ReplicationSystem)
+        if (ReplicationSystem && FindUpdateIrisReplicationViews() && FindPreSendUpdate())
         {
             static void (*UpdateIrisReplicationViews)(UNetDriver*) = decltype(UpdateIrisReplicationViews)(FindUpdateIrisReplicationViews());
             static void (*PreSendUpdate)(UObject*, FSendUpdateParams&) = decltype(PreSendUpdate)(FindPreSendUpdate());

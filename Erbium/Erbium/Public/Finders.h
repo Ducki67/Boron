@@ -85,6 +85,9 @@ uint64 FindSetIsDoorOpen();
 uint64 FindActivatePhase();
 uint64 FindSelectAndSetupMyBuildingLevel();
 uint64 FindStreamInMyBuilding();
+uint64 FindNetModeCheck();
+uint64 FindAttemptDeriveFromURL();
+uint64 FindOwningFunction(uint64 Address);
 
 template <typename CVarT>
 CVarT* FindCVar(const wchar_t* CVarStr)
@@ -95,6 +98,7 @@ CVarT* FindCVar(const wchar_t* CVarStr)
         return nullptr;
 
     uint64_t BeforeVars = 0;
+    const bool bJunkRex = VersionInfo.FortniteVersion >= 32;
 
     for (int i = 0; i < 2000; i++)
     {
@@ -110,13 +114,22 @@ CVarT* FindCVar(const wchar_t* CVarStr)
             BeforeVars = uint64_t(Ptr);
             break;
         }
+        else if (bJunkRex && (*Ptr & 0xF9) == 0x48 && (*(Ptr + 1) == 0x83 || *(Ptr + 1) == 0x81) &&
+                 (*(Ptr + 2) == 0xEC || (*(Ptr + 2) == 0xC4 && (*(Ptr + 1) == 0x83 ? int8_t(*(Ptr + 3)) : *(int32_t*)(Ptr + 3)) < 0)))
+        {
+            BeforeVars = uint64_t(Ptr);
+            break;
+        }
     }
+
+    if (!BeforeVars)
+        return nullptr;
 
     for (int i = 0; i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(BeforeVars + i);
 
-        if (*Ptr == 0x4C && *(Ptr + 1) == 0x8D && *(Ptr + 2) == 0x05)
+        if ((*Ptr == 0x4C || (bJunkRex && *Ptr == 0x4E)) && *(Ptr + 1) == 0x8D && *(Ptr + 2) == 0x05)
             return Memcury::Scanner(Ptr).RelativeOffset(3).GetAs<CVarT*>();
     }
 

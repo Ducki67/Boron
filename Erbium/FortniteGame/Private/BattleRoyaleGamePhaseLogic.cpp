@@ -358,7 +358,8 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::StartAircraftPhase()
             if (Pawn)
                 Pawn->K2_DestroyActor();
             auto Reset = (void (*)(AFortPlayerControllerAthena*))FindReset();
-            Reset(Player);
+            if (Reset)
+                Reset(Player);
             Player->ClientGotoState(FName(L"Spectating"));
         }
 
@@ -598,6 +599,10 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Tick()
                             Pawn->OnRep_IsInAnyStorm();
                             Pawn->bIsInsideSafeZone = bInZone;
                             Pawn->OnRep_IsInsideSafeZone();
+
+                            static int StormDiag = 0;
+                            if (StormDiag++ < 3)
+                                printf("[Boron][Storm] flags InsideOff=0x%x mask=0x%x AnyStormOff=0x%x mask=0x%x readback inside=%d anystorm=%d\n", AFortPlayerPawnAthena::bIsInsideSafeZone__Offset, AFortPlayerPawnAthena::bIsInsideSafeZone__FieldMask, AFortPlayerPawnAthena::bIsInAnyStorm__Offset, AFortPlayerPawnAthena::bIsInAnyStorm__FieldMask, (int)Pawn->bIsInsideSafeZone, (int)Pawn->bIsInAnyStorm);
 
                             /*auto AbilitySystemComponent = Player->PlayerState->AbilitySystemComponent;
                             if (AbilitySystemComponent)

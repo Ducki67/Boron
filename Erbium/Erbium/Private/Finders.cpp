@@ -2,6 +2,86 @@
 #include "../../FortniteGame/Public/BuildingSMActor.h"
 #include "../../FortniteGame/Public/FortPlayerControllerAthena.h"
 
+static uint64 OwningFunctionStart(uint64 Address);
+
+static uint64 ObfuscatedOwner(uint64 Ref)
+{
+    return VersionInfo.FortniteVersion >= 32 && Ref ? OwningFunctionStart(Ref) : 0;
+}
+
+static uint64 ObfuscatedOwner(Memcury::Scanner Ref)
+{
+    return ObfuscatedOwner((uint64)Ref.Get());
+}
+
+static uint64 FindCallTo(uint64 Target)
+{
+    auto Text = Memcury::PE::Section::GetSection(".text");
+    auto Start = (uint8_t*)Text.GetSectionStart().Get();
+    auto Size = (uint64)Text.GetSectionSize();
+
+    for (uint64 i = 0; i + 5 <= Size; i++)
+    {
+        if ((Start[i] == 0xE8 || Start[i] == 0xE9) && uint64(Start + i + 5) + *(int32_t*)(Start + i + 1) == Target)
+            return uint64(Start + i);
+    }
+
+    return 0;
+}
+
+static int CountRDataRefs(uint64 Fn)
+{
+    auto RData = Memcury::PE::Section::GetSection(".rdata");
+    auto Start = (uint64*)RData.GetSectionStart().Get();
+    auto Count = (uint64)RData.GetSectionSize() / 8;
+
+    int Refs = 0;
+    for (uint64 i = 0; i < Count; i++)
+        if (Start[i] == Fn)
+            Refs++;
+
+    return Refs;
+}
+
+static uint64 FindFinishWorldInitializationObfuscated()
+{
+    auto sRef = Memcury::Scanner::FindStringRef(L"Can't find a FortAthenaMapInfo placed in map.  Skipping warmup and aircraft phases.", false, 0, true, false);
+    if (sRef.IsValid())
+        return OwningFunctionStart(sRef.Get());
+
+    auto MeshSRef = Memcury::Scanner::FindStringRef(L"bEnableMeshNetwork", false);
+    if (!MeshSRef.IsValid())
+        return 0;
+
+    auto ShouldPIESetDefaultPlaylist = OwningFunctionStart(MeshSRef.Get());
+    auto Call = ShouldPIESetDefaultPlaylist ? FindCallTo(ShouldPIESetDefaultPlaylist) : 0;
+    auto Candidate = Call ? OwningFunctionStart(Call) : 0;
+    if (!Candidate || CountRDataRefs(Candidate))
+        return Candidate;
+
+    auto Text = Memcury::PE::Section::GetSection(".text");
+    auto Start = (uint8_t*)Text.GetSectionStart().Get();
+    auto Size = (uint64)Text.GetSectionSize();
+
+    uint64 Best = 0;
+    int BestRefs = 0;
+    for (uint64 i = 0; i + 5 <= Size; i++)
+    {
+        if ((Start[i] != 0xE8 && Start[i] != 0xE9) || uint64(Start + i + 5) + *(int32_t*)(Start + i + 1) != Candidate)
+            continue;
+
+        auto Owner = OwningFunctionStart(uint64(Start + i));
+        auto Refs = Owner ? CountRDataRefs(Owner) : 0;
+        if (Refs > BestRefs)
+        {
+            Best = Owner;
+            BestRefs = Refs;
+        }
+    }
+
+    return Best ? Best : Candidate;
+}
+
 uint64_t FindGIsClient()
 {
     static uintptr_t GIsClient = 0;
@@ -252,6 +332,13 @@ uint64 FindCreateNamedNetDriverLocal()
         return Addr = 0;
     }
 
+    if (auto ObfOwner = ObfuscatedOwner(refAddr))
+    {
+        printf("[Boron][Finder] CreateNamedNetDriver_Local (owner) = 0x%llX (RVA 0x%llX)\n",
+               (unsigned long long)ObfOwner, (unsigned long long)(ObfOwner - ImageBase));
+        return Addr = ObfOwner;
+    }
+
     // The log ref lives in an OUTLINED cold block far from the hot function (its RVA is ~40MB
     // away from the body). The cold block ends with a jmp back into the hot function -> follow
     // that E9 jmp, then back up to the hot function's int3-padded start.
@@ -430,6 +517,9 @@ uint64_t FindInitListen()
 
                 if (!InitListen)
                     InitListen = Memcury::Scanner::FindPattern("4C 8B DC 49 89 5B 08 49 89 73 10 57 48 83 EC 40 48 8B 7C 24 ? 49 8B F0 48 8B 01 48 8B D9 49 89 7B E0 45").Get();
+
+                if (!InitListen)
+                    InitListen = ObfuscatedOwner(Memcury::Scanner::FindStringRef(L"%s IpNetDriver listening on port %i", false, 0, true));
             }
         }
         else if (VersionInfo.EngineVersion >= 4.27)
@@ -478,6 +568,25 @@ uint64_t FindSetWorld()
 
             if (!SetWorld)
                 SetWorld = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 41 56 41 57 48 83 EC ? 4C 8D B9 ? ? ? ? 48 8B FA").Get();
+
+            if (!SetWorld && VersionInfo.FortniteVersion >= 32)
+            {
+                auto InitListen = FindInitListen();
+                auto RData = Memcury::PE::Section::GetSection(".rdata");
+                auto Start = (uint64*)RData.GetSectionStart().Get();
+                auto Count = (uint64)RData.GetSectionSize() / 8;
+                auto Text = Memcury::PE::Section::GetSection(".text");
+                auto TextStart = (uint64)Text.GetSectionStart().Get();
+                auto TextEnd = TextStart + Text.GetSectionSize();
+                for (uint64 i = 0; InitListen && i + 35 < Count; i++)
+                {
+                    if (Start[i] == InitListen && Start[i + 35] >= TextStart && Start[i + 35] < TextEnd)
+                    {
+                        SetWorld = Start[i + 35];
+                        break;
+                    }
+                }
+            }
         }
         else
         {
@@ -561,6 +670,9 @@ uint64_t FindTickFlush()
             if (!sRef && VersionInfo.EngineVersion == 4.20)
                 TickFlush = Memcury::Scanner::FindPattern("4C 8B DC 55 49 8D AB ? ? ? ? 48 81 EC ? ? ? ? 45 0F 29 43 ? 45 0F 29 4B ? 48 8B 05 ? ? ? ? 48").Get();
             else
+                if (auto ObfOwner = ObfuscatedOwner(sRef))
+                    TickFlush = ObfOwner;
+                else
                 for (int i = 0; i < 1000; i++)
                 {
                     auto Ptr = (uint8_t*)(sRef - i);
@@ -605,6 +717,9 @@ int32_t FindIsNetRelevantForVft()
         auto sRef = Memcury::Scanner::FindStringRef(L"Actor %s / %s has no root component in AActor::IsNetRelevantFor. (Make bAlwaysRelevant=true?)", false, 0, VersionInfo.FortniteVersion >= 19).Get();
 
         uintptr_t IsNetRelevantFor = 0;
+        if (auto ObfOwner = ObfuscatedOwner(sRef))
+            IsNetRelevantFor = ObfOwner;
+        else
         for (int i = 0; i < 2048; i++)
         {
             auto Ptr = (uint8_t*)(sRef - i);
@@ -731,6 +846,9 @@ uint64_t FindSendRequestNow()
         if (!sRef)
             return 0;
 
+        if (auto ObfOwner = ObfuscatedOwner(sRef))
+            SendRequestNow = ObfOwner;
+        else
         for (int i = 0; i < 1000; i++)
         {
             auto Ptr = (uint8_t*)(sRef - i);
@@ -894,6 +1012,9 @@ uint64_t FindInternalTryActivateAbility()
 
         auto sRef = Memcury::Scanner::FindStringRef(L"InternalTryActivateAbility called with invalid Handle! ASC: %s. AvatarActor: %s", true, 0, VersionInfo.FortniteVersion >= 16).Get();
 
+        if (auto ObfOwner = ObfuscatedOwner(sRef))
+            return InternalTryActivateAbility = ObfOwner;
+        else
         for (int i = 0; i < 1000; i++)
         {
             if (*(uint8_t*)(sRef - i) == 0x48 && *(uint8_t*)(sRef - i + 1) == 0x8B && *(uint8_t*)(sRef - i + 2) == 0xC4)
@@ -1030,6 +1151,9 @@ uint64 FindSpawnLoot()
         if (!sRef)
             return 0;
 
+        if (auto ObfOwner = ObfuscatedOwner(sRef))
+            return SpawnLoot = ObfOwner;
+        else
         for (int i = 0; i < 0x1000; i++)
         {
             if (*(uint8_t*)(sRef - i) == 0x40 && (*(uint8_t*)(sRef - i + 1) == 0x53 || *(uint8_t*)(sRef - i + 1) == 0x55))
@@ -1305,6 +1429,9 @@ uint64_t FindKickPlayer()
         if (!pattern)
             pattern = Memcury::Scanner::FindPattern("48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 40 48 8B DA 48 8B F1 48 8D 15 ? ? ? ? 49 8B F8 48 8D 4C 24 20 E8 ? ? ?").Get();
 
+        if (!pattern && VersionInfo.FortniteVersion >= 32)
+            pattern = Memcury::Scanner::FindPattern("48 89 5C 24 08 48 89 74 24 10 57 48 83 EC 40 ? 8B DA ? 8D 15 ? ? ? ? ? 8B F1 48 8D 4C 24 20 49 8B F8 E8").Get();
+
         return pattern;
     }
     else if (VersionInfo.EngineVersion >= 5.0)
@@ -1363,7 +1490,12 @@ uint64_t FindKickPlayerVirtual()
     if (VersionInfo.EngineVersion < 5.4)
         return 0;
 
-    return Memcury::Scanner::FindPattern("48 8B C4 48 89 58 08 48 89 68 10 48 89 70 18 57 48 83 EC 40 48 8B DA 48 8B E9 48 8D 15 ? ? ? ? 49 8B F0 48 8D 48 D8").Get();
+    auto KickPlayer = Memcury::Scanner::FindPattern("48 8B C4 48 89 58 08 48 89 68 10 48 89 70 18 57 48 83 EC 40 48 8B DA 48 8B E9 48 8D 15 ? ? ? ? 49 8B F0 48 8D 48 D8").Get();
+
+    if (!KickPlayer && VersionInfo.FortniteVersion >= 32)
+        KickPlayer = Memcury::Scanner::FindPattern("48 8B C4 ? 89 58 08 ? 89 68 10 ? 89 70 18 57 ? 83 C4 C0 ? 8B DA ? 8B E9 ? 8D 15 ? ? ? ? 49 8B F0 48 8D 48 D8 E8").Get();
+
+    return KickPlayer;
 }
 
 uint64_t FindSpawnActorTrackingGate()
@@ -1572,6 +1704,9 @@ uint64_t FindOnRep_ZiplineState()
 
         if (sRef)
         {
+            if (auto ObfOwner = ObfuscatedOwner(sRef))
+                return OnRep_ZiplineState = ObfOwner;
+            else
             for (int i = 0; i < 0x400; i++)
             {
                 if (*(uint8_t*)(sRef - i) == 0x40 && *(uint8_t*)(sRef - i + 1) == 0x53)
@@ -1610,6 +1745,9 @@ uint64 FindGiveAbilityAndActivateOnce()
 
         auto sRef = Memcury::Scanner::FindStringRef(L"GiveAbilityAndActivateOnce called on ability %s on the client, not allowed!", true, 0, VersionInfo.EngineVersion >= 5.0).Get();
 
+        if (auto ObfOwner = ObfuscatedOwner(sRef))
+            return GiveAbilityAndActivateOnce = ObfOwner;
+        else
         for (int i = 0; i < 1000; i++)
         {
             if (*(uint8_t*)(sRef - i) == 0x40 && *(uint8_t*)(sRef - i + 1) == 0x55)
@@ -1669,6 +1807,9 @@ uint64 FindGameSessionPatch()
     }
     else
     {
+        if (auto ObfOwner = ObfuscatedOwner(sRef))
+            Beginning = ObfOwner;
+        else
         for (int i = 0; i < 3000; i++)
         {
             if (*(uint8_t*)(sRef - i) == 0x40 && *(uint8_t*)(sRef - i + 1) == 0x55)
@@ -1720,6 +1861,9 @@ uint64 FindRemoveFromAlivePlayers()
                                                    L"now [%d]. PlayerBots count is now [%d]. Team count is now [%d].",
                                                    true, 0, VersionInfo.FortniteVersion >= 16)
                        .Get();
+
+        if (auto ObfOwner = ObfuscatedOwner(sRef))
+            return RemoveFromAlivePlayers = ObfOwner;
 
         for (int i = 0; i < 0x1200; i++)
         {
@@ -1837,6 +1981,9 @@ uint64_t FindSetPickupItems()
 
             if (!SetPickupItems)
                 SetPickupItems = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 41 56 41 57 48 83 EC ? 80 B9 ? ? ? ? ? 45 8A F1").Get();
+
+            if (!SetPickupItems && VersionInfo.FortniteVersion >= 32)
+                SetPickupItems = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 41 56 ? 57 48 83 C4 ? ? 8B E8 80 B9 ? ? ? ? 03 ? 8A F9").Get();
         }
     }
 
@@ -1896,6 +2043,9 @@ uint64_t FindSendClientAdjustment()
 
             if (!SendClientAdjustment)
                 SendClientAdjustment = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 74 24 ? 57 48 83 EC ? 8B 91 ? ? ? ? 48 8B D9 83 FA").Get();
+
+            if (!SendClientAdjustment && VersionInfo.FortniteVersion >= 32)
+                SendClientAdjustment = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 74 24 ? 57 41 56 ? 57 48 83 EC ? 8B 91 ? ? ? ? 83 FA FF ? 8B F9 74 ? 3B 91").Get();
         }
         else if (VersionInfo.FortniteVersion >= 25.00)
         {
@@ -2005,6 +2155,9 @@ uint64 FindSendDestructionInfo()
         if (!sRef)
             return SendDestructionInfo = 0;
 
+        if (auto ObfOwner = ObfuscatedOwner(sRef))
+            return SendDestructionInfo = ObfOwner;
+        else
         for (int i = 0; i < 2000; i++)
         {
             if (*(uint8_t*)(sRef - i) == 0x48 && *(uint8_t*)(sRef - i + 1) == 0x89 && *(uint8_t*)(sRef - i + 2) == 0x4c)
@@ -2038,6 +2191,9 @@ uint64 FindCreateChannel()
             if (!sRef)
                 return CreateChannel = 0;
 
+            if (auto ObfOwner = ObfuscatedOwner(sRef))
+                return CreateChannel = ObfOwner;
+            else
             for (int i = 0; i < 2000; i++)
             {
                 if (*(uint8_t*)(sRef - i) == 0x48 && *(uint8_t*)(sRef - i + 1) == 0x89 && *(uint8_t*)(sRef - i + 2) == 0x5c)
@@ -2075,6 +2231,9 @@ uint64 FindReplicateActor()
         {
             auto sRef = Memcury::Scanner::FindStringRef(L"STAT_NetReplicateActorTime").Get();
 
+            if (auto ObfOwner = ObfuscatedOwner(sRef))
+                return ReplicateActor = ObfOwner;
+            else
             for (int i = 0; i < 2000; i++)
             {
                 if (*(uint8_t*)(sRef - i) == 0x40 && *(uint8_t*)(sRef - i + 1) == 0x55)
@@ -2105,6 +2264,9 @@ uint64 FindCloseActorChannel()
         if (!sRef)
             return 0;
 
+        if (auto ObfOwner = ObfuscatedOwner(sRef))
+            return CloseActorChannel = ObfOwner;
+        else
         for (int i = 0; i < 2000; i++)
         {
             if (*(uint8_t*)(sRef - i) == 0x48 && *(uint8_t*)(sRef - i + 1) == 0x89 && *(uint8_t*)(sRef - i + 2) == 0x5C)
@@ -2163,6 +2325,9 @@ uint64 FindStartBecomingDormant()
         if (!sRef)
             return 0;
 
+        if (auto ObfOwner = ObfuscatedOwner(sRef))
+            return StartBecomingDormant = ObfOwner;
+        else
         for (int i = 0; i < 2000; i++)
         {
             if (*(uint8_t*)(sRef - i) == 0x48 && *(uint8_t*)(sRef - i + 1) == 0x89 && *(uint8_t*)(sRef - i + 2) == 0x5C)
@@ -2189,6 +2354,9 @@ uint64 FindFlushDormancy()
         if (!sRef)
             return 0;
 
+        if (auto ObfOwner = ObfuscatedOwner(sRef))
+            return FlushDormancy = ObfOwner;
+        else
         for (int i = 0; i < 2000; i++)
         {
             if (*(uint8_t*)(sRef - i) == 0x40 && *(uint8_t*)(sRef - i + 1) == 0x55)
@@ -2215,6 +2383,9 @@ uint64_t FindEnterAircraft()
         if (!sRef)
             return 0;
 
+        if (auto ObfOwner = ObfuscatedOwner(sRef))
+            return EnterAircraft = ObfOwner;
+        else
         for (int i = 0; i < 1000; i++)
         {
             auto Ptr = (uint8_t*)(sRef - i);
@@ -2261,6 +2432,9 @@ uint64_t FindGetPlayerViewPoint()
 
     auto ftspRef = Memcury::Scanner::FindStringRef(L"%s failed to spawn a pawn", true, 0, VersionInfo.FortniteVersion >= 19).Get();
 
+    if (auto ObfOwner = ObfuscatedOwner(ftspRef))
+        ftspAddr = ObfOwner;
+    else
     for (int i = 0; i < 1000; i++)
     {
         if (*(uint8_t*)(ftspRef - i) == 0x40 && *(uint8_t*)(ftspRef - i + 1) == 0x53)
@@ -2481,6 +2655,9 @@ uint64 FindUpdateIrisReplicationViews()
             UpdateIrisReplicationViews = Memcury::Scanner::FindPattern("48 8B C4 48 89 58 ? 48 89 70 ? 48 89 78 ? 55 41 54 41 55 41 56 41 57 48 8D A8 ? ? ? ? 48 81 EC ? ? ? ? 0F "
                                                                        "29 70 ? 0F 29 78 ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 45 33 FF")
                                              .Get();
+
+        if (!UpdateIrisReplicationViews)
+            UpdateIrisReplicationViews = ObfuscatedOwner(Memcury::Scanner::FindStringRef(L"STAT_UpdateIrisReplicationViews", false));
     }
 
     return UpdateIrisReplicationViews;
@@ -2497,7 +2674,10 @@ uint64 FindPreSendUpdate()
 
         auto sRef = Memcury::Scanner::FindStringRef("ReplicationSystem_PreSendUpdate");
         if (sRef.IsValid())
-            return PreSendUpdate = sRef.ScanFor({ 0x48, 0x89, 0x5C }, false).Get();
+            if (auto ObfOwner = ObfuscatedOwner(sRef))
+                return PreSendUpdate = ObfOwner;
+            else
+                return PreSendUpdate = sRef.ScanFor({ 0x48, 0x89, 0x5C }, false).Get();
 
         PreSendUpdate = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 74 24 ? 57 48 83 EC ? 8B 02 48 8B F9 4C 8B 41").Get();
 
@@ -2525,7 +2705,10 @@ uint64 FindPostSendUpdate()
 
         auto sRef = Memcury::Scanner::FindStringRef("ReplicationSystem_PostSendUpdate");
         if (sRef.IsValid())
-            PostSendUpdate = sRef.ScanFor({ 0x48, 0x89, 0x5C }, false).Get();
+            if (auto ObfOwner = ObfuscatedOwner(sRef))
+                PostSendUpdate = ObfOwner;
+            else
+                PostSendUpdate = sRef.ScanFor({ 0x48, 0x89, 0x5C }, false).Get();
     }
 
     return PostSendUpdate;
@@ -2548,6 +2731,9 @@ uint64_t FindHandleMatchHasStarted()
         if (!sRef)
             return 0;
 
+        if (auto ObfOwner = ObfuscatedOwner(sRef))
+            HandleMatchHasStarted = ObfOwner;
+        else
         for (int i = 0; i < 2000; i++)
         {
             auto Ptr = (uint8_t*)(sRef - i);
@@ -2577,7 +2763,10 @@ uint64_t FindInitializeBuildingActor()
         if (!sRef.Get())
             return 0;
 
-        return InitializeBuildingActor = sRef.ScanFor(std::vector<uint8_t>{ 0x48, 0x8B, 0xC4 }, false, 0, 1, 1000).Get();
+        if (auto ObfOwner = ObfuscatedOwner(sRef))
+            return InitializeBuildingActor = ObfOwner;
+        else
+            return InitializeBuildingActor = sRef.ScanFor(std::vector<uint8_t>{ 0x48, 0x8B, 0xC4 }, false, 0, 1, 1000).Get();
     }
 
     return InitializeBuildingActor;
@@ -2627,6 +2816,9 @@ uint64 FindInitializeFlightPath()
 
         if (!InitializeFlightPath)
             InitializeFlightPath = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 48 81 EC ? ? ? ? 48 8B E9 41 0F B6 D9").Get();
+
+        if (!InitializeFlightPath && VersionInfo.FortniteVersion >= 32)
+            InitializeFlightPath = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 ? 81 EC ? ? ? ? 48 8B E9 48 8D 4C 24 ? ? 8A D9").Get();
     }
 
     return InitializeFlightPath;
@@ -2642,6 +2834,9 @@ uint64 FindReset()
         bInitialized = true;
 
         Reset = Memcury::Scanner::FindPattern("48 89 5C 24 ? 57 48 83 EC ? 48 8B 91 ? ? ? ? 48 8B F9 48 85 D2 74 ? 48 8B 01").Get();
+
+        if (!Reset && VersionInfo.FortniteVersion >= 32)
+            Reset = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 7C 24 ? 55 ? 8B EC ? 83 C4 ? 48 8B 91 ? ? ? ? 48 8B F9 ? 85 D2 74 ? 48 8B 01 FF 90 ? ? ? ? 48 8B CF E8").Get();
     }
 
     return Reset;
@@ -2724,6 +2919,9 @@ uint64_t FindPayBuildableClassPlacementCost()
 
     if (sRef.IsValid())
     {
+        if (auto ObfOwner = ObfuscatedOwner(sRef))
+            return ObfOwner;
+        else
         for (int i = 0; i < 2000; i++)
         {
             auto Ptr = (uint8_t*)(sRef.Get() - i);
@@ -2755,6 +2953,8 @@ uint64_t FindCanAffordToPlaceBuildableClass()
 
     if (sRef.IsValid())
     {
+        if (auto ObfOwner = ObfuscatedOwner(sRef))
+            return ObfOwner;
         if (VersionInfo.FortniteVersion < 12.00)
         {
             for (int i = 0; i < 2000; i++)
@@ -2871,6 +3071,9 @@ uint32 FindSpawnDecoVft()
     auto sRef = Memcury::Scanner::FindStringRef(L"AFortTrapTool::SpawnDeco World is tearing down.  Early-ing out.", false, 0, VersionInfo.FortniteVersion >= 19);
 
     uint64 SpawnDeco = 0;
+    if (auto ObfOwner = ObfuscatedOwner(sRef))
+        SpawnDeco = ObfOwner;
+    else
     for (int i = 0; i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(sRef.Get() - i);
@@ -2922,6 +3125,9 @@ uint32 FindShouldAllowServerSpawnDecoVft()
     }
 
     uint64 ShouldAllowServerSpawnDeco = 0;
+    if (auto ObfOwner = ObfuscatedOwner(sRef))
+        ShouldAllowServerSpawnDeco = ObfOwner;
+    else
     for (int i = 0; i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(ShouldAllowServerSpawnDecoPart - i);
@@ -2957,6 +3163,9 @@ uint64 FindSetState()
     if (!sRef.IsValid())
         return 0;
 
+    if (auto ObfOwner = ObfuscatedOwner(sRef))
+        return ObfOwner;
+    else
     for (int i = 0; i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(sRef.Get() - i);
@@ -2982,6 +3191,9 @@ uint64_t FindPickSupplyDropLocation()
     if (!sRef.IsValid())
         sRef = Memcury::Scanner::FindStringRef("AFortAthenaMapInfo::PickSupplyDropLocation");
 
+    if (auto ObfOwner = ObfuscatedOwner(sRef))
+        return ObfOwner;
+    else
     for (int i = 0; i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(sRef.Get() - i);
@@ -3002,6 +3214,9 @@ uint64_t FindSetPickupTarget()
     if (!sRef.IsValid())
         sRef = Memcury::Scanner::FindStringRef(L"Attempted to spawn non-world item %s!", false, 0, VersionInfo.FortniteVersion >= 17, false);
 
+    if (auto ObfOwner = ObfuscatedOwner(sRef))
+        return ObfOwner;
+    else
     for (int i = 0; i < 0x1500; i++)
     {
         auto Ptr = (uint8_t*)(sRef.Get() - i);
@@ -3026,6 +3241,9 @@ uint64 FindInitializePlayerGameplayAbilities()
     if (!sRef.IsValid())
         return 0;
 
+    if (auto ObfOwner = ObfuscatedOwner(sRef))
+        return ObfOwner;
+    else
     for (int i = 0; i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(sRef.Get() - i);
@@ -3082,6 +3300,9 @@ uint64 FindQueueStatEvent()
     if (!sRef.IsValid())
         return 0;
 
+    if (auto ObfOwner = ObfuscatedOwner(sRef))
+        return ObfOwner;
+    else
     for (int i = 0; i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(sRef.Get() - i);
@@ -3099,6 +3320,9 @@ uint64 FindQueueStatEvent()
 
 uint64 FindFinishWorldInitialization()
 {
+    if (VersionInfo.FortniteVersion >= 32)
+        return FindFinishWorldInitializationObfuscated();
+
     auto sRef = Memcury::Scanner::FindStringRef(L"Can't find a FortAthenaMapInfo placed in map.  Skipping warmup and aircraft phases.", false, 0, VersionInfo.FortniteVersion >= 19, false);
 
     if (!sRef.IsValid())
@@ -3313,6 +3537,9 @@ uint64 FindSetIsDoorOpen()
         return 0;
 
     printf("CVarRef: %llx\n", CVarRef.Get() - ImageBase);
+    if (auto ObfOwner = ObfuscatedOwner(CVarRef.Get()))
+        return ObfOwner;
+
     uint64_t SetIsDoorOpenPart = 0;
     for (int i = 0; i < 0x10000; i++)
     {
@@ -3378,6 +3605,9 @@ uint64 FindSelectAndSetupMyBuildingLevel()
         return 0;
 
     uint64_t SelectAndSetupMyBuildingLevelPart = 0;
+    if (auto ObfOwner = ObfuscatedOwner(sRef))
+        return ObfOwner;
+    else
     for (int i = 0; i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(sRef.Get() - i);
@@ -3532,8 +3762,14 @@ void FindNullsAndRetTrues()
         else if (VersionInfo.EngineVersion == 5.3)
             NullFuncs.push_back(Memcury::Scanner::FindPattern("48 8B C4 48 89 58 ? 48 89 70 ? 55 57 41 54 41 56 41 57 48 81 EC").Get());
         else if (VersionInfo.EngineVersion >= 5.4)
-            NullFuncs.push_back(
-                Memcury::Scanner::FindPattern("48 8B C4 48 89 58 ? 48 89 70 ? 55 57 41 54 41 56 41 57 48 8D A8 ? ? ? ? 48 81 EC ? ? ? ? 0F 29 70 ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 45 33 FF").Get());
+        {
+            auto p = Memcury::Scanner::FindPattern("48 8B C4 48 89 58 ? 48 89 70 ? 55 57 41 54 41 56 41 57 48 8D A8 ? ? ? ? 48 81 EC ? ? ? ? 0F 29 70 ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 45 33 FF").Get();
+
+            if (!p)
+                p = ObfuscatedOwner(Memcury::Scanner::FindStringRef("UFortSocialToolkit::TryQueryFriendsRebootData", false));
+
+            NullFuncs.push_back(p);
+        }
     }
 
     if (VersionInfo.FortniteVersion == 2.5)
@@ -3566,6 +3802,9 @@ void FindNullsAndRetTrues()
             pattern = Memcury::Scanner::FindPattern("48 89 5C 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 8D AC 24 ? ? ? ? 48 81 EC ? ? ? ? 48 8B 05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? "
                                                     "? 48 8B F2 4C 8B F1 E8 ? ? ? ? 48 8B 0D")
                           .Get();
+
+        if (!pattern)
+            pattern = ObfuscatedOwner(Memcury::Scanner::FindStringRef(L"Changing GameSessionId from '%s' to '%s'", false, 0, true));
 
         NullFuncs.push_back(pattern);
     }
@@ -3683,7 +3922,9 @@ void FindNullsAndRetTrues()
             if (!sRef)
                 sRef = Memcury::Scanner::FindStringRef(L"CanActivateAbility %s failed, called with invalid Handle", true, 0, VersionInfo.EngineVersion >= 5.0).Get();
 
-            if (sRef)
+            if (auto ObfOwner = ObfuscatedOwner(sRef))
+                RetTrueFuncs.push_back(ObfOwner);
+            else if (sRef)
             {
                 for (int i = 0; i < 0x2000; i++)
                 {
@@ -3706,7 +3947,9 @@ void FindNullsAndRetTrues()
 
     auto sRef = Memcury::Scanner::FindStringRef(L"AFortPlayerControllerAthena::HasStreamingLevelsCompletedLoadingUnLoading(): %s still not visible", false, 0, VersionInfo.FortniteVersion >= 19).Get();
 
-    if (sRef)
+    if (auto ObfOwner = ObfuscatedOwner(sRef))
+        RetTrueFuncs.push_back(ObfOwner);
+    else if (sRef)
     {
         for (int i = 0; i < 1000; i++)
         {
@@ -3727,7 +3970,9 @@ void FindNullsAndRetTrues()
 
     if (VersionInfo.FortniteVersion >= 23)
     {
-        NullFuncs.push_back(Memcury::Scanner::FindStringRef(L"STAT_FortCurieVoxelFirePropagationManager_IgniteGrassInBounds").ScanFor({ 0x48, 0x8B, 0xC4 }, false).Get());
+        auto IgniteRef = Memcury::Scanner::FindStringRef(L"STAT_FortCurieVoxelFirePropagationManager_IgniteGrassInBounds");
+        auto IgniteOwner = ObfuscatedOwner(IgniteRef);
+        NullFuncs.push_back(IgniteOwner ? IgniteOwner : IgniteRef.ScanFor({ 0x48, 0x8B, 0xC4 }, false).Get());
     }
 
     if (VersionInfo.EngineVersion < 5.0)
@@ -3747,4 +3992,101 @@ void FindNullsAndRetTrues()
     {
         // ue5.1+ i think, they inlined the VFT call
     }
+}
+
+uint64 FindNetModeCheck()
+{
+    auto Text = Memcury::PE::Section::GetSection(".text");
+    auto Start = (uint8_t*)Text.GetSectionStart().Get();
+    auto Size = (uint64)Text.GetSectionSize();
+    uint64 Found = 0;
+
+    for (uint64 i = 0; i + 10 < Size; i++)
+    {
+        auto Ptr = Start + i;
+
+        if (Ptr[0] != 0xE8 || Ptr[5] != 0x83 || Ptr[6] != 0xF8 || Ptr[7] != 0x02 || Ptr[8] != 0x0F || Ptr[9] != 0x84)
+            continue;
+
+        auto Owner = OwningFunctionStart(uint64(Ptr));
+        if (!Owner || uint64(Ptr) - Owner > 0x30)
+            continue;
+
+        DWORD64 ImageBase = 0;
+        auto Entry = RtlLookupFunctionEntry(Owner, &ImageBase, nullptr);
+        if (!Entry)
+            continue;
+
+        auto FuncSize = uint64(Entry->EndAddress - Entry->BeginAddress);
+        if (FuncSize > 0x140)
+            continue;
+
+        int VirtualCalls = 0;
+        for (uint64 j = 0; j + 1 < FuncSize; j++)
+            if (((uint8_t*)Owner)[j] == 0xFF && ((uint8_t*)Owner)[j + 1] == 0x90)
+                VirtualCalls++;
+
+        if (VirtualCalls < 2)
+            continue;
+
+        if (Found)
+        {
+            printf("[Boron][Init] NetModeCheck ambiguous (%p, %p)\n", (void*)Found, (void*)(Ptr + 5));
+            return 0;
+        }
+
+        Found = uint64(Ptr + 5);
+    }
+
+    return Found;
+}
+
+uint64 FindAttemptDeriveFromURL()
+{
+    std::vector<uint64> Candidates;
+    uint64 LastRef = 0;
+
+    for (int RefNum = 0; RefNum < 32; RefNum++)
+    {
+        auto sRef = Memcury::Scanner::FindStringRef(L"listen", false, RefNum);
+        if (!sRef.IsValid() || sRef.Get() == LastRef)
+            break;
+
+        LastRef = sRef.Get();
+        auto Owner = OwningFunctionStart(LastRef);
+        if (Owner && std::find(Candidates.begin(), Candidates.end(), Owner) == Candidates.end())
+            Candidates.push_back(Owner);
+    }
+
+    if (Candidates.empty())
+        return 0;
+
+    std::vector<int> Calls(Candidates.size(), 0);
+    auto Text = Memcury::PE::Section::GetSection(".text");
+    auto Start = (uint8_t*)Text.GetSectionStart().Get();
+    auto Size = (uint64)Text.GetSectionSize();
+
+    for (uint64 i = 0; i + 5 <= Size; i++)
+    {
+        if (Start[i] != 0xE8)
+            continue;
+
+        auto Target = uint64(Start + i + 5) + *(int32_t*)(Start + i + 1);
+        for (size_t c = 0; c < Candidates.size(); c++)
+            if (Candidates[c] == Target)
+                Calls[c]++;
+    }
+
+    size_t Best = 0;
+    for (size_t c = 1; c < Candidates.size(); c++)
+        if (Calls[c] > Calls[Best])
+            Best = c;
+
+    printf("[Boron][Init] AttemptDeriveFromURL = %p (%d calls, %d candidates)\n", (void*)Candidates[Best], Calls[Best], (int)Candidates.size());
+    return Calls[Best] >= 100 ? Candidates[Best] : 0;
+}
+
+uint64 FindOwningFunction(uint64 Address)
+{
+    return OwningFunctionStart(Address);
 }
