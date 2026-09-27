@@ -71,6 +71,15 @@ Currently the only versions that are "supported" are below:
 
 - Progress (32.00): **5% Done** (currently being worked on)
 
+
+## Notes:
+
+- **Streamed maps:**  On 32.xx+ *Reload* and on Ch6 *Blitz Royale* and other maps (exept OG mode) are **Streamed** by the game so for that to work you will need the right version's paks from [**Here**](https://github.com/KPMisParrot/Fortnite-Streamed-Maps-Archive) AND *Blitz Royale* had diffrent weeks and upadtes of it so you can find those in the same archive as well.
+- later ill include more info here ig
+
+
+
+
 </details>
 
 
