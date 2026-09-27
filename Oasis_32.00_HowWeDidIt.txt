@@ -1,0 +1,95 @@
+RELOAD OASIS ON 32.00 (CL 37770125) - HOW WE GOT IT WORKING
+==============================================================
+
+THE PROBLEM
+-----------
+Starting in 32.00, Epic streams the Reload maps from its servers. Reload Oasis
+(Playlist_PunchBerry*) is NOT in the base 32.00 paks, so "open PunchBerry_Terrain"
+did nothing and the main island loaded instead.
+
+
+STEP 1 - GET THE STREAMED PAKS
+------------------------------
+Source: https://github.com/KPMisParrot/Fortnite-Streamed-Maps-Archive
+  32.00 Reload Oasis: https://drive.google.com/file/d/1XwvDEU4ngR8sS4_VufmXE-Z7shtUR1nM/view
+  (the archive also has 32.10 and 32.11)
+
+Put these four files in FortniteGame\Content\Paks:
+  PakChunk-PunchBerry3200.pak / .sig / .utoc / .ucas
+The game mounts them automatically.
+
+
+STEP 2 - FIND THE REAL MAP PATH
+-------------------------------
+The paks contain a Game Feature Plugin (GFP) named by a GUID:
+  Plugins/GameFeatures/632de27e-4506-41f8-532f-93ac01dc10ca/
+The real map path is:
+  /632de27e-4506-41f8-532f-93ac01dc10ca/Maps/PunchBerry_Terrain
+
+The plugin only reaches the "Registered" state and is never activated, so the
+log said:
+  "... is not a child of an existing mount point"
+
+
+STEP 3 - ACTIVATE THE PLUGIN (the hard part)
+--------------------------------------------
+Tried first (DEAD in shipping builds):
+  x "LoadGameFeaturePlugin <name>" console command -> blocked as a cheat
+  x UFortCheatManager::LoadAndActivateGameFeaturePlugin via ProcessEvent
+    -> the function exists, but its body is stripped in shipping
+
+What works: call the engine's own native functions directly.
+We found them by disassembling the LoadGameFeaturePlugin console command
+handler in the 32.00 exe. Hardcoded RVAs (from the image base):
+  0x2bacc18  UGameFeaturesSubsystem::Get()
+  0x189f954  GetPluginURLByName(this, FStringView*, FString* OutURL)
+  0x189b27c  ChangeGameFeatureTargetState(this, FString* URL, uint8 State, Delegate*)
+             State 3 = Active
+
+If the name lookup fails, which it does here (byName=0), we pass the file URL:
+  file:../../../FortniteGame/Plugins/GameFeatures/632de27e-.../632de27e-....uplugin
+
+CRASH GOTCHA: GetPluginURLByName reads its argument with a movaps instruction,
+so the arguments MUST be alignas(16). Otherwise it crashes with an access
+violation "read 0xffffffffffffffff".
+
+
+STEP 4 - OPEN THE MAP AFTER BORON'S HOOKS
+-----------------------------------------
+Oasis loads much faster than the main island. It finished loading before Boron
+installed its hooks (_PostLoadHookFuncs), so FinishWorldInitialization never
+fired: no playlist, no listen.
+Fix: bDeferOpen = true for Oasis; the "open" now runs at the end of Main(),
+after Misc::bHookedAll = true.
+
+
+STEP 5 - FORCE THE BR GAME MODE
+-------------------------------
+The streamed map has no BR game mode set, so it loaded as Save the World.
+Signs: the campaign profile was queried and the STW_* game features were
+activated.
+Fix: add the game mode to the open URL:
+  open /632de27e-4506-41f8-532f-93ac01dc10ca/Maps/PunchBerry_Terrain?game=/Game/Athena/Athena_GameMode.Athena_GameMode_C
+
+RESULT: Joinable, in-game on Oasis (Paradise Palms) with 2 reboots.
+
+
+WHERE THE CODE LIVES
+--------------------
+Erbium/Erbium/Private/dllmain.cpp, in the map-selection block:
+  else if (Offsets::FortniteCL == 37770125 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_PunchBerry"))
+  -> activate the GFP, Sleep(8000), set terrainOpen, bDeferOpen = true
+Then at the end of Main(): if (bDeferOpen) ExecuteConsoleCommand(terrainOpen)
+
+ErbiumClient also has a client-side GFP load. It's probably not needed: the
+client loaded the map on its own.
+
+
+FOR 32.10 / 32.11 (TODO)
+------------------------
+Same recipe. Per CL, change:
+  - the 3 RVAs: find the "Expected a game feature plugin URL or name as an
+    argument" string -> the console lambdas that call it -> the Get /
+    GetPluginURLByName / ChangeGameFeatureTargetState calls
+  - the plugin GUID: check the new pak's Plugins/GameFeatures folder
+  - the CL number in the version gate

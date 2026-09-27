@@ -971,6 +971,21 @@ void AFortPlayerControllerAthena::ServerExecuteInventoryItem_(UObject* Context, 
                    NativePawn->Class ? NativePawn->Class->Name.ToString().c_str() : "null");
         }
 
+        auto RangedWeap = CurrentWeap && CurrentWeap->IsA(AFortWeaponRanged::StaticClass()) ? (AFortWeaponRanged*)CurrentWeap : nullptr;
+        if (VersionInfo.FortniteVersion >= 32 && RangedWeap && RangedWeap->HasAmmoCount())
+        {
+            auto OldGuid = CurrentWeap->ItemEntryGuid;
+            auto OldEntry = PC->WorldInventory->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& en) { return en.ItemGuid == OldGuid; }, FFortItemEntry::Size());
+            if (OldEntry && OldEntry->LoadedAmmo != RangedWeap->AmmoCount)
+            {
+                OldEntry->LoadedAmmo = RangedWeap->AmmoCount;
+                auto OldItem = PC->WorldInventory->Inventory.ItemInstances.Search([&](UFortWorldItem* it) { return it->ItemEntry.ItemGuid == OldGuid; });
+                if (OldItem)
+                    (*OldItem)->ItemEntry.LoadedAmmo = RangedWeap->AmmoCount;
+                PC->WorldInventory->UpdateEntry(*OldEntry);
+            }
+        }
+
         bool eqOk = GuardedEquip(NativePawn, ItemDefinition, RequestedGuid, entry->HasTrackerGuid() ? entry->TrackerGuid : FGuid());
         auto NativeCW = NativePawn->CurrentWeapon;
 

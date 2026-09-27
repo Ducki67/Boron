@@ -121,7 +121,11 @@ void Main()
             if (VersionInfo.FortniteVersion >= 32)
                 *(bool*)MantleCVar = true;
             else
+            {
                 *MantleCVar = false;
+                if (VersionInfo.FortniteVersion >= 29)
+                    *(bool*)MantleCVar = true;
+            }
         }
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.TacticalSprint 0"), nullptr);
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Hurdle 0"), nullptr);
@@ -138,6 +142,22 @@ void Main()
             Hooking::Patch<uint8_t>(JoinGate + 2, 0xC3);
             printf("[BoronClient] JoinGate patched -> ret 0 (xor eax,eax; ret)\n");
         }*/
+    }
+
+    if (Offsets::FortniteCL == 37770125 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_PunchBerry"))
+    {
+        auto Base = Memcury::PE::GetModuleBase();
+        auto GFS = ((void* (*)())(Base + 0x2bacc18))();
+        struct alignas(16) { const wchar_t* Ptr; int32_t Len; } GFPName{ L"632de27e-4506-41f8-532f-93ac01dc10ca", 36 };
+        alignas(16) FString ByName;
+        alignas(16) FString FileURL = L"file:../../../FortniteGame/Plugins/GameFeatures/632de27e-4506-41f8-532f-93ac01dc10ca/632de27e-4506-41f8-532f-93ac01dc10ca.uplugin";
+        bool bByName = GFS && ((bool (*)(void*, void*, FString*))(Base + 0x189f954))(GFS, &GFPName, &ByName);
+        printf("[BoronClient][Oasis] GFS=%p byName=%d\n", GFS, bByName);
+        if (GFS)
+        {
+            alignas(16) uint8_t Done[0x10] = {};
+            ((void (*)(void*, FString*, uint8_t, void*))(Base + 0x189b27c))(GFS, bByName ? &ByName : &FileURL, 3, Done);
+        }
     }
 
     Client::Init();

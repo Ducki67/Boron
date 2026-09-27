@@ -387,6 +387,7 @@ void Main()
 
     UWorld::GetWorld()->OwningGameInstance->LocalPlayers.Remove(0);
     const wchar_t* terrainOpen = L"open Athena_Terrain";
+    bool bDeferOpen = false;
 
     if (wcsstr(FConfig::Playlist, L"/MoleGame/Playlists/Playlist_MoleGame"))
     {
@@ -397,12 +398,32 @@ void Main()
         terrainOpen = L"open Creative_NoApollo_Terrain";
     
 
-    else if (VersionInfo.FortniteVersion >= 30.20 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_BlastBerrySquad.Playlist_BlastBerrySquad"))
+    else if (VersionInfo.FortniteVersion >= 30.20 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_BlastBerry"))
         terrainOpen = L"open BlastBerry_Terrain";
 
     // forgot to update thsi shit
-    else if (VersionInfo.FortniteVersion >= 31.00 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_SunflowerSolo.Playlist_SunflowerSolo"))
+    else if (VersionInfo.FortniteVersion >= 31.00 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_Sunflower"))
         terrainOpen = L"open BlastBerry_Terrain";
+    else if (Offsets::FortniteCL == 37770125 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_PunchBerry"))
+    {
+        auto Base = Memcury::PE::GetModuleBase();
+        auto GFS = ((void* (*)())(Base + 0x2bacc18))();
+        struct alignas(16) { const wchar_t* Ptr; int32_t Len; } GFPName{ L"632de27e-4506-41f8-532f-93ac01dc10ca", 36 };
+        alignas(16) FString ByName;
+        alignas(16) FString FileURL = L"file:../../../FortniteGame/Plugins/GameFeatures/632de27e-4506-41f8-532f-93ac01dc10ca/632de27e-4506-41f8-532f-93ac01dc10ca.uplugin";
+        bool bByName = GFS && ((bool (*)(void*, void*, FString*))(Base + 0x189f954))(GFS, &GFPName, &ByName);
+        printf("[Boron][Oasis] GFS=%p byName=%d\n", GFS, bByName);
+        if (GFS)
+        {
+            alignas(16) uint8_t Done[0x10] = {};
+            ((void (*)(void*, FString*, uint8_t, void*))(Base + 0x189b27c))(GFS, bByName ? &ByName : &FileURL, 3, Done);
+        }
+        Sleep(8000);
+        terrainOpen = L"open /632de27e-4506-41f8-532f-93ac01dc10ca/Maps/PunchBerry_Terrain?game=/Game/Athena/Athena_GameMode.Athena_GameMode_C";
+        bDeferOpen = true;
+    }
+    else if (VersionInfo.FortniteVersion >= 32.10 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_PunchBerry"))
+        terrainOpen = L"open PunchBerry_Terrain";
     /*
      else if (VersionInfo.FortniteVersion == 32.00 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_PunchBerrySolo.Playlist_PunchBerrySolo"))
         terrainOpen = L"open PunchBerry_Terrain";*/
@@ -426,7 +447,8 @@ void Main()
     DumpIfNeeded();
 
 
-    UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(terrainOpen), nullptr);
+    if (!bDeferOpen)
+        UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(terrainOpen), nullptr);
 
     auto EncryptionPatch = FindEncryptionPatch();
     if (EncryptionPatch)
@@ -458,6 +480,9 @@ void Main()
         HookFunc();
 
     Misc::bHookedAll = true;
+
+    if (bDeferOpen)
+        UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(terrainOpen), nullptr);
 }
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
