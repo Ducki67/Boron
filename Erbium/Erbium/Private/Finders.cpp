@@ -1054,6 +1054,9 @@ uint64 FindApplyCharacterCustomization()
             if (!ApplyCharacterCustomization)
                 ApplyCharacterCustomization = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 74 24 ? 48 89 7C 24 ? 55 41 54 41 55 41 56 41 57 48 8B EC 48 81 EC ? ? ? ? 80 B9").Get();
 
+            if (!ApplyCharacterCustomization && Offsets::FortniteCL == 37770125)
+                ApplyCharacterCustomization = Memcury::PE::GetModuleBase() + 0x9074f0c;
+
             return ApplyCharacterCustomization;
         }
         else if (std::floor(VersionInfo.FortniteVersion) == 22)

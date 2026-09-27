@@ -387,7 +387,19 @@ void AFortPlayerPawnAthena::ServerHandlePickupInfo(UObject* Context, FFrame& Sta
 
                         static int swn = 0;
 
-                        if (Utils::LogBudget(swn, 20, "[Pickup] full-inv swap"))
+                        const bool bSwapLog = Utils::LogBudget(swn, 20, "[Pickup] full-inv swap");
+                        if (bSwapLog)
+                        {
+                            std::string Prims;
+                            for (int i = 0; i < Inv->Inventory.ReplicatedEntries.Num(); i++)
+                            {
+                                auto& P = Inv->Inventory.ReplicatedEntries.Get(i, FFortItemEntry::Size());
+                                if (P.ItemDefinition && AFortInventory::IsPrimaryQuickbar(P.ItemDefinition))
+                                    Prims += std::string(P.ItemDefinition->Name.ToString().c_str()) + "(t" + std::to_string((int)P.ItemDefinition->ItemType) + ") ";
+                            }
+                            printf("[Boron][Pickup] primaries: %s\n", Prims.c_str());
+                        }
+                        if (bSwapLog)
                             printf("[Boron][Pickup] full-inv swap: dropping %s heldByPawn=%d requested=%d entries=%d instances=%d\n",
                                    DropEntry->ItemDefinition->Name.ToString().c_str(), (int)bDroppingHeld, (int)bUseRequestedSwap,
                                    Inv->Inventory.ReplicatedEntries.Num(), Inv->Inventory.ItemInstances.Num());

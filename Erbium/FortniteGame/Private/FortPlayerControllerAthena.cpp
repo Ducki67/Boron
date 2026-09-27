@@ -272,6 +272,7 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
         // NOTE: Utils::GetAll() is GetAllActorsOfClass -> ACTORS only. UFortAbilitySet is a data
         // asset (UObject), so it always returns 0. Walk the object array directly instead.
         static std::vector<const UFortAbilitySet*> MovementSets;
+        static const UFortAbilitySet* DoorBashSet = nullptr;
         static bool abilScanned = false;
 
         if (!abilScanned)
@@ -293,6 +294,12 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
                     auto nm = Obj->Name.ToString();
 
                     printf("[Boron][Abilities] set[%d] %s\n", total, nm.c_str());
+
+                    if (VersionInfo.FortniteVersion >= 32 && strcmp(nm.c_str(), "AS_DoorBash") == 0)
+                    {
+                        Obj->AddToRoot();
+                        DoorBashSet = (const UFortAbilitySet*)Obj;
+                    }
 
                     if (strstr(nm.c_str(), "Clamber") || strstr(nm.c_str(), "Hurdle") || strstr(nm.c_str(), "Mantle")
                         || strstr(nm.c_str(), "Traversal") || strstr(nm.c_str(), "Vault"))
@@ -321,6 +328,12 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
         if (!bAlreadyGranted)
         {
             GrantedTo.push_back(ASC);
+
+            if (DoorBashSet)
+            {
+                PlayerController->PlayerState->AbilitySystemComponent->GiveAbilitySet(DoorBashSet);
+                printf("[Boron][Abilities] granted AS_DoorBash to asc=%p\n", ASC);
+            }
 
 #if 0
             for (auto Set : MovementSets)

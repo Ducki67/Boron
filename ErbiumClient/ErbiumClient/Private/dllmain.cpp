@@ -117,7 +117,12 @@ void Main()
             *SlideCVar = false;
 
         if (MantleCVar)
-            *MantleCVar = false;
+        {
+            if (VersionInfo.FortniteVersion >= 32)
+                *(bool*)MantleCVar = true;
+            else
+                *MantleCVar = false;
+        }
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.TacticalSprint 0"), nullptr);
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Hurdle 0"), nullptr);
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Fort.MME.Sliding 0"), nullptr);

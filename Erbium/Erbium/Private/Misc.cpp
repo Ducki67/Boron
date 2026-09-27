@@ -802,6 +802,9 @@ void Misc::Hook()
         if (!pattern)
             pattern = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 6C 24 ? 56 57 41 54 41 55 41 56 48 81 EC ? ? ? ? 65 48 8B 04 25").Get();
 
+        if (!pattern && Offsets::FortniteCL == 37770125)
+            pattern = Memcury::PE::GetModuleBase() + 0x50d7900;
+
         Hooking::Hook(pattern, CheckCheckpointHeartBeat);
     }
     if (VersionInfo.EngineVersion < 4.20)
