@@ -56,7 +56,8 @@ Currently the only versions that are "supported" are below:
 | v30.40 | Chapter 5 Season 3 | Supported |
 | v31.30 | Chapter 5 Season 3 | Supported |
 | v31.41 | Chapter 5 Season 3 | Supported |
-| v32.00 | Chapter 2 Remix | Supported but unfinished atm |
+| v32.00 | Chapter 2 Remix | Supported but still missing a bit|
+| v32.11 | Chapter 2 Remix | Supported but still missing a bit + Oasis reload wont work atm! |
 
 
 
@@ -69,7 +70,9 @@ Currently the only versions that are "supported" are below:
 
 - Progress (31.41): **~41% Done**
 
-- Progress (32.00): **5% Done** (currently being worked on)
+- Progress (32.00): **25% Done** (currently being worked on)
+
+- Progress (32.11): **23% Done** (currently being worked on)
 
 
 ## Notes:
