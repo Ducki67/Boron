@@ -40,7 +40,9 @@ void Main()
     freopen_s(&s, "CONOUT$", "w+", stderr);
     freopen_s(&s, "CONIN$", "r", stdin);
     SetConsoleTitleA("BoronClient");
+
     */
+    HANDLE logFile = CreateFileA("Boron_ClientLogs.txt", GENERIC_WRITE, FILE_SHARE_READ, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     
     SDK::Init();
 
@@ -115,7 +117,6 @@ void Main()
 
         if (SlideCVar)
             *SlideCVar = false;
-
         if (MantleCVar)
         {
             if (VersionInfo.FortniteVersion >= 32)

@@ -314,6 +314,18 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
                    (void*)AbilitySetClass, total, (int)MovementSets.size());
         }
 
+        if (!DoorBashSet && VersionInfo.FortniteVersion >= 32)
+        {
+            static int dbTries = 0;
+            if (dbTries++ < 3)
+            {
+                DoorBashSet = (const UFortAbilitySet*)FindObject<UFortAbilitySet>(L"/DoorBashContent/Gameplay/AS_DoorBash.AS_DoorBash");
+                if (DoorBashSet)
+                    ((UObject*)DoorBashSet)->AddToRoot();
+                printf("[Boron][Abilities] AS_DoorBash load by path -> %p\n", (void*)DoorBashSet);
+            }
+        }
+
         static std::vector<void*> GrantedTo;
         auto ASC = (void*)PlayerController->PlayerState->AbilitySystemComponent;
         bool bAlreadyGranted = false;
@@ -634,7 +646,7 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
         if (!CID && CtrlComp && CtrlComp->HasCachedAthenaLoadout())
             CID = CtrlComp->CachedAthenaLoadout.Character;
 
-        if (CID && CID->HasHeroDefinition() && CID->HeroDefinition && PlayerController->PlayerState)
+        if (CID && CID->HasHeroDefinition() && CID->HeroDefinition && PlayerController->PlayerState && !(CtrlComp && CtrlComp->HasCosmeticLoadout() && CtrlComp->CosmeticLoadout.Slots.Num() > 0))
         {
             auto PS = (AFortPlayerStateAthena*)PlayerController->PlayerState;
 
@@ -3893,15 +3905,30 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
 extern bool bDidntFind;
 void AFortPlayerControllerAthena::ServerSetMultiProductCosmeticLoadout_(UObject* Context, FFrame& Stack)
 {
-    ServerSetMultiProductCosmeticLoadout_OG(Context, Stack);
-
     auto PlayerController = (AFortPlayerControllerAthena*)Context;
+
+    static uint64 SetLoadoutCtrl = Offsets::FortniteCL == 36600465   ? 0x90f13fc
+                                   : Offsets::FortniteCL == 37324991 ? 0x9001310
+                                   : Offsets::FortniteCL == 37770125 ? 0x94729e8
+                                   : Offsets::FortniteCL == 38202817 ? 0x9672f80
+                                                                     : 0;
+
+    static auto CosmeticCompClass = FindClass("FortControllerComponent_CosmeticLoadout");
+    auto CosmeticComp = PlayerController && CosmeticCompClass ? (UFortControllerComponent_CosmeticLoadout*)PlayerController->GetComponentByClass((UClass*)CosmeticCompClass) : nullptr;
+
+    if (SetLoadoutCtrl && CosmeticComp && Stack.Locals)
+    {
+        ((void (*)(void*, void*))(Memcury::PE::GetModuleBase() + SetLoadoutCtrl))(CosmeticComp, Stack.Locals);
+
+        static int sn = 0;
+        if (sn++ < 10)
+            printf("[Boron][Cosmetics] SetCosmeticLoadoutController(RPC loadout) direct, OG skipped (rva 0x%llX)\n", (unsigned long long)SetLoadoutCtrl);
+    }
+    else
+        ServerSetMultiProductCosmeticLoadout_OG(Context, Stack);
 
     if (VersionInfo.EngineVersion < 5.4 || !PlayerController)
         return;
-
-    static auto CosmeticCompClass = FindClass("FortControllerComponent_CosmeticLoadout");
-    auto CosmeticComp = CosmeticCompClass ? (UFortControllerComponent_CosmeticLoadout*)PlayerController->GetComponentByClass((UClass*)CosmeticCompClass) : nullptr;
 
     auto Pawn = PlayerController->MyFortPawn ? (AActor*)PlayerController->MyFortPawn : (AActor*)PlayerController->Pawn;
 
@@ -5336,6 +5363,18 @@ void AFortPlayerControllerAthena::PostLoadHook()
 
         if (SetMultiCosmeticFn)
             Hooking::ExecHook(SetMultiCosmeticFn, ServerSetMultiProductCosmeticLoadout_, ServerSetMultiProductCosmeticLoadout_OG);
+
+        uint64 ProfileLoadoutOverwrite = 0;
+        if (Offsets::FortniteCL == 37770125)
+            ProfileLoadoutOverwrite = 0x947710c;
+        else if (Offsets::FortniteCL == 38202817)
+            ProfileLoadoutOverwrite = 0x96774b4;
+
+        if (ProfileLoadoutOverwrite)
+        {
+            Hooking::Patch<uint8_t>(Memcury::PE::GetModuleBase() + ProfileLoadoutOverwrite, 0xC3);
+            printf("[Boron][Cosmetics] ret-patched profile loadout overwrite at RVA 0x%llX\n", (unsigned long long)ProfileLoadoutOverwrite);
+        }
     }
 
     Hooking::ExecHook(GetDefaultObj()->GetFunction("ServerDropAllItems"), ServerDropAllItems);

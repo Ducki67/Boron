@@ -12,6 +12,7 @@ public:
     DEFINE_BITFIELD_PROP(bCheatFlying);
     DEFINE_BITFIELD_PROP(bIgnoreClientMovementErrorChecksAndCorrection);
     DEFINE_BITFIELD_PROP(bServerAcceptClientAuthoritativePosition);
+    DEFINE_PROP(MovementMode, uint8);
 
     DEFINE_FUNC(SetMovementMode, void);
 };
@@ -231,6 +232,9 @@ public:
     DefUHookOg(EmoteStopped_);
     static void ServerHandlePickupWithRequestedSwap(UObject*, FFrame&);
     DefHookOg(void, EndSkydiving, AFortPlayerPawnAthena*);
+    DefHookOg(void, LaunchCharacter, AFortPlayerPawnAthena*, void*, bool, bool);
+    DefHookOg(void, LaunchCharacterExec, UObject*, FFrame&);
+    static void TickLaunchCorrections();
     DefUHookOg(ServerReviveFromDBNO);
     DefUHookOg(ServerThrowCarriedPlayer_);
     static void SetIsInsideSafeZone(AFortPlayerPawnAthena* _this, bool bNewValue);

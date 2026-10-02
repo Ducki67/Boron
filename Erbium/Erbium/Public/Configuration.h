@@ -97,7 +97,7 @@ struct FConfig
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo";
     ///static inline wchar_t Playlist[9999] = L"/BlueCheese/Playlists/Playlist_ShowdownAlt_BlueCheese_Trios.Playlist_ShowdownAlt_BlueCheese_Trios"; // Bugha's LateGame Arena trios (17.20)
     
-    // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Showdown/Playlist_ShowdownAlt_Solo.Playlist_ShowdownAlt_Solo";
+    //static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Showdown/Playlist_ShowdownAlt_Solo.Playlist_ShowdownAlt_Solo";
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Creative/Playlist_PlaygroundV2.Playlist_PlaygroundV2";  // creative
     
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Playground/Playlist_Playground.Playlist_Playground"; // playground
@@ -115,7 +115,7 @@ struct FConfig
     static inline wchar_t Playlist[9999] = L"/BRPlaylists/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo"; // BR
     // static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_SunflowerSolo.Playlist_SunflowerSolo"; // venture Reload (testing)
 
-    //static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_PunchBerrySolo.Playlist_PunchBerrySolo";  // 32.xx+ Oasis Reload map
+    // static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_PunchBerrySolo.Playlist_PunchBerrySolo";  // 32.xx+ Oasis Reload map
 
     // static inline wchar_t Playlist[9999] = L"/ToadJam/Athena/Playlists/ToadJam/Playlist_ToadJam_Sm.Playlist_ToadJam_Sm"; // Day of Doom LTM (testing, 31.20, 31.30)
     

@@ -647,10 +647,25 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::InitializeSafeZoneLocat
     auto GameState = (AFortGameStateAthena*)UWorld::GetWorld()->GameState;
     auto Playlist = (UFortPlaylistAthena*)GameState->CurrentPlaylistInfo.BasePlaylist;
 
+    if (!Playlist)
+        Playlist = (UFortPlaylistAthena*)FindObject<UFortPlaylistAthena>(FConfig::Playlist);
+
+    if (!Playlist)
+    {
+        printf("[Boron][SafeZone] InitializeSafeZoneLocations: no playlist, skipped\n");
+        return;
+    }
+
     auto SafeZoneBlacklist = Playlist->SafeZoneLocationBlacklist.Get();
 
     if (!SafeZoneBlacklist)
         SafeZoneBlacklist = FindObject<UCurveTable>(L"/Game/Athena/Balance/DataTables/AthenaSafeZoneBlacklist.AthenaSafeZoneBlacklist");
+
+    if (!SafeZoneBlacklist)
+    {
+        printf("[Boron][SafeZone] InitializeSafeZoneLocations: no blacklist table, skipped\n");
+        return;
+    }
 
     auto& SZBCurve = (TMap<FName, FRealCurve*>&)SafeZoneBlacklist->RowMap;
 

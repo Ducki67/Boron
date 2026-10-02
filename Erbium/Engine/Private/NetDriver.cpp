@@ -501,6 +501,8 @@ static void CheckAutoRestart()
 
 void UNetDriver::TickFlush(UNetDriver* Driver, float DeltaSeconds)
 {
+    AFortPlayerPawnAthena::TickLaunchCorrections();
+
     if (VersionInfo.FortniteVersion >= 25.20)
     {
         auto GamePhaseLogic = UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Get(UWorld::GetWorld());
@@ -579,6 +581,8 @@ void UNetDriver::TickFlush(UNetDriver* Driver, float DeltaSeconds)
 uint64_t ServerReplicateActors_;
 void UNetDriver::TickFlush__RepGraph(UNetDriver* Driver, float DeltaSeconds)
 {
+    AFortPlayerPawnAthena::TickLaunchCorrections();
+
     BossAI::Tick();
     Mythics::Tick(DeltaSeconds);
     CheckAutoRestart();
@@ -813,6 +817,8 @@ void SendClientMoveAdjustments(UNetDriver* Driver)
 
 void UNetDriver::TickFlush__Iris(UNetDriver* Driver, float DeltaSeconds)
 {
+    AFortPlayerPawnAthena::TickLaunchCorrections();
+
     if (VersionInfo.FortniteVersion >= 25.20)
     {
         auto GamePhaseLogic = UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Get(UWorld::GetWorld());

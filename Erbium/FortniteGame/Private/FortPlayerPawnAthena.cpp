@@ -1134,6 +1134,116 @@ void UClamberingComponent::PostLoadHook()
         Hooking::ExecHook(FailFn, NetMulticast_ClamberingLedgeFailed, NetMulticast_ClamberingLedgeFailedOG);
 }
 
+struct FLaunchedPawn
+{
+    AFortPlayerPawnAthena* Pawn;
+    int32 Index;
+    uint64_t Time;
+};
+
+static std::vector<FLaunchedPawn> LaunchedPawns;
+
+static void SetServerCorrections(AFortPlayerPawnAthena* Pawn, bool bClientAuthoritative)
+{
+    if (!Pawn->HasCharacterMovement() || !Pawn->CharacterMovement)
+        return;
+
+    auto MoveComp = Pawn->CharacterMovement;
+
+    if (MoveComp->HasbIgnoreClientMovementErrorChecksAndCorrection())
+        MoveComp->bIgnoreClientMovementErrorChecksAndCorrection = bClientAuthoritative;
+
+    if (MoveComp->HasbServerAcceptClientAuthoritativePosition())
+        MoveComp->bServerAcceptClientAuthoritativePosition = bClientAuthoritative;
+}
+
+void AFortPlayerPawnAthena::LaunchCharacterExec(UObject* Context, FFrame& Stack)
+{
+    LaunchCharacterExecOG(Context, Stack);
+
+    auto Pawn = (AFortPlayerPawnAthena*)Context;
+    if (!Pawn || VersionInfo.EngineVersion < 5.4)
+        return;
+
+    SetServerCorrections(Pawn, false);
+
+    bool bFound = false;
+    for (auto& Launched : LaunchedPawns)
+        if (Launched.Pawn == Pawn)
+        {
+            Launched.Time = GetTickCount64();
+            bFound = true;
+        }
+
+    if (!bFound)
+        LaunchedPawns.push_back({ Pawn, Pawn->Index, GetTickCount64() });
+
+    static int ln = 0;
+    if (ln++ < 10)
+        printf("[Boron][Launch] LaunchCharacter (exec) pawn=%p -> server corrections on\n", (void*)Pawn);
+}
+
+void AFortPlayerPawnAthena::LaunchCharacter(AFortPlayerPawnAthena* Pawn, void* LaunchVelocity, bool bXYOverride, bool bZOverride)
+{
+    if (VersionInfo.EngineVersion >= 5.4 && Pawn)
+    {
+        SetServerCorrections(Pawn, false);
+
+        bool bFound = false;
+        for (auto& Launched : LaunchedPawns)
+            if (Launched.Pawn == Pawn)
+            {
+                Launched.Time = GetTickCount64();
+                bFound = true;
+            }
+
+        if (!bFound)
+            LaunchedPawns.push_back({ Pawn, Pawn->Index, GetTickCount64() });
+
+        static int ln = 0;
+        if (ln++ < 10)
+            printf("[Boron][Launch] LaunchCharacter pawn=%p -> server corrections on\n", (void*)Pawn);
+    }
+
+    LaunchCharacterOG(Pawn, LaunchVelocity, bXYOverride, bZOverride);
+}
+
+void AFortPlayerPawnAthena::TickLaunchCorrections()
+{
+    if (LaunchedPawns.empty())
+        return;
+
+    auto Now = GetTickCount64();
+
+    for (size_t i = 0; i < LaunchedPawns.size();)
+    {
+        auto& Launched = LaunchedPawns[i];
+
+        if (TUObjectArray::GetObjectByIndex(Launched.Index) != (UObject*)Launched.Pawn)
+        {
+            LaunchedPawns.erase(LaunchedPawns.begin() + i);
+            continue;
+        }
+
+        auto Elapsed = Now - Launched.Time;
+        auto MoveComp = Launched.Pawn->HasCharacterMovement() ? Launched.Pawn->CharacterMovement : nullptr;
+        bool bLanded = Elapsed > 500 && MoveComp && MoveComp->HasMovementMode() && MoveComp->MovementMode == 1;
+
+        if (bLanded || Elapsed > 10000)
+        {
+            SetServerCorrections(Launched.Pawn, true);
+            static int rn = 0;
+            if (rn++ < 10)
+                printf("[Boron][Launch] restored client-auth pawn=%p landed=%d elapsed=%llums mode=%d\n", (void*)Launched.Pawn, (int)bLanded, Elapsed,
+                       MoveComp && MoveComp->HasMovementMode() ? (int)MoveComp->MovementMode : -1);
+            LaunchedPawns.erase(LaunchedPawns.begin() + i);
+            continue;
+        }
+
+        i++;
+    }
+}
+
 void AFortPlayerPawnAthena::PostLoadHook()
 {
     OnRep_ZiplineState = FindOnRep_ZiplineState();
@@ -1175,6 +1285,24 @@ void AFortPlayerPawnAthena::PostLoadHook()
 
     if (EndSkydivingFn)
         Hooking::Hook<AFortPlayerPawnAthena>(EndSkydivingFn->GetVTableIndex(), EndSkydiving, EndSkydivingOG);
+
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        auto LaunchCharacterExecFn = GetDefaultObj()->GetFunction("LaunchCharacter");
+        printf("[Boron][Launch] LaunchCharacter exec hook fn=%p\n", (void*)LaunchCharacterExecFn);
+        if (LaunchCharacterExecFn)
+            Hooking::ExecHook(LaunchCharacterExecFn, LaunchCharacterExec, LaunchCharacterExecOG);
+    }
+
+    if (false)
+    {
+        auto LaunchCharacterFn = GetDefaultObj()->GetFunction("LaunchCharacter");
+        auto LaunchIdx = LaunchCharacterFn ? (int)LaunchCharacterFn->GetVTableIndex() : -1;
+        printf("[Boron][Launch] LaunchCharacter fn=%p vtIdx=%d\n", (void*)LaunchCharacterFn, LaunchIdx);
+
+        if (LaunchIdx > 0)
+            Hooking::Hook<AFortPlayerPawnAthena>(LaunchIdx, LaunchCharacter, LaunchCharacterOG);
+    }
 
     Hooking::ExecHook(GetDefaultObj()->GetFunction("ServerReviveFromDBNO"), ServerReviveFromDBNO);
     Hooking::ExecHook(GetDefaultObj()->GetFunction("ServerThrowCarriedPlayer"), ServerThrowCarriedPlayer_, ServerThrowCarriedPlayer_OG);

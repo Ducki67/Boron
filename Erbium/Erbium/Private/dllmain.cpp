@@ -389,6 +389,19 @@ void Main()
     const wchar_t* terrainOpen = L"open Athena_Terrain";
     bool bDeferOpen = false;
 
+    if (Offsets::FortniteCL == 37770125)
+    {
+        auto Base = Memcury::PE::GetModuleBase();
+        auto GFS = ((void* (*)())(Base + 0x2bacc18))();
+        if (GFS)
+        {
+            alignas(16) FString DoorBashURL = L"file:../../../FortniteGame/Plugins/GameFeatures/DoorBashContent/DoorBashContent.uplugin";
+            alignas(16) uint8_t Done[0x10] = {};
+            ((void (*)(void*, FString*, uint8_t, void*))(Base + 0x189b27c))(GFS, &DoorBashURL, 3, Done);
+            printf("[Boron][DoorBash] activated DoorBashContent GFP\n");
+        }
+    }
+
     if (wcsstr(FConfig::Playlist, L"/MoleGame/Playlists/Playlist_MoleGame"))
     {
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Mole.WorstCasePlayerCount 1"), nullptr);

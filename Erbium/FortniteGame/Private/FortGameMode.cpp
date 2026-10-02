@@ -1445,6 +1445,23 @@ AActor* AFortGameMode::SpawnDefaultPawnFor_Native(AFortGameMode* GameMode, AFort
 
         printf("[Boron][Cosmetics] pre-registered pawn at spawn: MyFortPawn=%p Pawn=%p\n",
                (void*)NewPlayer->MyFortPawn, (void*)NewPlayer->Pawn);
+
+        static auto CosmeticCompClass = FindClass("FortControllerComponent_CosmeticLoadout");
+        auto CosmeticComp = CosmeticCompClass ? (UFortControllerComponent_CosmeticLoadout*)NewPlayer->GetComponentByClass((UClass*)CosmeticCompClass) : nullptr;
+        if (CosmeticComp)
+        {
+            CosmeticComp->OnRep_CosmeticLoadout();
+            if (CosmeticComp->HasActiveArchetypes())
+                CosmeticComp->OnRep_ActiveArchetypes();
+        }
+        if (NewPlayer->PlayerState)
+        {
+            UFortKismetLibrary::UpdatePlayerCustomCharacterPartsVisualization(NewPlayer->PlayerState);
+            auto ACC = FindApplyCharacterCustomization();
+            if (!UFortKismetLibrary::UpdatePlayerCustomCharacterPartsVisualization__Ptr && ACC)
+                ((void (*)(AActor*, AActor*, int))ACC)(NewPlayer->PlayerState, Pawn, 0);
+        }
+        printf("[Boron][Cosmetics] re-applied loadout at spawn comp=%p\n", (void*)CosmeticComp);
     }
 
     int AircraftNum = -1;

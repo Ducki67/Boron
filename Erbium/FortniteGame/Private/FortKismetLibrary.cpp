@@ -308,11 +308,22 @@ void UFortKismetLibrary::OpenActor_(UObject* Context, FFrame& Stack)
     Stack.StepCompiledIn(&bRequestFastOpen);
     Stack.IncrementCode();
 
-    printf("OpenActor %s %s\n", OpenableInterfaceActor->Name.ToString().c_str(), OptionalControllerInstigator ? OptionalControllerInstigator->Name.ToString().c_str() : "<nullptr>");
     if (SetIsDoorOpen && OpenableInterfaceActor->IsA<ABuildingWall>())
         SetIsDoorOpen(OpenableInterfaceActor, bRequestFastOpen ? 1 : 0, OptionalControllerInstigator ? OptionalControllerInstigator->Pawn : nullptr);
     else
         return callOG(UFortKismetLibrary::GetDefaultObj(), Stack.GetCurrentNativeFunction(), OpenActor, OpenableInterfaceActor, OptionalControllerInstigator, bRequestFastOpen);
+}
+
+static bool (*OpenActorNativeOG)(AActor*, AFortPlayerControllerAthena*, bool) = nullptr;
+static bool OpenActorNative(AActor* OpenableInterfaceActor, AFortPlayerControllerAthena* OptionalControllerInstigator, bool bRequestFastOpen)
+{
+    if (SetIsDoorOpen && OpenableInterfaceActor && OpenableInterfaceActor->IsA<ABuildingWall>())
+    {
+        SetIsDoorOpen(OpenableInterfaceActor, bRequestFastOpen ? 1 : 0, OptionalControllerInstigator ? OptionalControllerInstigator->Pawn : nullptr);
+        return true;
+    }
+
+    return OpenActorNativeOG(OpenableInterfaceActor, OptionalControllerInstigator, bRequestFastOpen);
 }
 
 void UFortKismetLibrary::CloseActor_(UObject* Context, FFrame& Stack)
@@ -324,7 +335,6 @@ void UFortKismetLibrary::CloseActor_(UObject* Context, FFrame& Stack)
     Stack.StepCompiledIn(&OptionalControllerInstigator);
     Stack.IncrementCode();
 
-    printf("CloseActor %s %s\n", OpenableInterfaceActor->Name.ToString().c_str(), OptionalControllerInstigator ? OptionalControllerInstigator->Name.ToString().c_str() : "<nullptr>");
     if (SetIsDoorOpen && OpenableInterfaceActor->IsA<ABuildingWall>())
         SetIsDoorOpen(OpenableInterfaceActor, 3, OptionalControllerInstigator ? OptionalControllerInstigator->Pawn : nullptr);
     else
@@ -452,7 +462,24 @@ void UFortKismetLibrary::PostLoadHook()
 
     Hooking::ExecHook(GetDefaultObj()->GetFunction("K2_RemoveItemFromPlayerByGuid"), K2_RemoveItemFromPlayerByGuid);
 
-    SetIsDoorOpen = decltype(SetIsDoorOpen)(FindSetIsDoorOpen());
-    Hooking::ExecHook(GetDefaultObj()->GetFunction("OpenActor"), OpenActor_, OpenActor_OG);
-    Hooking::ExecHook(GetDefaultObj()->GetFunction("CloseActor"), CloseActor_, CloseActor_OG);
+    if (VersionInfo.FortniteVersion < 32)
+    {
+        SetIsDoorOpen = decltype(SetIsDoorOpen)(FindSetIsDoorOpen());
+        Hooking::ExecHook(GetDefaultObj()->GetFunction("OpenActor"), OpenActor_, OpenActor_OG);
+        Hooking::ExecHook(GetDefaultObj()->GetFunction("CloseActor"), CloseActor_, CloseActor_OG);
+    }
+    else
+    {
+        uint64 SetIsDoorOpenRva = Offsets::FortniteCL == 37770125 ? 0x935F1C4 : Offsets::FortniteCL == 38202817 ? 0x955C49C : 0;
+        uint64 OpenActorRva = Offsets::FortniteCL == 37770125 ? 0x8C59700 : Offsets::FortniteCL == 38202817 ? 0x8E47384 : 0;
+
+        if (SetIsDoorOpenRva && OpenActorRva)
+        {
+            auto Base = Memcury::PE::GetModuleBase();
+            SetIsDoorOpen = decltype(SetIsDoorOpen)(Base + SetIsDoorOpenRva);
+            Hooking::Hook(Base + OpenActorRva, OpenActorNative, OpenActorNativeOG);
+            Hooking::ExecHook(GetDefaultObj()->GetFunction("CloseActor"), CloseActor_, CloseActor_OG);
+            printf("[Boron][Door] native OpenActor hook rva=0x%llX SetIsDoorOpen rva=0x%llX\n", OpenActorRva, SetIsDoorOpenRva);
+        }
+    }
 }
