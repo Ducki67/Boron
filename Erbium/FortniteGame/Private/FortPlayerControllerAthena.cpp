@@ -38,6 +38,7 @@ void AFortPlayerControllerAthena::GetPlayerViewPoint(AFortPlayerControllerAthena
     return GetPlayerViewPointOG(PlayerController, Loc, Rot);
 }
 
+int64* CH6StackSize(FFortItemEntry* Entry);
 extern uint64_t ApplyCharacterCustomization;
 uint64_t InitializePlayerGameplayAbilities_;
 static uint32_t gLastExecCode = 0;
@@ -1665,8 +1666,15 @@ void AFortPlayerControllerAthena::ServerEditBuildingActor(UObject* Context, FFra
 
         SetEditingPlayer(Building, nullptr);
 
+        // Thanks Lunar <3
         auto Loc = Building->K2_GetActorLocation();
         auto Rot = Building->K2_GetActorRotation();
+        FVector Origin = Loc, Extent{};
+        Building->GetActorBounds(false, &Origin, &Extent, false);
+        const double Ang = (90.0 * RotationIterations) * 3.14159265358979323846 / 180.0;
+        const double Dx = Loc.X - Origin.X, Dy = Loc.Y - Origin.Y;
+        Loc.X = Origin.X + Dx * cos(Ang) - Dy * sin(Ang);
+        Loc.Y = Origin.Y + Dx * sin(Ang) + Dy * cos(Ang);
         Rot.Yaw += 90.f * RotationIterations;
 
         auto NewBuild = UWorld::SpawnActorUnfinished<ABuildingSMActor>(NewClass, Loc, Rot, PlayerController);
@@ -1682,6 +1690,7 @@ void AFortPlayerControllerAthena::ServerEditBuildingActor(UObject* Context, FFra
         NewBuild->CurrentBuildingLevel = Building->CurrentBuildingLevel;
         NewBuild->OnRep_CurrentBuildingLevel();
         NewBuild->SetMirrored(bMirrored);
+        NewBuild->ForceBuildingHealth(NewBuild->GetMaxHealth() * Building->GetHealthPercent());
         NewBuild->bPlayerPlaced = true;
         NewBuild->Team = Building->Team;
         if (NewBuild->HasTeamIndex())
@@ -1689,8 +1698,8 @@ void AFortPlayerControllerAthena::ServerEditBuildingActor(UObject* Context, FFra
 
         static int en = 0;
         if (en++ < 10)
-            printf("[Boron][Edit] %s -> %s rotIt=%d mirrored=%d new=%p\n", Building->Class->Name.ToString().c_str(), NewClass->Name.ToString().c_str(), (int)RotationIterations, (int)bMirrored, (void*)NewBuild);
-        Building->K2_DestroyActor();
+            printf("[Boron][Edit] %s -> %s rotIt=%d mirrored=%d new=%p origin=(%.0f,%.0f) newLoc=(%.0f,%.0f)\n", Building->Class->Name.ToString().c_str(), NewClass->Name.ToString().c_str(), (int)RotationIterations, (int)bMirrored, (void*)NewBuild, (double)Origin.X, (double)Origin.Y, (double)Loc.X, (double)Loc.Y);
+        Building->SilentDie(true);
         return;
     }
 
@@ -1841,6 +1850,34 @@ void AFortPlayerControllerAthena::ServerAttemptInventoryDrop(UObject* Context, F
         return;
     auto Item = *ItemP;
 
+    if (!FFortItemEntry::HasCount())
+    {
+        int64* Stack = CH6StackSize(&Item->ItemEntry);
+        int64* RepStack = itemEntry ? CH6StackSize(itemEntry) : nullptr;
+        int Have = Stack ? (int)*Stack : 1;
+        int Drop = (Count <= 0 || Count > Have) ? Have : Count;
+        auto PawnLoc = PlayerController->Pawn->K2_GetActorLocation();
+        auto TossLoc = PawnLoc + PlayerController->Pawn->GetActorForwardVector() * 450.f + FVector(0, 0, 50);
+        AFortInventory::SpawnPickup(PawnLoc, Item->ItemEntry, EFortPickupSourceTypeFlag::GetPlayer(), EFortPickupSpawnSource::GetUnset(), PlayerController->MyFortPawn, Drop, true, true, true, nullptr, TossLoc);
+        if (Drop >= Have)
+            PlayerController->WorldInventory->Remove(Guid);
+        else
+        {
+            *Stack -= Drop;
+            if (RepStack)
+            {
+                *RepStack = *Stack;
+                PlayerController->WorldInventory->Inventory.MarkItemDirty(*itemEntry);
+            }
+            PlayerController->WorldInventory->bRequiresLocalUpdate = true;
+            PlayerController->WorldInventory->HandleInventoryLocalUpdate();
+        }
+        return;
+    }
+
+    if (!itemEntry)
+        return;
+
     itemEntry->Count -= Count;
 
     FVector FinalLoc = PlayerController->Pawn->K2_GetActorLocation();
@@ -1957,7 +1994,11 @@ void AFortPlayerControllerAthena::ServerPlayEmoteItem_(UObject* Context, FFrame&
         PlayerController->GetQuestManager(1)->SendStatEvent(PlayerController, EFortQuestObjectiveStatEvent::GetEmote(), 1, true, nullptr);
     }
 
-    if (AbilityToUse)
+    static int EmoteDiag = 0;
+    if (VersionInfo.FortniteVersion >= 32 && EmoteDiag++ < 10)
+        printf("[Boron][Emote] asset=%s ability=%p give=%p ctor=%p asc=%p\n", Asset->Name.ToString().c_str(), AbilityToUse, (void*)GiveAbilityAndActivateOnce, (void*)ConstructAbilitySpec, AbilitySystemComponent);
+
+    if (AbilityToUse && GiveAbilityAndActivateOnce && AbilitySystemComponent)
     {
         auto Spec = (FGameplayAbilitySpec*)malloc(FGameplayAbilitySpec::Size());
         memset(PBYTE(Spec), 0, FGameplayAbilitySpec::Size());
@@ -3818,6 +3859,13 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
 
             auto Pickup = AFortInventory::SpawnPickup(FinalLoc, ItemDefinition, Count, 0, EFortPickupSourceTypeFlag::GetOther(), EFortPickupSpawnSource::GetUnset(), Pawn);
 
+            if (!Pickup)
+            {
+                PlayerController->WorldInventory->GiveItem(ItemDefinition, Count);
+                PlayerController->ClientMessage(FString(L"Gave item!"), FName(), 1.f);
+                return;
+            }
+
             Pawn->ServerHandlePickup(Pickup, Pickup->PickupLocationData.FlyTime, FVector(), true);
             PlayerController->ClientMessage(FString(L"Gave item!"), FName(), 1.f);
             // PlayerController->WorldInventory->GiveItem(ItemDefinition, Count);
@@ -5360,6 +5408,8 @@ void AFortPlayerControllerAthena::PostLoadHook()
     ReplaceBuildingActor_ = FindReplaceBuildingActor(); // pre-cache building offsets
     RemoveFromAlivePlayers_ = FindRemoveFromAlivePlayers();
     GiveAbilityAndActivateOnce = FindGiveAbilityAndActivateOnce();
+    if (!GiveAbilityAndActivateOnce && Offsets::FortniteCL == 39768313)
+        GiveAbilityAndActivateOnce = Memcury::PE::GetModuleBase() + 0xA57A5CC;
     CanAffordToPlaceBuildableClass_ = FindCanAffordToPlaceBuildableClass();
     PayBuildableClassPlacementCost_ = FindPayBuildableClassPlacementCost();
     InitializePlayerGameplayAbilities_ = FindInitializePlayerGameplayAbilities();

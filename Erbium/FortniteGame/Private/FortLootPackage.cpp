@@ -119,10 +119,17 @@ void UFortLootPackage::SetupLDSForPackage(TArray<FFortItemEntry*>& LootDrops, SD
         LPGroups.Add(Val);
     }
 
+    static int LDSDiag = 0;
+    bool bLDSDiag = VersionInfo.FortniteVersion >= 32 && LDSDiag++ < 24;
+    if (bLDSDiag)
+        printf("[Boron][LDS] pkg=%s cat=%d all=%d groups=%d\n", Package.ToString().c_str(), i, LootPackageMap[Package.ComparisonIndex].Num(), LPGroups.Num());
+
     if (LPGroups.Num() == 0)
         return;
 
     auto LootPackage = PickWeighted(LPGroups, [](float Total) { return ((float)rand() / 32767.f) * Total; });
+    if (bLDSDiag)
+        printf("[Boron][LDS]   picked=%p call=%d count=%d item=%p\n", LootPackage, LootPackage ? LootPackage->LootPackageCall.Num() : -1, LootPackage ? LootPackage->Count : -1, LootPackage ? (void*)LootPackage->ItemDefinition.Get() : nullptr);
     if (!LootPackage)
         return;
 
@@ -245,6 +252,9 @@ void UFortLootPackage::SetupLDSForPackage(TArray<FFortItemEntry*>& LootDrops, SD
     bool foundAmmo = false;
     for (auto& LootDrop : LootDrops)
     {
+        if (!FFortItemEntry::HasCount())
+            break;
+
         if (/*(!AmmoDef || AmmoDef->DropCount) && */ LootDrop->ItemDefinition == ItemDefinition && LootDrop->Count < ItemDefinition->GetMaxStackSize())
         {
             LootDrop->Count += LootPackage->Count;
@@ -310,6 +320,14 @@ void UFortLootPackage::ChooseLootForContainer(TArray<FFortItemEntry*>& LootDrops
     for (auto const& Val : TierDataMap[TierGroup.ComparisonIndex])
         if (LootTier == -1 ? true : LootTier == Val->LootTier)
             TierDataGroups.Add(Val);
+
+    static int TierDiag = 0;
+    if (VersionInfo.FortniteVersion >= 32 && TierDiag++ < 4)
+    {
+        printf("[Boron][LDS] tierRows=%d offW=0x%x offNum=0x%x offTier=0x%x offPkg=0x%x\n", TierDataGroups.Num(), FFortLootTierData::Weight__Offset, FFortLootTierData::NumLootPackageDrops__Offset, FFortLootTierData::LootTier__Offset, FFortLootTierData::LootPackage__Offset);
+        for (int i = 0; i < TierDataGroups.Num() && i < 4; i++)
+            printf("[Boron][LDS]   row%d w=%.2f num=%.2f tier=%d pkg=%s\n", i, TierDataGroups[i]->Weight, TierDataGroups[i]->NumLootPackageDrops, TierDataGroups[i]->LootTier, TierDataGroups[i]->LootPackage.ToString().c_str());
+    }
 
     auto LootTierData = PickWeighted(TierDataGroups, [](float Total) { return ((float)rand() / 32767.f) * Total; });
 
@@ -420,6 +438,10 @@ void UFortLootPackage::ChooseLootForContainer(TArray<FFortItemEntry*>& LootDrops
     if (!AmountOfLootDrops)
             return {};*/
 
+    static int CLDiag = 0;
+    if (VersionInfo.FortniteVersion >= 32 && CLDiag++ < 8)
+        printf("[Boron][LDS] tierPkg=%s num=%.2f drops=%d cats=%d min0=%d\n", LootTierData->LootPackage.ToString().c_str(), LootTierData->NumLootPackageDrops, DropCount, (int)NumMap.size(), NumMap.size() ? NumMap[0] : -1);
+
     LootDrops.Reserve((int)DropCount);
 
     int SpawnedItems = 0;
@@ -493,6 +515,9 @@ bool UFortLootPackage::SpawnLootHook(ABuildingContainer* Container)
     TArray<FFortItemEntry*> LootDrops{};
 
     UFortLootPackage::ChooseLootForContainer(LootDrops, RealTierGroup, -1, GameMode->GameState->WorldLevel, Container);
+
+    if (VersionInfo.FortniteVersion >= 32 && SpawnLootDiag < 12)
+        printf("[Boron][Chest] tier=%s idx=%d groups=%d drops=%d\n", RealTierGroup.ToString().c_str(), RealTierGroup.ComparisonIndex, TierDataMap[RealTierGroup.ComparisonIndex].Num(), LootDrops.Num());
 
     for (auto& LootDrop : LootDrops)
     {
@@ -627,7 +652,7 @@ void UFortLootPackage::SpawnConsumableActor(ABGAConsumableSpawner* Spawner)
 void (*OnAuthorityRandomUpgradeAppliedOG)(ABuildingContainer*, FName&);
 void OnAuthorityRandomUpgradeApplied(ABuildingContainer* Container, FName& UpgradeTierGroup)
 {
-    if (!Container->HasChosenRandomUpgrade()) // 15.10 what
+    if (VersionInfo.FortniteVersion >= 32 || !Container->HasChosenRandomUpgrade()) // 15.10 what
         return OnAuthorityRandomUpgradeAppliedOG(Container, UpgradeTierGroup);
 
     auto ChosenRandomUpgrade = Container->ChosenRandomUpgrade;
@@ -689,6 +714,8 @@ void UFortLootPackage::Hook()
 
     if (VersionInfo.FortniteVersion >= 11.00)
     {
+        if (!FindSpawnLoot())
+            bDidntFind = true;
         Hooking::Hook(FindSpawnLoot(), SpawnLootHook);
 
         auto OnAuthorityRandomUpgradeAppliedAddr = FindFunctionCall(L"OnAuthorityRandomUpgradeApplied", std::vector<uint8_t>{ 0x48, 0x89, 0x5C });

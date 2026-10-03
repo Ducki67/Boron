@@ -836,6 +836,8 @@ void GUI::Init()
             ImGui::BulletText("Andreu");
             ImGui::Text("30.40 and other Hi-Season exes");
             ImGui::BulletText("Fmgnio");
+            ImGui::Text("Building editing + looting reference");
+            ImGui::BulletText("Lunar");
 
         }
 

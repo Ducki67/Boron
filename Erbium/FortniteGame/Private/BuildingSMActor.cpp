@@ -8,6 +8,8 @@
 #include "../Public/FortPlayerControllerAthena.h"
 #include "../Public/FortWeapon.h"
 
+int64* CH6StackSize(FFortItemEntry* Entry);
+
 void ABuildingSMActor::OnDamageServer(ABuildingSMActor* Actor, float Damage, FGameplayTagContainer DamageTags, FVector Momentum, __int64 HitInfo, AActor* InstigatedBy, AActor* DamageCauser, __int64 EffectContext)
 {
     auto GameState = ((AFortGameStateAthena*)UWorld::GetWorld()->GameState);
@@ -97,7 +99,31 @@ void ABuildingSMActor::OnDamageServer(ABuildingSMActor* Actor, float Damage, FGa
         auto ItemP =Controller->WorldInventory->Inventory.ItemInstances.Search([&](UFortWorldItem* entry) { return entry->ItemEntry.ItemDefinition == Resource; });
         auto itemEntry = Controller->WorldInventory->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& entry) { return entry.ItemDefinition == Resource; }, FFortItemEntry::Size());
 
-        if (ItemP)
+        if (ItemP && !FFortItemEntry::HasCount())
+        {
+            auto Item = *ItemP;
+            int64* Stack = CH6StackSize(&Item->ItemEntry);
+            int64* RepStack = itemEntry ? CH6StackSize(itemEntry) : nullptr;
+            if (Stack)
+            {
+                *Stack += ResCount;
+                if (*Stack > MaxMat)
+                {
+                    AFortInventory::SpawnPickup(Controller->Pawn->K2_GetActorLocation(), Resource, (int)(*Stack - MaxMat), 0, EFortPickupSourceTypeFlag::GetTossed(), EFortPickupSpawnSource::GetUnset(),
+                                                Controller->MyFortPawn);
+                    *Stack = MaxMat;
+                }
+                if (RepStack)
+                {
+                    *RepStack = *Stack;
+                    Controller->WorldInventory->Inventory.MarkItemDirty(*itemEntry);
+                }
+                Controller->WorldInventory->bRequiresLocalUpdate = true;
+                Controller->WorldInventory->HandleInventoryLocalUpdate();
+            }
+            printf("[Boron][Harvest] CH6 stack=%lld rep=%p\n", Stack ? (long long)*Stack : -1ll, (void*)RepStack);
+        }
+        else if (ItemP)
         {
             auto Item = *ItemP;
 
@@ -606,6 +632,11 @@ void ABuildingSMActor::PostLoadHook()
 
         if (!GetSparseClassData_ && VersionInfo.FortniteVersion >= 32)
             GetSparseClassData_ = Memcury::Scanner::FindPattern("48 83 C4 ? 48 8B 81 ? ? ? ? ? 85 C0 74 ? ? 83 EC ? C3 0F B6 D2 85 D2").Get();
+
+        if (!GetSparseClassData_ && Offsets::FortniteCL == 39768313)
+            GetSparseClassData_ = Memcury::PE::GetModuleBase() + 0x2426664;
+
+        printf("[Boron][Init] GetSparseClassData=%p\n", (void*)GetSparseClassData_);
     }
     if (VersionInfo.FortniteVersion >= 18)
     {

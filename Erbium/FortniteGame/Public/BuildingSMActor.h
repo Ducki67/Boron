@@ -127,6 +127,7 @@ public:
     DEFINE_FUNC(SetMirrored, void);
     DEFINE_FUNC(InitializeKismetSpawnedBuildingActor, void);
     DEFINE_FUNC(GetHealthPercent, float);
+    DEFINE_FUNC(ForceBuildingHealth, void);
     DEFINE_FUNC(RepairBuilding, void);
     DEFINE_FUNC(SilentDie, void);
     DEFINE_FUNC(OnRep_CurrentBuildingLevel, void);

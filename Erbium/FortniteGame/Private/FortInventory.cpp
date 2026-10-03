@@ -549,11 +549,81 @@ FFortItemEntry* AFortInventory::MakeItemEntry(const UFortItemDefinition* ItemDef
 }
 
 uint64_t SetPickupItems;
+int64* CH6StackSize(FFortItemEntry* Entry)
+{
+    if (!Entry || Offsets::FortniteCL != 39768313)
+        return nullptr;
+    struct FRawInstancedStruct
+    {
+        UObject* ScriptStruct;
+        uint8* Memory;
+    };
+    auto& List = *(TArray<FRawInstancedStruct>*)((uint8*)Entry + 0x30);
+    for (int i = 0; i < List.Num(); i++)
+    {
+        auto& Data = List[i];
+        if (Data.ScriptStruct && Data.Memory && Data.ScriptStruct->Name.ToString() == "ItemComponentData_StackSize")
+            return (int64*)Data.Memory;
+    }
+    return nullptr;
+}
+
+static AFortPickupAthena* SpawnPickupCH6(FVector Loc, const UFortItemDefinition* ItemDefinition, int Count, long long SourceTypeFlag, long long SpawnSource, AFortPlayerPawnAthena* Pawn, bool Toss)
+{
+    static auto SpawnFn = UFortKismetLibrary::GetDefaultObj()->GetFunction("K2_SpawnPickupInWorld");
+    if (!SpawnFn || !ItemDefinition || Count <= 0)
+        return nullptr;
+    auto Params = SpawnFn->GetParamsNamed();
+    auto Mem = (PBYTE)FMemory::Malloc(Params.Size);
+    memset(Mem, 0, Params.Size);
+    int32 RetOffset = -1;
+    for (auto& Param : Params.NameOffsetMap)
+    {
+        auto P = Mem + Param.Offset;
+        if (Param.Name == "WorldContextObject")
+            *(UObject**)P = UWorld::GetWorld();
+        else if (Param.Name == "ItemDefinition")
+            *(const UFortItemDefinition**)P = ItemDefinition;
+        else if (Param.Name == "NumberToSpawn")
+            *(int32*)P = Count;
+        else if (Param.Name == "Position")
+            *(FVector*)P = Loc;
+        else if (Param.Name == "Direction")
+            *(FVector*)P = Pawn ? Pawn->GetActorForwardVector() : FVector{ 1, 0, 0 };
+        else if (Param.Name == "OverrideMaxStackCount")
+            *(int32*)P = -1;
+        else if (Param.Name == "bToss")
+            *(uint8*)P = Toss;
+        else if (Param.Name == "bRandomRotation")
+            *(uint8*)P = 1;
+        else if (Param.Name == "PickupInstigatorHandle")
+            *(int32*)P = -1;
+        else if (Param.Name == "SourceType")
+            *(uint8*)P = (uint8)SourceTypeFlag;
+        else if (Param.Name == "Source")
+            *(uint8*)P = SpawnSource == -1 ? 0 : (uint8)SpawnSource;
+        else if (Param.Name == "ReturnValue")
+            RetOffset = Param.Offset;
+    }
+    UFortKismetLibrary::GetDefaultObj()->ProcessEvent(SpawnFn, Mem);
+    auto Ret = RetOffset >= 0 ? *(AFortPickupAthena**)(Mem + RetOffset) : nullptr;
+    FMemory::Free(Mem);
+    static int ch6Pickups = 0;
+    if (ch6Pickups++ < 20)
+        printf("[Boron][CH6Pickup] %s x%d -> %p\n", ItemDefinition->Name.ToString().c_str(), Count, (void*)Ret);
+    return Ret;
+}
+
 AFortPickupAthena* AFortInventory::SpawnPickup(FVector Loc, FFortItemEntry& Entry, long long SourceTypeFlag, long long SpawnSource, AFortPlayerPawnAthena* Pawn, int OverrideCount, bool Toss, bool RandomRotation,
                                                bool bCombine, const UClass* OverrideClass, FVector FinalLoc)
 {
     if (!&Entry)
         return nullptr;
+    if (!FFortItemEntry::HasCount())
+    {
+        auto Stack = CH6StackSize(&Entry);
+        return SpawnPickupCH6(FinalLoc.X || FinalLoc.Y || FinalLoc.Z ? FinalLoc : Loc, Entry.ItemDefinition, OverrideCount != -1 ? OverrideCount : (Stack ? (int)*Stack : 1), SourceTypeFlag, SpawnSource, Pawn, Toss);
+    }
     AFortPickupAthena* NewPickup = UWorld::SpawnActor<AFortPickupAthena>(OverrideClass ? OverrideClass : AFortPickupAthena::StaticClass(), Loc, {});
     if (!NewPickup)
         return nullptr;
@@ -601,6 +671,9 @@ AFortPickupAthena* AFortInventory::SpawnPickup(FVector Loc, FFortItemEntry& Entr
 AFortPickupAthena* AFortInventory::SpawnPickup(FVector Loc, const UFortItemDefinition* ItemDefinition, int Count, int LoadedAmmo, long long SourceTypeFlag, long long SpawnSource, AFortPlayerPawnAthena* Pawn,
                                                bool Toss, bool bRandomRotation, const UClass* OverrideClass)
 {
+    if (!FFortItemEntry::HasCount())
+        return SpawnPickupCH6(Loc, ItemDefinition, Count, SourceTypeFlag, SpawnSource, Pawn, Toss);
+
     auto ItemEntry = MakeItemEntry(ItemDefinition, Count, -1);
     ItemEntry->LoadedAmmo = LoadedAmmo;
 
@@ -625,6 +698,11 @@ AFortPickupAthena* AFortInventory::SpawnPickup(ABuildingContainer* Container, FF
         SpawnLocation.Z = ProperSpawnLoc.Z;
     }
     auto Loc = ContainerLoc + (Container->GetActorForwardVector() * SpawnLocation.X) + (Container->GetActorRightVector() * SpawnLocation.Y) + (Container->GetActorUpVector() * SpawnLocation.Z);
+    if (!FFortItemEntry::HasCount())
+    {
+        auto Stack = CH6StackSize(&Entry);
+        return SpawnPickupCH6(Loc, Entry.ItemDefinition, OverrideCount != -1 ? OverrideCount : (Stack ? (int)*Stack : 1), EFortPickupSourceTypeFlag::GetContainer(), EFortPickupSpawnSource::GetChest(), Pawn, true);
+    }
     AFortPickupAthena* NewPickup = UWorld::SpawnActor<AFortPickupAthena>(Loc, {});
 
     if (!NewPickup)

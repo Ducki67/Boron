@@ -128,4 +128,6 @@ Erbium is a WIP universal gameserver for Fortnite.
 > [Andreu](https://github.com/andreux2025) for bosses on C2S4
 >
 > [Fmgnio](https://github.com/Fmgnio) for providing the 30.40 (public) exe and others too
+>
+> Lunar for the proper building editing + looting reference code (33.30 edit/loot work) <3
 
