@@ -63,7 +63,7 @@ void ABuildingSMActor::OnDamageServer(ABuildingSMActor* Actor, float Damage, FGa
     {
         FCurveTableRowHandle& BuildingResourceAmountOverride = Actor->BuildingResourceAmountOverride;
 
-        if (BuildingResourceAmountOverride.RowName.ComparisonIndex > 0)
+        if (BuildingResourceAmountOverride.RowName.IsValid())
         {
             float Out = 0.f;
             UDataTableFunctionLibrary::EvaluateCurveTableRow(GameData, BuildingResourceAmountOverride.RowName, 0.f, nullptr, &Out, FString());
@@ -78,7 +78,7 @@ void ABuildingSMActor::OnDamageServer(ABuildingSMActor* Actor, float Damage, FGa
         auto ClassData = Actor->GetClassData();
         FCurveTableRowHandle& BuildingResourceAmountOverride = ClassData->BuildingResourceAmountOverride;
 
-        if (BuildingResourceAmountOverride.RowName.ComparisonIndex > 0)
+        if (BuildingResourceAmountOverride.RowName.IsValid())
         {
             float Out = 0.f;
             UDataTableFunctionLibrary::EvaluateCurveTableRow(GameData, BuildingResourceAmountOverride.RowName, 0.f, nullptr, &Out, FString());

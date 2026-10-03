@@ -8,6 +8,7 @@
 #include "../Public/Configuration.h"
 #include "../Public/Finders.h"
 #include "../Public/hde64.hpp"
+#include <TlHelp32.h>
 #include <algorithm>
 
 int Misc::GetNetMode()
@@ -670,6 +671,8 @@ static void PatchInlinedNetModes(uintptr_t AttemptDeriveFromURL)
     auto TextSize = (uint32)TextSection.GetSectionSize();
     int Calls = 0;
     int Patched = 0;
+    struct FSite { uint8_t* Compare; uint32 CompareLen; uint8_t* Branch; uint32 BranchLen; bool bJumpsIfNetDriver; bool bNear; };
+    std::vector<FSite> Sites;
 
     for (uint32 i = 0; i + 5 < TextSize; i++)
     {
@@ -731,34 +734,85 @@ static void PatchInlinedNetModes(uintptr_t AttemptDeriveFromURL)
             if (!IsDemoNetDriverCheck(bJumpsIfNetDriver ? Branch + BranchInsn.len : Target))
                 continue;
 
-            for (uint32 x = 0; x < CompareLen; x++)
-                Hooking::Patch<uint8_t>(uintptr_t(Compare + x), 0x90);
-
-            if (bJumpsIfNetDriver)
-            {
-                for (uint32 x = 0; x < BranchInsn.len; x++)
-                    Hooking::Patch<uint8_t>(uintptr_t(Branch + x), 0x90);
-            }
-            else if (bNear)
-                Hooking::Patch<uint16_t>(uintptr_t(Branch), 0xE990);
-            else
-                Hooking::Patch<uint8_t>(uintptr_t(Branch), 0xEB);
-
-            FlushInstructionCache(GetCurrentProcess(), Compare, CompareLen);
-            FlushInstructionCache(GetCurrentProcess(), Branch, BranchInsn.len);
-            Patched++;
+            Sites.push_back({ Compare, (uint32)CompareLen, Branch, (uint32)BranchInsn.len, bJumpsIfNetDriver, bNear });
             break;
         }
     }
 
-    printf("[Boron][Init] PatchInlinedNetModes patched %d/%d\n", Patched, Calls);
+    std::vector<HANDLE> Frozen;
+    Frozen.reserve(4096);
+    auto Snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+    if (Snapshot != INVALID_HANDLE_VALUE)
+    {
+        THREADENTRY32 Entry{ sizeof(THREADENTRY32) };
+        for (BOOL bOk = Thread32First(Snapshot, &Entry); bOk; bOk = Thread32Next(Snapshot, &Entry))
+        {
+            if (Entry.th32OwnerProcessID != GetCurrentProcessId() || Entry.th32ThreadID == GetCurrentThreadId())
+                continue;
+
+            if (auto Thread = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, Entry.th32ThreadID))
+            {
+                if (SuspendThread(Thread) != DWORD(-1))
+                    Frozen.push_back(Thread);
+                else
+                    CloseHandle(Thread);
+            }
+        }
+        CloseHandle(Snapshot);
+    }
+
+    int Busy = 0;
+    for (auto& Site : Sites)
+    {
+        bool bBusy = false;
+        for (auto Thread : Frozen)
+        {
+            CONTEXT Ctx{};
+            Ctx.ContextFlags = CONTEXT_CONTROL;
+            if (GetThreadContext(Thread, &Ctx) && Ctx.Rip > uintptr_t(Site.Compare) && Ctx.Rip < uintptr_t(Site.Branch + Site.BranchLen))
+                bBusy = true;
+        }
+
+        if (bBusy)
+        {
+            Busy++;
+            continue;
+        }
+
+        for (uint32 x = 0; x < Site.CompareLen; x++)
+            Hooking::Patch<uint8_t>(uintptr_t(Site.Compare + x), 0x90);
+
+        if (Site.bJumpsIfNetDriver)
+        {
+            for (uint32 x = 0; x < Site.BranchLen; x++)
+                Hooking::Patch<uint8_t>(uintptr_t(Site.Branch + x), 0x90);
+        }
+        else if (Site.bNear)
+            Hooking::Patch<uint16_t>(uintptr_t(Site.Branch), 0xE990);
+        else
+            Hooking::Patch<uint8_t>(uintptr_t(Site.Branch), 0xEB);
+
+        Patched++;
+    }
+
+    FlushInstructionCache(GetCurrentProcess(), nullptr, 0);
+
+    for (auto Thread : Frozen)
+    {
+        ResumeThread(Thread);
+        CloseHandle(Thread);
+    }
+
+    printf("[Boron][Init] PatchInlinedNetModes patched %d/%d (frozen=%d busy=%d)\n", Patched, Calls, (int)Frozen.size(), Busy);
 }
 
 void Misc::Hook()
 {
     if (VersionInfo.FortniteVersion == 23.00 || (VersionInfo.FortniteVersion >= 24.30 && VersionInfo.FortniteVersion != 28.30 && VersionInfo.FortniteVersion != 29.40) || VersionInfo.FortniteVersion >= 30)
     {
-        auto AttemptDeriveFromURL = Memcury::Scanner::FindPattern("48 89 5C 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 81 EC ? ? ? ? 4C 8B C1").Get();
+        uint64 AttemptDeriveFromURL = Offsets::FortniteCL == 39768313 ? Memcury::PE::GetModuleBase() + 0x2A873A0 : 0;
+        if (!AttemptDeriveFromURL)
+            AttemptDeriveFromURL = Memcury::Scanner::FindPattern("48 89 5C 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 81 EC ? ? ? ? 4C 8B C1").Get();
         if (!AttemptDeriveFromURL)
             AttemptDeriveFromURL = Memcury::Scanner::FindPattern("48 89 5C 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 81 EC ? ? ? ? 48 8B D1").Get();
         if (!AttemptDeriveFromURL)
@@ -805,6 +859,12 @@ void Misc::Hook()
         if (!pattern && Offsets::FortniteCL == 37770125)
             pattern = Memcury::PE::GetModuleBase() + 0x50d7900;
 
+        if (!pattern && Offsets::FortniteCL == 38202817)
+            pattern = Memcury::PE::GetModuleBase() + 0x521afc0;
+
+        if (!pattern && Offsets::FortniteCL == 39768313)
+            pattern = Memcury::PE::GetModuleBase() + 0x60e5bb0;
+
         Hooking::Hook(pattern, CheckCheckpointHeartBeat);
     }
     if (VersionInfo.EngineVersion < 4.20)
@@ -823,7 +883,7 @@ void Misc::Hook()
     if (PedestalBeginPlay)
     {
         uint64_t RealBeginPlay = 0;
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; PedestalBeginPlay && i < 1000; i++)
         {
             auto Ptr = (uint8_t*)(PedestalBeginPlay - i);
 
@@ -855,7 +915,10 @@ void Misc::Hook()
     {
         auto pattern = Memcury::Scanner::FindPattern("48 8B 01 FF 90 ? ? ? ? 48 8B 8B ? ? ? ? 48 85 C9 74 ? 48 8B 01 FF 90 ? ? ? ? 48 8D 8B");
 
-        auto patchPoint = pattern.ScanFor(VersionInfo.EngineVersion < 5.5 ? std::vector<uint8_t>{ 0x48, 0x89, 0x5C } : std::vector<uint8_t>{ 0x40, 0x53 }, false).ScanFor({ 0x83, 0xF8, 0x02 }).Get();
+        uint64 patchPoint = Offsets::FortniteCL == 39768313 ? Memcury::PE::GetModuleBase() + 0x372EFEA : 0;
+
+        if (!patchPoint)
+            patchPoint = pattern.ScanFor(VersionInfo.EngineVersion < 5.5 ? std::vector<uint8_t>{ 0x48, 0x89, 0x5C } : std::vector<uint8_t>{ 0x40, 0x53 }, false).ScanFor({ 0x83, 0xF8, 0x02 }).Get();
 
         if (!patchPoint && VersionInfo.FortniteVersion >= 32)
             patchPoint = FindNetModeCheck();

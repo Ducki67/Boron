@@ -49,13 +49,53 @@ UFortWorldItem* AFortInventory::GiveItem(const UFortItemDefinition* Def, int Cou
 
     if (!this || !Def || !Count)
         return nullptr;
+    if (!FFortItemEntry::HasCount())
+    {
+        auto CH6Item = (UFortWorldItem*)Def->CreateTemporaryItemInstanceBP(Count, Level);
+        if (!CH6Item)
+            return nullptr;
+        CH6Item->SetOwningControllerForTemporaryItem(Owner);
+        if (CH6Item->HasOwnerInventory())
+            CH6Item->OwnerInventory = this;
+        else if (CH6Item->HasOwnerInventoryWeak())
+            CH6Item->OwnerInventoryWeak = this;
+
+        if (FFortItemEntry::HasItemEntryID())
+        {
+            auto& EntryID = CH6Item->ItemEntry.ItemEntryID;
+            if (EntryID.A == 0 && EntryID.B == 0 && EntryID.C == 0 && EntryID.D == 0)
+                CoCreateGuid((GUID*)&EntryID);
+        }
+
+        auto& CH6Rep = this->Inventory.ReplicatedEntries.Add(CH6Item->ItemEntry, FFortItemEntry::Size());
+        this->Inventory.ItemInstances.Add(CH6Item);
+
+        if (updateInventory)
+        {
+            bRequiresLocalUpdate = true;
+            bRequiresSaving = true;
+            HandleInventoryLocalUpdate();
+            Inventory.MarkItemDirty(CH6Rep);
+            ForceNetUpdate();
+        }
+
+        if (OnItemInstanceAddedVft)
+            ((bool (*)(const UFortWorldItem*, const IInterface*))CH6Item->Vft[OnItemInstanceAddedVft])(CH6Item, Owner->GetInterface(IFortInventoryOwnerInterface::StaticClass()));
+
+        static int ch6Logs = 0;
+        if (ch6Logs++ < 12)
+            printf("[Boron][CH6Inv] gave %s x%d item=%p repEntries=%d instances=%d entrySize=0x%x\n", Def->Name.ToString().c_str(), Count, (void*)CH6Item, Inventory.ReplicatedEntries.Num(),
+                   Inventory.ItemInstances.Num(), (int)FFortItemEntry::Size());
+        return CH6Item;
+    }
     UFortWorldItem* Item = (UFortWorldItem*)Def->CreateTemporaryItemInstanceBP(Count, Level);
     Item->SetOwningControllerForTemporaryItem(Owner);
     if (Item->HasOwnerInventory())
         Item->OwnerInventory = this;
     else if (Item->HasOwnerInventoryWeak())
         Item->OwnerInventoryWeak = this;
-    Item->ItemEntry.ParentInventory = this;
+    if (FFortItemEntry::HasParentInventory())
+        Item->ItemEntry.ParentInventory = this;
     Item->ItemEntry.LoadedAmmo = LoadedAmmo;
     if (Item->ItemEntry.HasPhantomReserveAmmo())
         Item->ItemEntry.PhantomReserveAmmo = PhantomReserveAmmo;
@@ -169,6 +209,9 @@ UFortWorldItem* AFortInventory::GiveItem(const UFortItemDefinition* Def, int Cou
 
 UFortWorldItem* AFortInventory::GiveItem(FFortItemEntry& entry, int Count, bool ShowPickupNoti, bool updateInventory)
 {
+    if (!FFortItemEntry::HasCount())
+        return GiveItem(entry.ItemDefinition, Count == -1 ? 1 : Count, 0, 0, ShowPickupNoti, updateInventory);
+
     if (Count == -1)
         Count = entry.Count;
 
@@ -433,11 +476,48 @@ FFortItemEntry* AFortInventory::MakeItemEntry(const UFortItemDefinition* ItemDef
     {
         ItemDef = MultiWorldItemDef->ItemInfos.Get(rand() % MultiWorldItemDef->ItemInfos.Num(), FFortWorldMultiItemInfo::Size()).ItemDefinition;
     }
+    if (!FFortItemEntry::HasCount())
+    {
+        static auto CreateFn = UFortKismetLibrary::GetDefaultObj()->GetFunction("CreateItemEntry");
+        if (!CreateFn)
+        {
+            ItemEntry->ItemDefinition = ItemDef;
+            return ItemEntry;
+        }
+
+        auto Params = CreateFn->GetParamsNamed();
+        auto Mem = (PBYTE)FMemory::Malloc(Params.Size);
+        memset(Mem, 0, Params.Size);
+        int32 RetOffset = -1;
+
+        for (auto& Param : Params.NameOffsetMap)
+        {
+            auto P = Mem + Param.Offset;
+            if (Param.Name == "InItemDefinition")
+                *(const UFortItemDefinition**)P = ItemDef;
+            else if (Param.Name == "InCount")
+                *(int32*)P = Count;
+            else if (Param.Name == "InLevel")
+                *(int32*)P = Level;
+            else if (Param.Name == "ReturnValue")
+                RetOffset = Param.Offset;
+        }
+
+        UFortKismetLibrary::GetDefaultObj()->ProcessEvent(CreateFn, Mem);
+        if (RetOffset >= 0)
+            memcpy((PBYTE)ItemEntry, Mem + RetOffset, FFortItemEntry::Size());
+        else
+            ItemEntry->ItemDefinition = ItemDef;
+
+        FMemory::Free(Mem);
+        return ItemEntry;
+    }
     ItemEntry->ItemDefinition = ItemDef;
     ItemEntry->Count = Count;
     ItemEntry->Durability = 1.f;
     ItemEntry->GameplayAbilitySpecHandle = FGameplayAbilitySpecHandle(-1);
-    ItemEntry->ParentInventory.ObjectIndex = -1;
+    if (FFortItemEntry::HasParentInventory())
+        ItemEntry->ParentInventory.ObjectIndex = -1;
     ItemEntry->Level = Level;
     if (auto Weapon = ItemDef->IsA<UFortGadgetItemDefinition>() ? (UFortWeaponItemDefinition*)((UFortGadgetItemDefinition*)ItemDef)->GetWeaponItemDefinition() : ItemDef->Cast<UFortWeaponItemDefinition>())
     {

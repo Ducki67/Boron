@@ -205,7 +205,7 @@ void UAbilitySystemComponent::Hook()
         auto ServerTryActivateAbilityWithEventData = GetDefaultObj()->GetFunction("ServerTryActivateAbilityWithEventData");
         auto ServerTryActivateAbilityWithEventDataNativeAddr = __int64(GetDefaultObj()->Vft[ServerTryActivateAbilityWithEventData->GetVTableIndex()]);
 
-        for (int i = 0; i < 400; i++)
+        for (int i = 0; ServerTryActivateAbilityWithEventDataNativeAddr && i < 400; i++)
         {
             if ((*(uint8_t*)(ServerTryActivateAbilityWithEventDataNativeAddr + i) == 0xFF && *(uint8_t*)(ServerTryActivateAbilityWithEventDataNativeAddr + i + 1) == 0x90) ||
                 (*(uint8_t*)(ServerTryActivateAbilityWithEventDataNativeAddr + i) == 0xFF && *(uint8_t*)(ServerTryActivateAbilityWithEventDataNativeAddr + i + 1) == 0x93))
@@ -216,7 +216,10 @@ void UAbilitySystemComponent::Hook()
         }
     }
 
-    Hooking::HookEvery<UAbilitySystemComponent>(istaIdx, InternalServerTryActivateAbility);
+    if (InternalTryActivateAbility_)
+        Hooking::HookEvery<UAbilitySystemComponent>(istaIdx, InternalServerTryActivateAbility);
+    else
+        printf("[Boron][Abilities] InternalTryActivateAbility not found -> InternalServerTryActivateAbility left native\n");
 
     if (VersionInfo.FortniteVersion >= 8)
     {

@@ -1057,7 +1057,7 @@ void AFortGameMode::ReadyToStartMatch_(UObject* Context, FFrame& Stack, bool* Re
 
             if (sRef)
             {
-                for (int i = 0; i < 1000; i++)
+                for (int i = 0; sRef && i < 1000; i++)
                 {
                     auto Ptr = (uint8_t*)(sRef - i);
 
@@ -2179,6 +2179,17 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
             L"s.MaxIncomingRequestsToStall 0",
             L"s.MaxReadyRequestsToStallMB 0",
             L"log LogGameFeatures off",
+            L"log LogIrisDirtyTracker off",
+            L"log LogDataRegistry off",
+            L"log LogDataTable off",
+            L"log LogEOSSDK off",
+            L"log LogTextChat off",
+            L"log LogFortCosmetics off",
+            L"log LogCosmeticsGating off",
+            L"log LogDefaultInstallBundleManager off",
+            L"log LogFortInstallBundleManager off",
+            L"log LogLandscape off", L"log LogFortBuilding off", L"log LogFortQuest off", L"log LogFortLoot off",
+            L"log LogParty off", L"log LogOnline off", L"log LogFortSnapOnSurface off", L"log LogCosmeticsFrameworkLoadouts off",
         };
 
         for (auto Command : StreamingBudgetLate)

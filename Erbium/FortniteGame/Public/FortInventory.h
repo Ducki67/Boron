@@ -243,7 +243,35 @@ public:
 
     DEFINE_STRUCT_PROP(LoadedAmmo, int32);
     DEFINE_STRUCT_PROP(PhantomReserveAmmo, int32);
-    DEFINE_STRUCT_PROP(ItemGuid, FGuid);
+    static inline int32 ItemGuid__Offset = -2;
+    static void ResolveItemGuid()
+    {
+        if (ItemGuid__Offset != -2)
+            return;
+        ItemGuid__Offset = StaticStruct()->GetOffset("ItemGuid", GUESS_PROP_FLAGS(FGuid));
+        if (ItemGuid__Offset == -1)
+            ItemGuid__Offset = StaticStruct()->GetOffset("ItemEntryID", GUESS_PROP_FLAGS(FGuid));
+    }
+    FGuid& GetItemGuid() const
+    {
+        ResolveItemGuid();
+        return GetFromOffset<FGuid>(this, ItemGuid__Offset);
+    }
+    static bool HasItemGuid()
+    {
+        ResolveItemGuid();
+        return ItemGuid__Offset != -1;
+    }
+    FGuid& SetItemGuid(FGuid&& Value) const
+    {
+        return GetItemGuid() = Value;
+    }
+    FGuid& SetItemGuid(FGuid& Value) const
+    {
+        return GetItemGuid() = Value;
+    }
+    __declspec(property(get = GetItemGuid, put = SetItemGuid)) FGuid ItemGuid;
+    DEFINE_STRUCT_PROP(ItemEntryID, FGuid);
     DEFINE_STRUCT_PROP(TrackerGuid, FGuid);
     DEFINE_STRUCT_PROP(ItemDefinition, const UFortItemDefinition*);
     DEFINE_STRUCT_PROP(Count, int32);

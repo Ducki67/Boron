@@ -871,6 +871,32 @@ void UNetDriver::TickFlush__Iris(UNetDriver* Driver, float DeltaSeconds)
                 }
             }
         }
+        static bool warmupRearmed = false;
+        if (VersionInfo.FortniteVersion >= 33 && !warmupRearmed && forceStartWorld == World && World && Driver == World->NetDriver)
+        {
+            bool hasPawn = false;
+            for (auto Conn : Driver->ClientConnections)
+                if (Conn && Conn->PlayerController && Conn->PlayerController->Pawn)
+                {
+                    hasPawn = true;
+                    break;
+                }
+
+            auto GamePhaseLogic = hasPawn ? UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Get(World) : nullptr;
+            if (GamePhaseLogic)
+            {
+                warmupRearmed = true;
+                auto Time = (float)UGameplayStatics::GetTimeSeconds(World);
+                if (GamePhaseLogic->Aircrafts_GameState.Num() == 0 && Time < GamePhaseLogic->WarmupCountdownEndTime)
+                {
+                    auto WarmupDuration = 60.f;
+                    GamePhaseLogic->WarmupCountdownStartTime = Time;
+                    GamePhaseLogic->WarmupCountdownEndTime = Time + WarmupDuration;
+                    GamePhaseLogic->WarmupEarlyCountdownDuration = WarmupDuration - 10.f;
+                    printf("[Boron][ForceStart] first pawn spawned -> warmup re-armed (%.0fs)\n", WarmupDuration);
+                }
+            }
+        }
     }
 
     BossAI::Tick();

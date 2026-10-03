@@ -151,12 +151,28 @@ LONG WINAPI ErbiumUnhandledExceptionFilter(LPEXCEPTION_POINTERS ExceptionInfo)
     }
     reportStream << "\n\n";
 
+    auto walkContext = *ExceptionInfo->ContextRecord;
+    if (!SymGetModuleBase64(currentPrc, walkContext.Rip) && walkContext.Rsp)
+    {
+        auto retAddr = *(DWORD64*)walkContext.Rsp;
+        char badPc[160];
+        auto retBase = SymGetModuleBase64(currentPrc, retAddr);
+        char retPath[MAX_PATH] = "?";
+        if (retBase)
+            GetModuleFileNameA(HMODULE(retBase), retPath, MAX_PATH);
+        auto retName = strrchr(retPath, '\\');
+        snprintf(badPc, sizeof(badPc), "PC 0x%016llx is outside every module -> called from 0x%016llx (%s+0x%llx)\n\n", walkContext.Rip, retAddr,
+                 retName ? retName + 1 : retPath, retBase ? retAddr - retBase : 0ull);
+        reportStream << badPc;
+        walkContext.Rip = retAddr;
+        walkContext.Rsp += 8;
+        stackFrame.AddrPC.Offset = walkContext.Rip;
+        stackFrame.AddrStack.Offset = walkContext.Rsp;
+    }
+
     for (int frame = 0;; frame++)
     {
-        auto contextCpy = *ExceptionInfo->ContextRecord;
-        contextCpy.ContextFlags = CONTEXT_ALL;
-
-        auto result = StackWalk(IMAGE_FILE_MACHINE_AMD64, currentPrc, currentThr, &stackFrame, ExceptionInfo->ContextRecord, NULL, SymFunctionTableAccess64, SymGetModuleBase64, NULL);
+        auto result = StackWalk(IMAGE_FILE_MACHINE_AMD64, currentPrc, currentThr, &stackFrame, &walkContext, NULL, SymFunctionTableAccess64, SymGetModuleBase64, NULL);
 
         if (result == false)
             break;
@@ -210,7 +226,8 @@ LONG WINAPI ErbiumUnhandledExceptionFilter(LPEXCEPTION_POINTERS ExceptionInfo)
         crashFile.close();
     }
 
-    Memcury::Util::CopyToClipboard(reportStr);
+    if (ExceptionInfo->ExceptionRecord->ExceptionCode != 0xC0000374)
+        Memcury::Util::CopyToClipboard(reportStr);
     SymCleanup(currentPrc);
     Sleep(3000);
     // while (true) {}

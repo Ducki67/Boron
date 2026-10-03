@@ -397,6 +397,12 @@ void UFortKismetLibrary::Hook()
             else if (Param.Name == "OptionalOwnerPC")
                 bHasOptionalOwnerPC = true;
         }
+    if (!FFortItemEntry::HasCount())
+    {
+        printf("[Boron][CH6Inv] ItemizationCore item layout -> pickup/loot/give kismet functions left native\n");
+        return;
+    }
+
     Hooking::ExecHook(K2_SpawnPickupInWorldFn, K2_SpawnPickupInWorld);
 
     Hooking::ExecHook(GetDefaultObj()->GetFunction("K2_SpawnPickupInWorldWithClassAndItemEntry"), K2_SpawnPickupInWorldWithClassAndItemEntry);
@@ -433,7 +439,8 @@ void UFortKismetLibrary::PostLoadHook()
             else if (Param.Name == "WeaponAmmoOverride")
                 bHasWeaponAmmoOverride = true;
         }
-    Hooking::ExecHook(GiveItemToInventoryOwnerFn, GiveItemToInventoryOwner);
+    if (FFortItemEntry::HasCount())
+        Hooking::ExecHook(GiveItemToInventoryOwnerFn, GiveItemToInventoryOwner);
 
     if (VersionInfo.FortniteVersion <= 16)
     {
@@ -470,8 +477,8 @@ void UFortKismetLibrary::PostLoadHook()
     }
     else
     {
-        uint64 SetIsDoorOpenRva = Offsets::FortniteCL == 37770125 ? 0x935F1C4 : Offsets::FortniteCL == 38202817 ? 0x955C49C : 0;
-        uint64 OpenActorRva = Offsets::FortniteCL == 37770125 ? 0x8C59700 : Offsets::FortniteCL == 38202817 ? 0x8E47384 : 0;
+        uint64 SetIsDoorOpenRva = Offsets::FortniteCL == 37770125 ? 0x935F1C4 : Offsets::FortniteCL == 38202817 ? 0x955C49C : Offsets::FortniteCL == 39768313 ? 0xC032188 : 0;
+        uint64 OpenActorRva = Offsets::FortniteCL == 37770125 ? 0x8C59700 : Offsets::FortniteCL == 38202817 ? 0x8E47384 : Offsets::FortniteCL == 39768313 ? 0xB7F1BAC : 0;
 
         if (SetIsDoorOpenRva && OpenActorRva)
         {

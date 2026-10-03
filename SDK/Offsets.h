@@ -58,6 +58,12 @@ namespace SDK
         inline uint32_t ObjectItemObject = 0x0;
         inline uint32_t ObjectItemFlags = 0x8;
         inline uint32_t ObjectItemSerial = 0x10;
+        inline uint32_t FieldClass = 0x8;
+        inline uint32_t ObjArrayObjects = 0x18;
+        inline uint32_t ObjArrayNum = 0x8;
+        inline uint32_t ObjArrayMax = 0xC;
+        inline int32_t ObjArrayNumChunks = 0x14;
+        inline uint32_t FNameIndexKey = 0;
         inline bool bEncryptedObjectArray = false;
         inline bool bIsAUsesSuper = false;
         inline uint64_t FortniteCL = 0;
@@ -85,6 +91,7 @@ namespace SDK
         uint64_t PropertyFlagsSubtract = 0;
         uint8_t CastFlagsRotate = 0;
         uint64_t CastFlagsSubtract = 0;
+        bool bXorRorNot = false;
     };
 
     inline FReflectionCrypto Crypto{};
@@ -95,14 +102,22 @@ namespace SDK
         return Count ? (Value >> Count) | (Value << (64 - Count)) : Value;
     }
 
-    inline uint64_t DecryptPointer(uint64_t Stored, uint8_t Rotate, uint64_t Subtract)
-    {
-        return Stored ? Ror64(Stored, Rotate) - Subtract : 0;
-    }
-
     inline uint64_t DecryptValue(uint64_t Stored, uint8_t Rotate, uint64_t Subtract)
     {
+        if (Crypto.bXorRorNot)
+        {
+            if (Rotate & 0x80)
+                return 0 - Ror64((Stored - 1) ^ Subtract, Rotate);
+
+            return ~Ror64(Stored ^ Subtract, Rotate);
+        }
+
         return Ror64(Stored, Rotate) - Subtract;
+    }
+
+    inline uint64_t DecryptPointer(uint64_t Stored, uint8_t Rotate, uint64_t Subtract)
+    {
+        return Stored ? DecryptValue(Stored, Rotate, Subtract) : 0;
     }
 
     inline uint32_t ReadPropertyOffset(const void* Prop)
@@ -132,7 +147,7 @@ namespace SDK
 
     inline void* ReadFieldClass(const void* Field)
     {
-        return (void*)DecryptPointer(*(const uint64_t*)((const uint8_t*)Field + 0x8), Crypto.FieldClassRotate, Crypto.FieldClassSubtract);
+        return (void*)DecryptPointer(*(const uint64_t*)((const uint8_t*)Field + Offsets::FieldClass), Crypto.FieldClassRotate, Crypto.FieldClassSubtract);
     }
 
     inline int32_t ReadObjectIndex(const void* Object)
@@ -142,6 +157,108 @@ namespace SDK
 
     inline void ApplyEncryptedBuildLayout()
     {
+        if (Offsets::FortniteCL == 39768313)
+        {
+            Offsets::UObjectName = 0x18;
+            Offsets::UObjectIndex = 0xC;
+            Offsets::UObjectFlags = 0x8;
+            Offsets::Super = 0x40;
+            Offsets::Children = 0x50;
+            Offsets::ChildProperties = 0x60;
+            Offsets::PropertiesSize = 0x58;
+            Offsets::Offset_Internal = 0x3C;
+            Offsets::PropertyFlags = 0x40;
+            Offsets::ElementSize = 0x28;
+            Offsets::CastFlags = 0xB0;
+            Offsets::FieldClass = 0x8;
+            Offsets::FField_Next = 0x18;
+            Offsets::FFrame_Next = 0x18;
+            Offsets::FField_Name = 0x20;
+            Offsets::FieldMask = 0x69;
+            Offsets::ObjectItemObject = 0x10;
+            Offsets::ObjectItemFlags = 0xC;
+            Offsets::ObjectItemSerial = 0x0;
+            Offsets::ObjArrayObjects = 0x0;
+            Offsets::ObjArrayNum = 0x14;
+            Offsets::ObjArrayMax = 0x14;
+            Offsets::ObjArrayNumChunks = -1;
+            Offsets::FNameIndexKey = 0x67E197C4;
+            Offsets::bEncryptedObjectArray = true;
+            Offsets::bIsAUsesSuper = true;
+
+            Crypto.bXorRorNot = true;
+            Crypto.ObjectsRotate = 16;
+            Crypto.ObjectsSubtract = 0x5DDC69C3;
+            Crypto.ObjectRotate = 16;
+            Crypto.ObjectSubtract = 0x19146D2D;
+            Crypto.NumElementsXor = 0xAF7D9834;
+            Crypto.MaxElementsXor = 0xAF7D9834;
+            Crypto.IndexXor = 0x8E8B1601;
+            Crypto.FieldRotate = 16 | 0x80;
+            Crypto.FieldSubtract = 0x0452FFA6;
+            Crypto.FieldClassRotate = 16;
+            Crypto.FieldClassSubtract = 0xE5D84BF8;
+            Crypto.ElementSizeXor = 0x618D730F;
+            Crypto.PropertyOffsetXor = 0x5DECB73E;
+            Crypto.StructSizeXor = 0x3FBDEB6A;
+            Crypto.PropertyFlagsRotate = 16;
+            Crypto.PropertyFlagsSubtract = 0x1B6647C5;
+            Crypto.CastFlagsRotate = 16;
+            Crypto.CastFlagsSubtract = 0x637C6636;
+            return;
+        }
+
+        if (Offsets::FortniteCL == 38202817)
+        {
+            Offsets::UObjectName = 0x8;
+            Offsets::UObjectIndex = 0xC;
+            Offsets::UObjectFlags = 0x18;
+            Offsets::Super = 0x40;
+            Offsets::Children = 0x78;
+            Offsets::ChildProperties = 0xA0;
+            Offsets::PropertiesSize = 0x60;
+            Offsets::Offset_Internal = 0x64;
+            Offsets::PropertyFlags = 0x58;
+            Offsets::ElementSize = 0x60;
+            Offsets::CastFlags = 0xB8;
+            Offsets::FieldClass = 0x18;
+            Offsets::FField_Next = 0x10;
+            Offsets::FFrame_Next = 0x10;
+            Offsets::FField_Name = 0x20;
+            Offsets::FieldMask = 0x68;
+            Offsets::ObjectItemObject = 0x10;
+            Offsets::ObjectItemFlags = 0x0;
+            Offsets::ObjectItemSerial = 0x8;
+            Offsets::ObjArrayObjects = 0x0;
+            Offsets::ObjArrayNum = 0x14;
+            Offsets::ObjArrayMax = 0x14;
+            Offsets::ObjArrayNumChunks = -1;
+            Offsets::FNameIndexKey = 0xFC4AD0A4;
+            Offsets::bEncryptedObjectArray = true;
+            Offsets::bIsAUsesSuper = true;
+
+            Crypto.bXorRorNot = true;
+            Crypto.ObjectsRotate = 16;
+            Crypto.ObjectsSubtract = 0xE7F18B24;
+            Crypto.ObjectRotate = 16;
+            Crypto.ObjectSubtract = 0xD8BBB184;
+            Crypto.NumElementsXor = 0x11624BDB;
+            Crypto.MaxElementsXor = 0x11624BDB;
+            Crypto.IndexXor = 0x96C04D3B;
+            Crypto.FieldRotate = 16;
+            Crypto.FieldSubtract = 0xAC0E7F64;
+            Crypto.FieldClassRotate = 16;
+            Crypto.FieldClassSubtract = 0x1B35B3A4;
+            Crypto.ElementSizeXor = 0x82A69F9B;
+            Crypto.PropertyOffsetXor = 0xE026103B;
+            Crypto.StructSizeXor = 0xA42DD1DB;
+            Crypto.PropertyFlagsRotate = 16;
+            Crypto.PropertyFlagsSubtract = 0xBBAE5624;
+            Crypto.CastFlagsRotate = 16;
+            Crypto.CastFlagsSubtract = 0x6525D444;
+            return;
+        }
+
         if (Offsets::FortniteCL != 37770125)
             return;
 
@@ -543,7 +660,7 @@ namespace SDK
         {
             auto sRef = Memcury::Scanner::FindStringRef(L"Illegal call to StaticFindObject() while serializing object data!", false, 1).Get();
 
-            for (int i = 0; i < 1000; i++)
+            for (int i = 0; sRef && i < 1000; i++)
             {
                 auto Ptr = (uint8_t*)(sRef - i);
 
@@ -613,7 +730,7 @@ namespace SDK
             }
             else
             {
-                for (int i = 0; i < 400; i++)
+                for (int i = 0; sRef && i < 400; i++)
                 {
                     if (*(uint8_t*)(sRef - i) == 0x4C && *(uint8_t*)(sRef - i + 1) == 0x89 && *(uint8_t*)(sRef - i + 2) == 0x4C)
                     {
@@ -658,7 +775,7 @@ namespace SDK
 
         if (StringRef)
         {
-            for (int i = 0; i < 1000; i++)
+            for (int i = 0; StringRef && i < 1000; i++)
             {
                 auto Ptr = (uint8_t*)(StringRef + i);
 
@@ -674,7 +791,7 @@ namespace SDK
         {
             auto stat = Memcury::Scanner::FindStringRef(L"STAT_SpawnActorTime").Get();
 
-            for (int i = 0; i < 0x1000; i++)
+            for (int i = 0; stat && i < 0x1000; i++)
             {
                 if (*(uint8_t*)(stat - i) == 0x40 && *(uint8_t*)(stat - i + 1) == 0x55)
                 {
@@ -696,6 +813,42 @@ namespace SDK
                 Offsets::SpawnActor = sRef.ScanFor({ 0x40, 0x55 }, false, 0, 1, 3000).Get();
             else
                 Offsets::SpawnActor = sRef.ScanFor({ 0x4C, 0x8B, 0xDC }, false, 0, 1, 3000).Get();
+        }
+
+        if (Offsets::FortniteCL == 38202817)
+        {
+            auto Base = Memcury::PE::GetModuleBase();
+            Offsets::Realloc = Base + 0x521CFCC;
+            Offsets::AppendString = Base + 0x175D6E0;
+            Offsets::ToString = Base + 0x175D6E0;
+            addr = Base + 0x1655C14;
+            Offsets::GObjectsChunked = Base + 0x12EAF270;
+            Offsets::GObjectsUnchunked = 0;
+            Offsets::Step = Base + 0x160F4E4;
+            Offsets::StepExplicitProperty = Base + 0x1B5C108;
+            Offsets::GetInterfaceAddress = Base + 0x16574E4;
+            Offsets::StaticFindObject = Base + 0x1A2CAB8;
+            Offsets::StaticLoadObject = Base + 0x1CB5254;
+            Offsets::FNameConstructor = Base + 0x175DD98;
+            Offsets::SpawnActor = Base + 0x1B54FA8;
+        }
+
+        if (Offsets::FortniteCL == 39768313)
+        {
+            auto Base = Memcury::PE::GetModuleBase();
+            Offsets::Realloc = Base + 0x60E8798;
+            Offsets::AppendString = Base + 0x1E6DB78;
+            Offsets::ToString = Base + 0x1E6DB78;
+            addr = Base + 0x1EE6470;
+            Offsets::GObjectsChunked = Base + 0x1631EC38;
+            Offsets::GObjectsUnchunked = 0;
+            Offsets::Step = Base + 0x23D6B68;
+            Offsets::StepExplicitProperty = Base + 0x1DC20E0;
+            Offsets::GetInterfaceAddress = Base + 0x1EE5A2C;
+            Offsets::StaticFindObject = Base + 0x200C490;
+            Offsets::StaticLoadObject = Base + 0x305B9FC;
+            Offsets::FNameConstructor = Base + 0x1E6E40C;
+            Offsets::SpawnActor = Base + 0x2AF7B50;
         }
 
         printf("[Boron][Init] EngineVersion=%.2f FortniteVersion=%.2f\n", VersionInfo.EngineVersion, VersionInfo.FortniteVersion);

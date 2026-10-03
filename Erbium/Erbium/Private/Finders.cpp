@@ -105,7 +105,7 @@ uint64_t FindGIsClient()
 
         int Skip = 2;
         uint8_t correctByte = 0;
-        for (int i = 0; i < 0x100; i++)
+        for (int i = 0; sRef && i < 0x100; i++)
         {
             auto Ptr = (uint8_t*)(sRef - i);
 
@@ -165,7 +165,7 @@ uint64_t FindGIsServer()
 
         int Skip = 1;
         uint8_t correctByte = 0;
-        for (int i = 0; i < 0x100; i++)
+        for (int i = 0; sRef && i < 0x100; i++)
         {
             auto Ptr = (uint8_t*)(sRef - i);
 
@@ -217,7 +217,7 @@ uint64_t FindGetNetMode()
         {
             auto sRef = Memcury::Scanner::FindStringRef(L"PREPHYSBONES").Get();
 
-            for (int i = 0; i < 1000; i++)
+            for (int i = 0; sRef && i < 1000; i++)
             {
                 auto Ptr = (uint8_t*)(sRef - i);
 
@@ -228,7 +228,7 @@ uint64_t FindGetNetMode()
                 }
             }
 
-            for (int i = 0; i < 400; i++)
+            for (int i = 0; GetNetMode && i < 400; i++)
             {
                 auto Ptr = (uint8_t*)(GetNetMode + i);
 
@@ -291,6 +291,9 @@ uint64 FindCreateNamedNetDriverLocal()
         return Addr;
     bInitialized = true;
 
+    if (Offsets::FortniteCL == 39768313)
+        return Addr = Memcury::PE::GetModuleBase() + 0x37DA338;
+
     // CH5/UE5.5 (31.41): direct prologue pattern for UEngine::CreateNamedNetDriver_Local
     // (Engine, Context, NetDriverName, NetDriverDefinition) -> bool, from the 31.41 dump (fmgnio).
     // This lands right on the function start, so it sidesteps the string-anchored cold-block walk
@@ -345,7 +348,7 @@ uint64 FindCreateNamedNetDriverLocal()
     // The cold block ends by jmp-ing BACK into the hot function, which lives ~40MB lower in .text.
     // Small local E9s inside the cold block must be skipped -> take the first FAR-BACKWARD jmp.
     uint64_t jmpBack = 0;
-    for (int i = 0; i < 0x1400; i++)
+    for (int i = 0; refAddr && i < 0x1400; i++)
     {
         auto Ptr = (uint8_t*)(refAddr + i);
         if (*Ptr == 0xE9)
@@ -361,7 +364,7 @@ uint64 FindCreateNamedNetDriverLocal()
     }
 
     uint64_t scanBase = jmpBack ? jmpBack : refAddr;
-    for (int i = 0; i < 0x4000; i++)
+    for (int i = 0; scanBase && i < 0x4000; i++)
     {
         auto Ptr = (uint8_t*)(scanBase - i);
         if (*Ptr == 0xCC && *(Ptr - 1) == 0xCC && *(Ptr - 2) == 0xCC) // int3 padding before the function
@@ -407,7 +410,7 @@ uint64_t FindCreateNetDriver()
 
         if (CreateNetDriver)
         {
-            for (int i = 0; i < 0x200; i++)
+            for (int i = 0; CreateNetDriver && i < 0x200; i++)
             {
                 auto Ptr = (uint8_t*)(CreateNetDriver - i);
 
@@ -461,7 +464,7 @@ uint64_t FindCreateNetDriverWorldContext()
             auto StartOfFuncBefore = CreateNetDriver_.Get();
             if (CreateNetDriver_.Get())
             {
-                for (int i = 0; i < 2048; i++)
+                for (int i = 0; StartOfFuncBefore && i < 2048; i++)
                 {
                     auto Ptr = (uint8_t*)(StartOfFuncBefore - i);
 
@@ -508,6 +511,9 @@ uint64_t FindInitListen()
     {
         bInitialized = true;
 
+        if (Offsets::FortniteCL == 39768313)
+            return InitListen = Memcury::PE::GetModuleBase() + 0x98E010C;
+
         if (VersionInfo.EngineVersion >= 5.0)
         {
             InitListen = Memcury::Scanner::FindPattern("4D 8B C8 4C 8B C2 33 D2 FF 90 ? ? ? ? 84 C0 75 ? 80 3D").ScanFor({ 0x4C, 0x8B, 0xDC }, false).Get();
@@ -530,7 +536,7 @@ uint64_t FindInitListen()
         {
             auto sRef = Memcury::Scanner::FindStringRef(L"%s IpNetDriver listening on port %i").Get();
             int skip = 1;
-            for (int i = 0; i < 2000; i++)
+            for (int i = 0; sRef && i < 2000; i++)
             {
                 auto Ptr = (uint8_t*)(sRef - i);
 
@@ -559,6 +565,9 @@ uint64_t FindSetWorld()
     if (!bInitialized)
     {
         bInitialized = true;
+
+        if (Offsets::FortniteCL == 39768313)
+            return SetWorld = Memcury::PE::GetModuleBase() + 0x25406EC;
 
         SetWorld = VersionInfo.FortniteVersion <= 13.20 ? Memcury::Scanner::FindStringRef(L"AOnlineBeaconHost::InitHost failed").ScanFor({ 0x48, 0x8B, 0xD0, 0xE8 }, false).RelativeOffset(4).Get() : 0;
 
@@ -644,6 +653,9 @@ uint64_t FindTickFlush()
     {
         bInitialized = true;
 
+        if (Offsets::FortniteCL == 39768313)
+            return TickFlush = Memcury::PE::GetModuleBase() + 0x2434F50;
+
         TickFlush = VersionInfo.EngineVersion == 4.16 ? Memcury::Scanner::FindPattern("4C 8B DC 55 53 56 57 49 8D AB ? ? ? ? 48 81 EC ? ? ? ? 41 0F 29 7B").Get() : 0;
 
         if (VersionInfo.EngineVersion == 4.19)
@@ -673,7 +685,7 @@ uint64_t FindTickFlush()
                 if (auto ObfOwner = ObfuscatedOwner(sRef))
                     TickFlush = ObfOwner;
                 else
-                for (int i = 0; i < 1000; i++)
+                for (int i = 0; sRef && i < 1000; i++)
                 {
                     auto Ptr = (uint8_t*)(sRef - i);
 
@@ -720,7 +732,7 @@ int32_t FindIsNetRelevantForVft()
         if (auto ObfOwner = ObfuscatedOwner(sRef))
             IsNetRelevantFor = ObfOwner;
         else
-        for (int i = 0; i < 2048; i++)
+        for (int i = 0; sRef && i < 2048; i++)
         {
             auto Ptr = (uint8_t*)(sRef - i);
 
@@ -839,6 +851,9 @@ uint64_t FindSendRequestNow()
     {
         bInitialized = true;
 
+        if (Offsets::FortniteCL == 39768313)
+            return SendRequestNow = Memcury::PE::GetModuleBase() + 0xA6AD63C;
+
         auto sRef = Memcury::Scanner::FindStringRef(L"MCP-Profile: Dispatching request to %s", true, 0, VersionInfo.FortniteVersion >= 19).Get();
         if (!sRef)
             sRef = Memcury::Scanner::FindStringRef(L"MCP-Profile: Dispatching request to %s - ContextCredentials: %s", true, 0, VersionInfo.FortniteVersion >= 19).Get();
@@ -849,7 +864,7 @@ uint64_t FindSendRequestNow()
         if (auto ObfOwner = ObfuscatedOwner(sRef))
             SendRequestNow = ObfOwner;
         else
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; sRef && i < 1000; i++)
         {
             auto Ptr = (uint8_t*)(sRef - i);
 
@@ -899,7 +914,7 @@ uint64 FindGetMaxTickRate()
         if (!sRef)
             return 0;
 
-        for (int i = 0; i < 400; i++)
+        for (int i = 0; sRef && i < 400; i++)
         {
             if (*(uint8_t*)(sRef - i) == 0x40 && *(uint8_t*)(sRef - i + 1) == 0x53)
             {
@@ -1010,12 +1025,15 @@ uint64_t FindInternalTryActivateAbility()
     {
         bInitialized = true;
 
+        if (Offsets::FortniteCL == 39768313)
+            return InternalTryActivateAbility = Memcury::PE::GetModuleBase() + 0xA57B560;
+
         auto sRef = Memcury::Scanner::FindStringRef(L"InternalTryActivateAbility called with invalid Handle! ASC: %s. AvatarActor: %s", true, 0, VersionInfo.FortniteVersion >= 16).Get();
 
         if (auto ObfOwner = ObfuscatedOwner(sRef))
             return InternalTryActivateAbility = ObfOwner;
         else
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; sRef && i < 1000; i++)
         {
             if (*(uint8_t*)(sRef - i) == 0x48 && *(uint8_t*)(sRef - i + 1) == 0x8B && *(uint8_t*)(sRef - i + 2) == 0xC4)
                 return InternalTryActivateAbility = sRef - i;
@@ -1116,7 +1134,7 @@ uint64 FindHandlePostSafeZonePhaseChanged()
         if (!sRef)
             return 0;
 
-        for (int i = 0; i < 15000; i++)
+        for (int i = 0; sRef && i < 15000; i++)
         {
             if (*(uint8_t*)(sRef - i) == 0x40 && (*(uint8_t*)(sRef - i + 1) == 0x53 || *(uint8_t*)(sRef - i + 1) == 0x55))
                 return HandlePostSafeZonePhaseChanged = sRef - i;
@@ -1155,7 +1173,7 @@ uint64 FindSpawnLoot()
         if (auto ObfOwner = ObfuscatedOwner(sRef))
             return SpawnLoot = ObfOwner;
         else
-        for (int i = 0; i < 0x1000; i++)
+        for (int i = 0; sRef && i < 0x1000; i++)
         {
             if (*(uint8_t*)(sRef - i) == 0x40 && (*(uint8_t*)(sRef - i + 1) == 0x53 || *(uint8_t*)(sRef - i + 1) == 0x55))
                 return SpawnLoot = sRef - i;
@@ -1461,7 +1479,7 @@ uint64_t FindKickPlayer()
     auto sRef = Memcury::Scanner::FindStringRef(L"Validation Failure: %s. kicking %s", false, VersionInfo.EngineVersion <= 4.21, VersionInfo.FortniteVersion >= 19).Get();
 
     if (sRef)
-        for (int i = 0; i < 2000; i++)
+        for (int i = 0; sRef && i < 2000; i++)
         {
             if (*(uint8_t*)(sRef - i) == 0x40 && *(uint8_t*)(sRef - i + 1) == 0x53)
                 return sRef - i;
@@ -1473,7 +1491,7 @@ uint64_t FindKickPlayer()
     auto sRef2 = Memcury::Scanner::FindStringRef(L"Failed to kick player").Get();
 
     if (sRef2)
-        for (int i = 0; i < 3000; i++)
+        for (int i = 0; sRef2 && i < 3000; i++)
         {
             if (*(uint8_t*)(sRef2 - i) == 0x48 && *(uint8_t*)(sRef2 - i + 1) == 0x89 && *(uint8_t*)(sRef2 - i + 2) == 0x5C)
                 return sRef2 - i;
@@ -1490,6 +1508,9 @@ uint64_t FindKickPlayerVirtual()
 {
     if (VersionInfo.EngineVersion < 5.4)
         return 0;
+
+    if (Offsets::FortniteCL == 39768313)
+        return Memcury::PE::GetModuleBase() + 0x298EE58;
 
     auto KickPlayer = Memcury::Scanner::FindPattern("48 8B C4 48 89 58 08 48 89 68 10 48 89 70 18 57 48 83 EC 40 48 8B DA 48 8B E9 48 8D 15 ? ? ? ? 49 8B F0 48 8D 48 D8").Get();
 
@@ -1534,7 +1555,7 @@ uint64_t FindEncryptionPatch()
             EncryptionPatchPoint = Memcury::Scanner::FindPattern("83 7D ? ? 7F 14 48 8D 8B").Get();
 
         if (EncryptionPatchPoint)
-            for (int i = 0; i < 9; i++)
+            for (int i = 0; EncryptionPatchPoint && i < 9; i++)
             {
                 if (*(uint8_t*)(EncryptionPatchPoint + i) == 0x7F)
                     EncryptionPatch = EncryptionPatchPoint + i;
@@ -1560,7 +1581,7 @@ uint64_t FindRemoveInventoryItem()
 
         auto sRef = FindNameRef(L"ServerRemoveInventoryItem", 0, false);
         uintptr_t uFuncCall = 0;
-        for (int i = 0; i < 2000; i++)
+        for (int i = 0; sRef && i < 2000; i++)
         {
             if (VersionInfo.EngineVersion == 4.16)
             {
@@ -1587,7 +1608,7 @@ uint64_t FindRemoveInventoryItem()
 
         auto ServerRemoveInventoryItemCall = Memcury::Scanner::FindPointerRef((PVOID)uFuncCall, 0, true);
 
-        for (int i = 0; i < 400; i++)
+        for (int i = 0; ServerRemoveInventoryItemCall.Get() && i < 400; i++)
         {
             if (*(uint8_t*)(ServerRemoveInventoryItemCall.Get() - i) == 0x48 && *(uint8_t*)(ServerRemoveInventoryItemCall.Get() - i + 1) == 0x89 && *(uint8_t*)(ServerRemoveInventoryItemCall.Get() - i + 2) == 0x5C)
                 return RemoveInventoryItem = ServerRemoveInventoryItemCall.Get() - i;
@@ -1615,7 +1636,7 @@ uint64_t FindRemoveInventoryStateValue()
                 : (VersionInfo.FortniteVersion >= 16 && (VersionInfo.FortniteVersion < 20 || VersionInfo.FortniteVersion >= 22) ? std::vector<uint8_t>{ 0x48, 0x8B, 0xC4 } : std::vector<uint8_t>{ 0x48, 0x89, 0x5C });
 
         auto sRef = FindNameRef(L"ServerRemoveInventoryStateValue", 0, false);
-        for (int i = 0; i < 2000; i++)
+        for (int i = 0; sRef && i < 2000; i++)
         {
             if (VersionInfo.EngineVersion == 4.16)
             {
@@ -1659,7 +1680,7 @@ uint64_t FindSetInventoryStateValue()
                 : (VersionInfo.FortniteVersion >= 16 && (VersionInfo.FortniteVersion < 20 || VersionInfo.FortniteVersion >= 22) ? std::vector<uint8_t>{ 0x48, 0x8B, 0xC4 } : std::vector<uint8_t>{ 0x48, 0x89, 0x5C });
 
         auto sRef = FindNameRef(L"ServerSetInventoryStateValue", 0, false);
-        for (int i = 0; i < 2000; i++)
+        for (int i = 0; sRef && i < 2000; i++)
         {
             if (VersionInfo.EngineVersion == 4.16)
             {
@@ -1708,7 +1729,7 @@ uint64_t FindOnRep_ZiplineState()
             if (auto ObfOwner = ObfuscatedOwner(sRef))
                 return OnRep_ZiplineState = ObfOwner;
             else
-            for (int i = 0; i < 0x400; i++)
+            for (int i = 0; sRef && i < 0x400; i++)
             {
                 if (*(uint8_t*)(sRef - i) == 0x40 && *(uint8_t*)(sRef - i + 1) == 0x53)
                     return OnRep_ZiplineState = sRef - i;
@@ -1749,7 +1770,7 @@ uint64 FindGiveAbilityAndActivateOnce()
         if (auto ObfOwner = ObfuscatedOwner(sRef))
             return GiveAbilityAndActivateOnce = ObfOwner;
         else
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; sRef && i < 1000; i++)
         {
             if (*(uint8_t*)(sRef - i) == 0x40 && *(uint8_t*)(sRef - i + 1) == 0x55)
                 return GiveAbilityAndActivateOnce = sRef - i;
@@ -1811,7 +1832,7 @@ uint64 FindGameSessionPatch()
         if (auto ObfOwner = ObfuscatedOwner(sRef))
             Beginning = ObfOwner;
         else
-        for (int i = 0; i < 3000; i++)
+        for (int i = 0; sRef && i < 3000; i++)
         {
             if (*(uint8_t*)(sRef - i) == 0x40 && *(uint8_t*)(sRef - i + 1) == 0x55)
             {
@@ -1834,7 +1855,7 @@ uint64 FindGameSessionPatch()
     if (!Beginning)
         return 0;
 
-    for (int i = 0; i < 500; i++)
+    for (int i = 0; Beginning && i < 500; i++)
         if (*(uint8_t*)(Beginning + i) == 0x0F && *(uint8_t*)(Beginning + i + 1) == 0x84)
             return Beginning + i + 1;
 
@@ -1866,7 +1887,7 @@ uint64 FindRemoveFromAlivePlayers()
         if (auto ObfOwner = ObfuscatedOwner(sRef))
             return RemoveFromAlivePlayers = ObfOwner;
 
-        for (int i = 0; i < 0x1200; i++)
+        for (int i = 0; sRef && i < 0x1200; i++)
         {
             if (*(uint8_t*)(sRef - i) == 0x4C && *(uint8_t*)(sRef - i + 1) == 0x89 && *(uint8_t*)(sRef - i + 2) == 0x4C)
                 return RemoveFromAlivePlayers = sRef - i;
@@ -1908,7 +1929,7 @@ uint64 FindStartAircraftPhase()
 
             int numCalls = 0;
 
-            for (int i = 0; i < 150; i++)
+            for (int i = 0; sRef && i < 150; i++)
                 if (*(uint8_t*)(sRef + i) == 0xE8)
                 {
                     if (++numCalls == 2)
@@ -1924,7 +1945,7 @@ uint64 FindStartAircraftPhase()
             if (!sRef)
                 return 0;
 
-            for (int i = 0; i < 1000; i++)
+            for (int i = 0; sRef && i < 1000; i++)
                 if (*(uint8_t*)(sRef - i) == 0x48 && *(uint8_t*)(sRef - i + 1) == 0x8B && *(uint8_t*)(sRef - i + 2) == 0xC4)
                     return StartAircraftPhase = sRef - i;
         }
@@ -1943,6 +1964,12 @@ uint64_t FindSetPickupItems()
     if (!bInitialized)
     {
         bInitialized = true;
+
+        if (Offsets::FortniteCL == 38202817)
+            return SetPickupItems = Memcury::PE::GetModuleBase() + 0x9CDB314;
+
+        if (Offsets::FortniteCL == 39768313)
+            return SetPickupItems = Memcury::PE::GetModuleBase() + 0xC93B38C;
 
         if (VersionInfo.EngineVersion == 4.16 || VersionInfo.EngineVersion == 4.19)
             return SetPickupItems = Memcury::Scanner::FindPattern("48 89 6C 24 ? 48 89 74 24 ? 57 48 83 EC 20 80 B9 ? ? ? ? ? 41 0F B6 E9").Get();
@@ -2038,6 +2065,12 @@ uint64_t FindSendClientAdjustment()
     {
         bInitialized = true;
 
+        if (Offsets::FortniteCL == 39768313)
+            return SendClientAdjustment = Memcury::PE::GetModuleBase() + 0x96637F4;
+
+        if (Offsets::FortniteCL == 38202817)
+            return SendClientAdjustment = Memcury::PE::GetModuleBase() + 0x71152EC;
+
         if (VersionInfo.EngineVersion >= 5.4)
         {
             SendClientAdjustment = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 74 24 ? 57 48 83 EC ? 48 8B F9 E8 ? ? ? ? 48 8B D8 48 85 C0 74 ? 80 78").Get();
@@ -2132,7 +2165,7 @@ uint64 FindSetChannelActorForDestroy()
         if (!sRef)
             return SetChannelActorForDestroy = 0;
 
-        for (int i = 0; i < 2000; i++)
+        for (int i = 0; sRef && i < 2000; i++)
         {
             if (*(uint8_t*)(sRef - i) == 0x40 && *(uint8_t*)(sRef - i + 1) == 0x55)
                 return SetChannelActorForDestroy = sRef - i;
@@ -2159,7 +2192,7 @@ uint64 FindSendDestructionInfo()
         if (auto ObfOwner = ObfuscatedOwner(sRef))
             return SendDestructionInfo = ObfOwner;
         else
-        for (int i = 0; i < 2000; i++)
+        for (int i = 0; sRef && i < 2000; i++)
         {
             if (*(uint8_t*)(sRef - i) == 0x48 && *(uint8_t*)(sRef - i + 1) == 0x89 && *(uint8_t*)(sRef - i + 2) == 0x4c)
             {
@@ -2195,7 +2228,7 @@ uint64 FindCreateChannel()
             if (auto ObfOwner = ObfuscatedOwner(sRef))
                 return CreateChannel = ObfOwner;
             else
-            for (int i = 0; i < 2000; i++)
+            for (int i = 0; sRef && i < 2000; i++)
             {
                 if (*(uint8_t*)(sRef - i) == 0x48 && *(uint8_t*)(sRef - i + 1) == 0x89 && *(uint8_t*)(sRef - i + 2) == 0x5c)
                     return CreateChannel = sRef - i;
@@ -2235,7 +2268,7 @@ uint64 FindReplicateActor()
             if (auto ObfOwner = ObfuscatedOwner(sRef))
                 return ReplicateActor = ObfOwner;
             else
-            for (int i = 0; i < 2000; i++)
+            for (int i = 0; sRef && i < 2000; i++)
             {
                 if (*(uint8_t*)(sRef - i) == 0x40 && *(uint8_t*)(sRef - i + 1) == 0x55)
                     return ReplicateActor = sRef - i;
@@ -2268,7 +2301,7 @@ uint64 FindCloseActorChannel()
         if (auto ObfOwner = ObfuscatedOwner(sRef))
             return CloseActorChannel = ObfOwner;
         else
-        for (int i = 0; i < 2000; i++)
+        for (int i = 0; sRef && i < 2000; i++)
         {
             if (*(uint8_t*)(sRef - i) == 0x48 && *(uint8_t*)(sRef - i + 1) == 0x89 && *(uint8_t*)(sRef - i + 2) == 0x5C)
                 return CloseActorChannel = sRef - i;
@@ -2329,7 +2362,7 @@ uint64 FindStartBecomingDormant()
         if (auto ObfOwner = ObfuscatedOwner(sRef))
             return StartBecomingDormant = ObfOwner;
         else
-        for (int i = 0; i < 2000; i++)
+        for (int i = 0; sRef && i < 2000; i++)
         {
             if (*(uint8_t*)(sRef - i) == 0x48 && *(uint8_t*)(sRef - i + 1) == 0x89 && *(uint8_t*)(sRef - i + 2) == 0x5C)
                 return StartBecomingDormant = sRef - i;
@@ -2358,7 +2391,7 @@ uint64 FindFlushDormancy()
         if (auto ObfOwner = ObfuscatedOwner(sRef))
             return FlushDormancy = ObfOwner;
         else
-        for (int i = 0; i < 2000; i++)
+        for (int i = 0; sRef && i < 2000; i++)
         {
             if (*(uint8_t*)(sRef - i) == 0x40 && *(uint8_t*)(sRef - i + 1) == 0x55)
                 return FlushDormancy = sRef - i;
@@ -2387,7 +2420,7 @@ uint64_t FindEnterAircraft()
         if (auto ObfOwner = ObfuscatedOwner(sRef))
             return EnterAircraft = ObfOwner;
         else
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; sRef && i < 1000; i++)
         {
             auto Ptr = (uint8_t*)(sRef - i);
 
@@ -2402,7 +2435,7 @@ uint64_t FindEnterAircraft()
                 break;
             }
         }
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; sRef && i < 1000; i++)
         {
             auto Ptr = (uint8_t*)(sRef - i);
 
@@ -2429,6 +2462,9 @@ uint64_t FindEnterAircraft()
 
 uint64_t FindGetPlayerViewPoint()
 {
+    if (Offsets::FortniteCL == 39768313)
+        return Memcury::PE::GetModuleBase() + 0x2477A08;
+
     uint64 ftspAddr = 0;
 
     auto ftspRef = Memcury::Scanner::FindStringRef(L"%s failed to spawn a pawn", true, 0, VersionInfo.FortniteVersion >= 19).Get();
@@ -2436,7 +2472,7 @@ uint64_t FindGetPlayerViewPoint()
     if (auto ObfOwner = ObfuscatedOwner(ftspRef))
         ftspAddr = ObfOwner;
     else
-    for (int i = 0; i < 1000; i++)
+    for (int i = 0; ftspRef && i < 1000; i++)
     {
         if (*(uint8_t*)(ftspRef - i) == 0x40 && *(uint8_t*)(ftspRef - i + 1) == 0x53)
         {
@@ -2493,7 +2529,7 @@ uint32_t FindOnItemInstanceAddedVft()
         if (!inFunc)
             return 0;
 
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; inFunc && i < 1000; i++)
         {
             if (*(uint8_t*)(inFunc - i) == 0x48 && *(uint8_t*)(inFunc - i + 1) == 0x8B && *(uint8_t*)(inFunc - i + 2) == 0xC4)
             {
@@ -2551,7 +2587,7 @@ uint64_t FindIsNetReady()
 
         if (VersionInfo.FortniteVersion >= 20 && IsNetReady_.Get())
         {
-            for (int i = 0; i < 0x30; i++)
+            for (int i = 0; IsNetReady_.Get() && i < 0x30; i++)
             {
                 if (*(uint8_t*)(IsNetReady_.Get() - i) == 0x48 && *(uint8_t*)(IsNetReady_.Get() - i + 1) == 0x83 && *(uint8_t*)(IsNetReady_.Get() - i + 2) == 0xEC)
                     return IsNetReady = IsNetReady_.Get() - i;
@@ -2581,7 +2617,7 @@ uint64_t FindSpawnInitialSafeZone()
         if (!sRef)
             return 0;
 
-        for (int i = 0; i < 2000; i++)
+        for (int i = 0; sRef && i < 2000; i++)
         {
             auto Ptr = (uint8_t*)(sRef - i);
 
@@ -2615,7 +2651,7 @@ uint64_t FindUpdateSafeZonesPhase()
         if (!sRef)
             return 0;
 
-        for (int i = 0; i < 2000; i++)
+        for (int i = 0; sRef && i < 2000; i++)
         {
             auto Ptr = (uint8_t*)(sRef - i);
 
@@ -2643,6 +2679,9 @@ uint64 FindUpdateIrisReplicationViews()
     if (!bInitialized)
     {
         bInitialized = true;
+
+        if (Offsets::FortniteCL == 39768313)
+            return UpdateIrisReplicationViews = Memcury::PE::GetModuleBase() + 0x958BCE4;
 
         UpdateIrisReplicationViews = Memcury::Scanner::FindPattern("48 8B C4 48 89 58 ? 48 89 70 ? 48 89 78 ? 55 41 54 41 55 41 56 41 57 48 8D A8 ? ? ? ? 48 81 EC ? ? ? ? 48 8B "
                                                                    "05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 4C 8B F1 E8 ? ? ? ? BB")
@@ -2735,7 +2774,7 @@ uint64_t FindHandleMatchHasStarted()
         if (auto ObfOwner = ObfuscatedOwner(sRef))
             HandleMatchHasStarted = ObfOwner;
         else
-        for (int i = 0; i < 2000; i++)
+        for (int i = 0; sRef && i < 2000; i++)
         {
             auto Ptr = (uint8_t*)(sRef - i);
 
@@ -2813,6 +2852,12 @@ uint64 FindInitializeFlightPath()
     {
         bInitialized = true;
 
+        if (Offsets::FortniteCL == 38202817)
+            return InitializeFlightPath = Memcury::PE::GetModuleBase() + 0x9101F80;
+
+        if (Offsets::FortniteCL == 39768313)
+            return InitializeFlightPath = Memcury::PE::GetModuleBase() + 0xBAD3478;
+
         InitializeFlightPath = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 48 81 EC ? ? ? ? 48 8B E9 41 8A D9").Get();
 
         if (!InitializeFlightPath)
@@ -2833,6 +2878,12 @@ uint64 FindReset()
     if (!bInitialized)
     {
         bInitialized = true;
+
+        if (Offsets::FortniteCL == 38202817)
+            return Reset = Memcury::PE::GetModuleBase() + 0x7113FD8;
+
+        if (Offsets::FortniteCL == 39768313)
+            return Reset = Memcury::PE::GetModuleBase() + 0x9662444;
 
         Reset = Memcury::Scanner::FindPattern("48 89 5C 24 ? 57 48 83 EC ? 48 8B 91 ? ? ? ? 48 8B F9 48 85 D2 74 ? 48 8B 01").Get();
 
@@ -2870,7 +2921,7 @@ uint64_t FindNotifyGameMemberAdded()
         if (!sRef)
             return 0;
 
-        for (int i = 0; i < 2000; i++)
+        for (int i = 0; sRef && i < 2000; i++)
         {
             auto Ptr = (uint8_t*)(sRef - i);
 
@@ -2923,7 +2974,7 @@ uint64_t FindPayBuildableClassPlacementCost()
         if (auto ObfOwner = ObfuscatedOwner(sRef))
             return ObfOwner;
         else
-        for (int i = 0; i < 2000; i++)
+        for (int i = 0; sRef.Get() && i < 2000; i++)
         {
             auto Ptr = (uint8_t*)(sRef.Get() - i);
 
@@ -2958,7 +3009,7 @@ uint64_t FindCanAffordToPlaceBuildableClass()
             return ObfOwner;
         if (VersionInfo.FortniteVersion < 12.00)
         {
-            for (int i = 0; i < 2000; i++)
+            for (int i = 0; sRef.Get() && i < 2000; i++)
             {
                 auto Ptr = (uint8_t*)(sRef.Get() - i);
 
@@ -2967,7 +3018,7 @@ uint64_t FindCanAffordToPlaceBuildableClass()
             }
         }
         else
-            for (int i = 0; i < 2000; i++)
+            for (int i = 0; sRef.Get() && i < 2000; i++)
             {
                 auto Ptr = (uint8_t*)(sRef.Get() - i);
 
@@ -3039,7 +3090,7 @@ uint64 FindLoadPlayset(const std::vector<uint8_t>& Bytes, int recursive)
         if (!StringRef.Get())
             return 0;
 
-        for (int i = 0; i < 400; i++)
+        for (int i = 0; StringRef.Get() && i < 400; i++)
         {
             auto CurrentByte = *(uint8_t*)(StringRef.Get() - i);
 
@@ -3075,7 +3126,7 @@ uint32 FindSpawnDecoVft()
     if (auto ObfOwner = ObfuscatedOwner(sRef))
         SpawnDeco = ObfOwner;
     else
-    for (int i = 0; i < 2000; i++)
+    for (int i = 0; sRef.Get() && i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(sRef.Get() - i);
 
@@ -3109,7 +3160,7 @@ uint32 FindShouldAllowServerSpawnDecoVft()
 
     uint64 ShouldAllowServerSpawnDecoPart = 0;
 
-    for (int i = 0; i < 2000; i++)
+    for (int i = 0; sRef.Get() && i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(sRef.Get() - i);
 
@@ -3129,7 +3180,7 @@ uint32 FindShouldAllowServerSpawnDecoVft()
     if (auto ObfOwner = ObfuscatedOwner(sRef))
         ShouldAllowServerSpawnDeco = ObfOwner;
     else
-    for (int i = 0; i < 2000; i++)
+    for (int i = 0; ShouldAllowServerSpawnDecoPart && i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(ShouldAllowServerSpawnDecoPart - i);
 
@@ -3167,7 +3218,7 @@ uint64 FindSetState()
     if (auto ObfOwner = ObfuscatedOwner(sRef))
         return ObfOwner;
     else
-    for (int i = 0; i < 2000; i++)
+    for (int i = 0; sRef.Get() && i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(sRef.Get() - i);
 
@@ -3195,7 +3246,7 @@ uint64_t FindPickSupplyDropLocation()
     if (auto ObfOwner = ObfuscatedOwner(sRef))
         return ObfOwner;
     else
-    for (int i = 0; i < 2000; i++)
+    for (int i = 0; sRef.Get() && i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(sRef.Get() - i);
 
@@ -3218,7 +3269,7 @@ uint64_t FindSetPickupTarget()
     if (auto ObfOwner = ObfuscatedOwner(sRef))
         return ObfOwner;
     else
-    for (int i = 0; i < 0x1500; i++)
+    for (int i = 0; sRef.Get() && i < 0x1500; i++)
     {
         auto Ptr = (uint8_t*)(sRef.Get() - i);
 
@@ -3245,7 +3296,7 @@ uint64 FindInitializePlayerGameplayAbilities()
     if (auto ObfOwner = ObfuscatedOwner(sRef))
         return ObfOwner;
     else
-    for (int i = 0; i < 2000; i++)
+    for (int i = 0; sRef.Get() && i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(sRef.Get() - i);
 
@@ -3279,7 +3330,7 @@ uint64 FindListenCall()
         if (!sRef.IsValid())
             return ListenCall = 0;
 
-        for (int i = 0; i < 0x100; i++)
+        for (int i = 0; sRef.Get() && i < 0x100; i++)
         {
             auto Ptr = (uint8_t*)(sRef.Get() - i);
 
@@ -3304,7 +3355,7 @@ uint64 FindQueueStatEvent()
     if (auto ObfOwner = ObfuscatedOwner(sRef))
         return ObfOwner;
     else
-    for (int i = 0; i < 2000; i++)
+    for (int i = 0; sRef.Get() && i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(sRef.Get() - i);
 
@@ -3336,7 +3387,7 @@ uint64 FindFinishWorldInitialization()
         }
 
         uint64_t ShouldPIESetDefaultPlaylistPart = 0;
-        for (int i = 0; i < 2000; i++)
+        for (int i = 0; MeshSRef.Get() && i < 2000; i++)
         {
             auto Ptr = (uint8_t*)(MeshSRef.Get() - i);
 
@@ -3354,7 +3405,7 @@ uint64 FindFinishWorldInitialization()
 
         uint64_t ShouldPIESetDefaultPlaylist = 0;
 
-        for (int i = 0; i < 2000; i++)
+        for (int i = 0; ShouldPIESetDefaultPlaylistPart && i < 2000; i++)
         {
             auto Ptr = (uint8_t*)(ShouldPIESetDefaultPlaylistPart - i);
 
@@ -3387,7 +3438,7 @@ uint64 FindFinishWorldInitialization()
         return 0;
 
     uint64_t FinishWorldInitializationPart = 0;
-    for (int i = 0; i < 2000; i++)
+    for (int i = 0; sRef.Get() && i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(sRef.Get() - i);
 
@@ -3403,7 +3454,7 @@ uint64 FindFinishWorldInitialization()
         }
     }
 
-    for (int i = 0; i < 2000; i++)
+    for (int i = 0; FinishWorldInitializationPart && i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(FinishWorldInitializationPart - i);
 
@@ -3432,7 +3483,7 @@ uint64 FindActivatePhase()
 
     uint64 ActivatePhasePart = 0;
 
-    for (int i = 0; i < 2000; i++)
+    for (int i = 0; sRef.Get() && i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(sRef.Get() - i);
 
@@ -3448,7 +3499,7 @@ uint64 FindActivatePhase()
         }
     }
 
-    for (int i = 0; i < 2000; i++)
+    for (int i = 0; ActivatePhasePart && i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(ActivatePhasePart - i);
 
@@ -3542,7 +3593,7 @@ uint64 FindSetIsDoorOpen()
         return ObfOwner;
 
     uint64_t SetIsDoorOpenPart = 0;
-    for (int i = 0; i < 0x10000; i++)
+    for (int i = 0; CVarRef.Get() && i < 0x10000; i++)
     {
         auto Ptr = (uint8_t*)(CVarRef.Get() - i);
 
@@ -3560,7 +3611,7 @@ uint64 FindSetIsDoorOpen()
     printf("CVarRef: %llx\n", SetIsDoorOpenPart - ImageBase);
 
     if (SetIsDoorOpenPart)
-        for (int i = 0; i < 2000; i++)
+        for (int i = 0; SetIsDoorOpenPart && i < 2000; i++)
         {
             auto Ptr = (uint8_t*)(SetIsDoorOpenPart - i);
 
@@ -3609,7 +3660,7 @@ uint64 FindSelectAndSetupMyBuildingLevel()
     if (auto ObfOwner = ObfuscatedOwner(sRef))
         return ObfOwner;
     else
-    for (int i = 0; i < 2000; i++)
+    for (int i = 0; sRef.Get() && i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(sRef.Get() - i);
 
@@ -3625,7 +3676,7 @@ uint64 FindSelectAndSetupMyBuildingLevel()
         }
     }
 
-    for (int i = 0; i < 2000; i++)
+    for (int i = 0; SelectAndSetupMyBuildingLevelPart && i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(SelectAndSetupMyBuildingLevelPart - i);
 
@@ -3649,7 +3700,7 @@ uint64 FindStreamInMyBuilding()
         return 0;
 
     uint64_t StreamInMyBuildingPart = 0;
-    for (int i = 0; i < 0x10000; i++)
+    for (int i = 0; sRef.Get() && i < 0x10000; i++)
     {
         auto Ptr = (uint8_t*)(sRef.Get() - i);
 
@@ -3665,7 +3716,7 @@ uint64 FindStreamInMyBuilding()
         }
     }
 
-    for (int i = 0; i < 2000; i++)
+    for (int i = 0; StreamInMyBuildingPart && i < 2000; i++)
     {
         auto Ptr = (uint8_t*)(StreamInMyBuildingPart - i);
 
@@ -3836,7 +3887,7 @@ void FindNullsAndRetTrues()
 
         if (sRef)
         {
-            for (int i = 0; i < 1000; i++)
+            for (int i = 0; sRef && i < 1000; i++)
     {
                 auto Ptr = (uint8_t*)(sRef - i);
 
@@ -3927,7 +3978,7 @@ void FindNullsAndRetTrues()
                 RetTrueFuncs.push_back(ObfOwner);
             else if (sRef)
             {
-                for (int i = 0; i < 0x2000; i++)
+                for (int i = 0; sRef && i < 0x2000; i++)
                 {
                     auto Ptr = (uint8_t*)(sRef - i);
 
@@ -3952,7 +4003,7 @@ void FindNullsAndRetTrues()
         RetTrueFuncs.push_back(ObfOwner);
     else if (sRef)
     {
-        for (int i = 0; i < 1000; i++)
+        for (int i = 0; sRef && i < 1000; i++)
         {
             auto Ptr = (uint8_t*)(sRef - i);
 

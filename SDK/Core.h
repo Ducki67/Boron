@@ -48,9 +48,17 @@ namespace SDK
             FName__Ctor(this, String.CStr(), 1);
         }
 
+        int32 GetDisplayIndex() const
+        {
+            if (!Offsets::FNameIndexKey || !ComparisonIndex)
+                return ComparisonIndex;
+
+            return -(int32)(((uint32)ComparisonIndex - 1) ^ Offsets::FNameIndexKey);
+        }
+
         bool IsValid() const
         {
-            return ComparisonIndex > 0;
+            return GetDisplayIndex() > 0;
         }
 
         UEAllocatedString ToString() const
@@ -506,7 +514,7 @@ namespace SDK
 
             auto setnzAddr = Memcury::Scanner(GetNativeFunc()).ScanFor({ 0x0F, 0x95 }).Get();
 
-            for (int i = 0; i < 0x200; i++)
+            for (int i = 0; setnzAddr && i < 0x200; i++)
             {
                 auto Ptr = (uint8_t*)(setnzAddr + i);
 
@@ -761,24 +769,26 @@ namespace SDK
     public:
         inline int Num() const
         {
-            return (int32)(*(const uint32_t*)((const uint8_t*)this + 0x8) ^ Crypto.NumElementsXor);
+            return (int32)(*(const uint32_t*)((const uint8_t*)this + Offsets::ObjArrayNum) ^ Crypto.NumElementsXor);
         }
 
         inline int Max() const
         {
-            return (int32)(*(const uint32_t*)((const uint8_t*)this + 0xC) ^ Crypto.MaxElementsXor);
+            return (int32)(*(const uint32_t*)((const uint8_t*)this + Offsets::ObjArrayMax) ^ Crypto.MaxElementsXor);
         }
 
         inline FUObjectItem* GetItemByIndex(const int32 Index) const
         {
             const int32 ChunkIndex = Index / 0x10000;
             const int32 ChunkOffset = Index % 0x10000;
-            const int32 NumChunks = (int32)(*(const uint32_t*)((const uint8_t*)this + 0x14) ^ Crypto.NumChunksXor);
 
-            if (Index < 0 || Index >= Num() || ChunkIndex >= NumChunks)
+            if (Index < 0 || Index >= Num())
                 return nullptr;
 
-            auto Chunks = (uint8_t**)DecryptPointer(*(const uint64_t*)((const uint8_t*)this + 0x18), Crypto.ObjectsRotate, Crypto.ObjectsSubtract);
+            if (Offsets::ObjArrayNumChunks >= 0 && ChunkIndex >= (int32)(*(const uint32_t*)((const uint8_t*)this + Offsets::ObjArrayNumChunks) ^ Crypto.NumChunksXor))
+                return nullptr;
+
+            auto Chunks = (uint8_t**)DecryptPointer(*(const uint64_t*)((const uint8_t*)this + Offsets::ObjArrayObjects), Crypto.ObjectsRotate, Crypto.ObjectsSubtract);
             if (!Chunks || !Chunks[ChunkIndex])
                 return nullptr;
 
@@ -1299,10 +1309,10 @@ namespace SDK
                     auto& AssetName = *(FName*)(__int64(this) + (VersionInfo.EngineVersion < 5.3 ? 0x14 : 0xC));
                     auto& SubPathString = *(FString*)(__int64(this) + (VersionInfo.EngineVersion < 5.3 ? 0x18 : 0x10));
 
-                    if (PackageName.ComparisonIndex > 0)
+                    if (PackageName.IsValid())
                     {
                         auto FullPath = PackageName.ToWString();
-                        if (AssetName.ComparisonIndex > 0)
+                        if (AssetName.IsValid())
                             FullPath += L"." + AssetName.ToWString();
                         if (SubPathString.Num() > 0)
                             FullPath += L":" + SubPathString.ToWString();
@@ -1310,7 +1320,7 @@ namespace SDK
                         WeakPtr = Ret = FindObject(FullPath.c_str(), Class);
                     }
                 }
-                else if (ObjectID.AssetPathName.ComparisonIndex > 0)
+                else if (ObjectID.AssetPathName.IsValid())
                 {
                     auto FullPath = ObjectID.AssetPathName.ToWString();
                     if (ObjectID.SubPathString.Num() > 0)

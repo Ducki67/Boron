@@ -263,8 +263,29 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
         InitializePlayerGameplayAbilities(Interface);
     }
     else
+    {
+        if (VersionInfo.FortniteVersion >= 33 && AFortGameMode::AbilitySets.Num() == 0)
+        {
+            static const wchar_t* FallbackSets[] = {
+                L"/Game/Abilities/Player/Generic/Traits/DefaultPlayer/GAS_AthenaPlayer.GAS_AthenaPlayer",
+                L"/TacticalSprintGame/Gameplay/AS_TacticalSprint.AS_TacticalSprint",
+                L"/Ascender/Gameplay/Ascender/AS_Ascender.AS_Ascender",
+                L"/HillScramble/Gameplay/AS_HillScramble.AS_HillScramble",
+                L"/SlideImpulse/Gameplay/AS_SlideImpulse.AS_SlideImpulse",
+            };
+
+            for (auto Path : FallbackSets)
+                if (auto Set = FindObject<UFortAbilitySet>(Path))
+                {
+                    Set->AddToRoot();
+                    AFortGameMode::AbilitySets.Add(Set);
+                    printf("[Boron][Abilities] fallback set %ls\n", Path);
+                }
+        }
+
         for (auto& AbilitySet : AFortGameMode::AbilitySets)
             PlayerController->PlayerState->AbilitySystemComponent->GiveAbilitySet(AbilitySet);
+    }
 
    //hurdle  stuff i tryed
     if (VersionInfo.EngineVersion >= 5.4 && PlayerController->PlayerState->AbilitySystemComponent)
@@ -716,7 +737,7 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
                         {
                             auto& PackageName = *(FName*)(__int64(&PartSoft) + (VersionInfo.EngineVersion < 5.3 ? 0x10 : 0x8));
 
-                            if (PackageName.ComparisonIndex > 0)
+                            if (PackageName.IsValid())
                             {
                                 auto Path = PackageName.ToWString();
                                 printf("[Boron][Cosmetics] softpart[%d] UNRESOLVED: %ls\n", i, Path.c_str());
@@ -816,6 +837,44 @@ uint32 ServerAttemptAircraftJumpVft;
 
 void AFortPlayerControllerAthena::ServerAttemptAircraftJump_(UObject* Context, FFrame& Stack)
 {
+    if (VersionInfo.FortniteVersion >= 33 && ServerAttemptAircraftJump_OG && !LategameConfig::bLateGame)
+    {
+        auto bIsCompCtx = Context->IsA(FindClass("FortControllerComponent_Aircraft"));
+        auto JumpPC = bIsCompCtx ? (AFortPlayerControllerAthena*)((UActorComponent*)Context)->GetOwner() : (AFortPlayerControllerAthena*)Context;
+        printf("[Boron][Jump] CH6 native jump: inAircraft=%d pawn=%p\n", JumpPC ? (int)JumpPC->IsInAircraft() : -1, JumpPC ? (void*)JumpPC->Pawn : nullptr);
+        ServerAttemptAircraftJump_OG(Context, Stack);
+        printf("[Boron][Jump] CH6 native jump done: inAircraft=%d pawn=%p\n", JumpPC ? (int)JumpPC->IsInAircraft() : -1, JumpPC ? (void*)JumpPC->Pawn : nullptr);
+        if (bIsCompCtx && JumpPC && JumpPC->IsInAircraft() && !JumpPC->Pawn)
+        {
+            static bool bLoggedImpl = false;
+            if (!bLoggedImpl)
+            {
+                bLoggedImpl = true;
+                printf("[Boron][Jump] CH6 jump impl rva=0x%llX\n", (unsigned long long)((uint64)(*(void***)Context)[0x590 / 8] - Memcury::PE::GetModuleBase()));
+            }
+            if (auto KickFn = Context->GetFunction("KickFromAircraft"))
+                Context->ProcessEvent(KickFn, nullptr);
+            auto SkyPawn = (AFortPlayerPawnAthena*)JumpPC->MyFortPawn;
+            bool bWasSkydiving = SkyPawn && SkyPawn->HasbIsSkydiving() ? (bool)SkyPawn->bIsSkydiving : false;
+            if (SkyPawn && !bWasSkydiving)
+                SkyPawn->BeginSkydiving(true);
+            if (SkyPawn)
+            {
+                SkyPawn->ForceNetUpdate();
+                if (auto RestartFn = JumpPC->GetFunction("ClientRestart"))
+                {
+                    struct { void* NewPawn; } RestartParams{ (void*)SkyPawn };
+                    JumpPC->ProcessEvent(RestartFn, &RestartParams);
+                }
+                printf("[Boron][Jump] CH6 ClientRestart sent pawn=%p\n", (void*)SkyPawn);
+            }
+            printf("[Boron][Jump] CH6 KickFromAircraft fallback: inAircraft=%d pawn=%p skydiving %d -> %d health=%.1f z=%.0f\n", (int)JumpPC->IsInAircraft(), (void*)JumpPC->Pawn,
+                   (int)bWasSkydiving, SkyPawn && SkyPawn->HasbIsSkydiving() ? (int)SkyPawn->bIsSkydiving : -1, SkyPawn ? SkyPawn->GetHealth() : -1.f,
+                   SkyPawn ? SkyPawn->K2_GetActorLocation().Z : 0.0);
+        }
+        return;
+    }
+
     FRotator Rotation;
     Stack.StepCompiledIn(&Rotation);
     Stack.IncrementCode();
@@ -984,7 +1043,7 @@ void AFortPlayerControllerAthena::ServerExecuteInventoryItem_(UObject* Context, 
         }
 
         auto RangedWeap = CurrentWeap && CurrentWeap->IsA(AFortWeaponRanged::StaticClass()) ? (AFortWeaponRanged*)CurrentWeap : nullptr;
-        if (VersionInfo.FortniteVersion >= 32 && RangedWeap && RangedWeap->HasAmmoCount())
+        if (VersionInfo.FortniteVersion >= 32 && RangedWeap && RangedWeap->HasAmmoCount() && FFortItemEntry::HasLoadedAmmo())
         {
             auto OldGuid = CurrentWeap->ItemEntryGuid;
             auto OldEntry = PC->WorldInventory->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& en) { return en.ItemGuid == OldGuid; }, FFortItemEntry::Size());
@@ -1555,14 +1614,26 @@ void AFortPlayerControllerAthena::ServerBeginEditingBuildingActor(UObject* Conte
 
     SetEditingPlayer(Building, PlayerState);
 
-    if (!PlayerController->MyFortPawn->CurrentWeapon->IsA<AFortWeap_EditingTool>())
+    if (VersionInfo.FortniteVersion >= 33)
+    {
+        static int bn = 0;
+        if (bn++ < 10)
+            printf("[Boron][Edit] begin %s weapon=%p\n", Building->Class->Name.ToString().c_str(), (void*)PlayerController->MyFortPawn->CurrentWeapon);
+    }
+
+    if (!PlayerController->MyFortPawn->CurrentWeapon || !PlayerController->MyFortPawn->CurrentWeapon->IsA<AFortWeap_EditingTool>())
     {
         auto EditToolEntry = PlayerController->WorldInventory->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& entry) { return entry.ItemDefinition->Class == UFortEditToolItemDefinition::StaticClass(); },
                                                                                                   FFortItemEntry::Size());
+        if (!EditToolEntry)
+            return;
 
         PlayerController->MyFortPawn->EquipWeaponDefinition((UFortWeaponItemDefinition*)EditToolEntry->ItemDefinition, EditToolEntry->ItemGuid, EditToolEntry->HasTrackerGuid() ? EditToolEntry->TrackerGuid : FGuid(),
                                                             false);
     }
+
+    if (!PlayerController->MyFortPawn->CurrentWeapon)
+        return;
 
     if (auto EditTool = PlayerController->MyFortPawn->CurrentWeapon->Cast<AFortWeap_EditingTool>())
     {
@@ -1587,6 +1658,42 @@ void AFortPlayerControllerAthena::ServerEditBuildingActor(UObject* Context, FFra
     Stack.StepCompiledIn(&bMirrored);
     Stack.IncrementCode();
     auto PlayerController = (AFortPlayerControllerAthena*)Context;
+    if (!ReplaceBuildingActor_ && VersionInfo.FortniteVersion >= 33)
+    {
+        if (!PlayerController || !Building || !NewClass || !Building->IsA<ABuildingSMActor>() || Building->EditingPlayer != PlayerController->PlayerState || Building->bDestroyed)
+            return;
+
+        SetEditingPlayer(Building, nullptr);
+
+        auto Loc = Building->K2_GetActorLocation();
+        auto Rot = Building->K2_GetActorRotation();
+        Rot.Yaw += 90.f * RotationIterations;
+
+        auto NewBuild = UWorld::SpawnActorUnfinished<ABuildingSMActor>(NewClass, Loc, Rot, PlayerController);
+        if (!NewBuild)
+        {
+            printf("[Boron][Edit] spawn failed class=%s\n", NewClass->Name.ToString().c_str());
+            return;
+        }
+
+        NewBuild->InitializeKismetSpawnedBuildingActor(NewBuild, PlayerController, true, nullptr, false);
+        UWorld::FinishSpawnActor(NewBuild, Loc, Rot);
+
+        NewBuild->CurrentBuildingLevel = Building->CurrentBuildingLevel;
+        NewBuild->OnRep_CurrentBuildingLevel();
+        NewBuild->SetMirrored(bMirrored);
+        NewBuild->bPlayerPlaced = true;
+        NewBuild->Team = Building->Team;
+        if (NewBuild->HasTeamIndex())
+            NewBuild->TeamIndex = Building->Team;
+
+        static int en = 0;
+        if (en++ < 10)
+            printf("[Boron][Edit] %s -> %s rotIt=%d mirrored=%d new=%p\n", Building->Class->Name.ToString().c_str(), NewClass->Name.ToString().c_str(), (int)RotationIterations, (int)bMirrored, (void*)NewBuild);
+        Building->K2_DestroyActor();
+        return;
+    }
+
 
     if (!PlayerController || !Building || !NewClass || !Building->IsA<ABuildingSMActor>() || !CanBePlacedByPlayer(NewClass) || Building->EditingPlayer != PlayerController->PlayerState || Building->bDestroyed)
     {
@@ -1933,7 +2040,10 @@ void AFortPlayerControllerAthena::ClientOnPawnDied(AFortPlayerControllerAthena* 
     auto GameState = (AFortGameStateAthena*)GameMode->GameState;
     auto PlayerState = (AFortPlayerStateAthena*)PlayerController->PlayerState;
 
-    if (PlayerController->WorldInventory && PlayerController->Pawn &&
+    if (!FFortItemEntry::HasCount())
+        printf("[Boron][Death] CH6 pawn died pawn=%p loc.z=%.0f - item drop skipped (ItemizationCore layout)\n", (void*)PlayerController->Pawn,
+               PlayerController->Pawn ? PlayerController->Pawn->K2_GetActorLocation().Z : 0.0);
+    else if (PlayerController->WorldInventory && PlayerController->Pawn &&
         ((PlayerController->Pawn->HasbShouldDropItemsOnDeath() ? PlayerController->Pawn->bShouldDropItemsOnDeath : true) && !GameRuleConfig::bKeepInventory))
     {
         bool bHasMats = false;
@@ -3911,6 +4021,7 @@ void AFortPlayerControllerAthena::ServerSetMultiProductCosmeticLoadout_(UObject*
                                    : Offsets::FortniteCL == 37324991 ? 0x9001310
                                    : Offsets::FortniteCL == 37770125 ? 0x94729e8
                                    : Offsets::FortniteCL == 38202817 ? 0x9672f80
+                                   : Offsets::FortniteCL == 39768313 ? 0xc1629c8
                                                                      : 0;
 
     static auto CosmeticCompClass = FindClass("FortControllerComponent_CosmeticLoadout");
@@ -5283,7 +5394,7 @@ void AFortPlayerControllerAthena::PostLoadHook()
     if (!ServerAttemptAircraftJumpPC)
         Hooking::ExecHook(DefaultObjImpl("FortControllerComponent_Aircraft")->GetFunction("ServerAttemptAircraftJump"), ServerAttemptAircraftJump_, ServerAttemptAircraftJump_OG);
     else
-        Hooking::ExecHook(ServerAttemptAircraftJumpPC, ServerAttemptAircraftJump_);
+        Hooking::ExecHook(ServerAttemptAircraftJumpPC, ServerAttemptAircraftJump_, ServerAttemptAircraftJump_OG);
     //}
 
     auto sapFn = GetDefaultObj()->GetFunction("ServerAcknowledgePossession");
@@ -5292,6 +5403,17 @@ void AFortPlayerControllerAthena::PostLoadHook()
         auto sapIdx = sapFn->GetVTableIndex();
         printf("[Boron][Pawn] ServerAcknowledgePossession: idx=%u athenaVft=%p (vtable swap)\n",
                sapIdx, (sapIdx != (uint32_t)-1) ? GetDefaultObj()->Vft[sapIdx] : nullptr);
+        if (VersionInfo.FortniteVersion >= 33)
+        {
+            auto Base = Memcury::PE::GetModuleBase();
+            auto Vft = GetDefaultObj()->Vft;
+            printf("[Boron][VtDiag] AthenaPC vtable rva=0x%llX\n", (unsigned long long)((uint64)Vft - Base));
+            for (uint32 Off : { 0x9a8u, 0x9b0u, 0xa60u, 0x12b0u, 0x12b8u })
+            {
+                auto Fn = (uint8*)Vft[Off / 8];
+                printf("[Boron][VtDiag]   +0x%X -> rva 0x%llX bytes %02X %02X %02X %02X\n", Off, (unsigned long long)((uint64)Fn - Base), Fn[0], Fn[1], Fn[2], Fn[3]);
+            }
+        }
         if (sapIdx != (uint32_t)-1)
             Hooking::Hook<AFortPlayerControllerAthena>(sapIdx, ServerAcknowledgePossession_Native, ServerAcknowledgePossession_NativeOG);
     }
@@ -5369,6 +5491,8 @@ void AFortPlayerControllerAthena::PostLoadHook()
             ProfileLoadoutOverwrite = 0x947710c;
         else if (Offsets::FortniteCL == 38202817)
             ProfileLoadoutOverwrite = 0x96774b4;
+        else if (Offsets::FortniteCL == 39768313)
+            ProfileLoadoutOverwrite = 0xc166c80;
 
         if (ProfileLoadoutOverwrite)
         {

@@ -340,6 +340,32 @@ void Main()
         Hooking::Patch<uint8_t>(RetTrueFunc + 4, 0xc3);
     }
 
+    if (Offsets::FortniteCL == 38202817)
+    {
+        auto Base = Memcury::PE::GetModuleBase();
+
+        for (uint64_t Rva : { 0x537F4A0ull, 0x4336BACull, 0x27B3958ull, 0x27B3598ull, 0x1D91EECull, 0x2C7D6F0ull, 0x1BED9A8ull, 0x2C7736Cull, 0x3E2C464ull, 0x2C78CDCull,
+                              0x27306ACull, 0xAF29848ull, 0x19D7D70ull, 0x2CAF22Cull, 0x2CB06C8ull, 0x9B2A080ull, 0x6D3E210ull, 0xC6A3B28ull })
+            Hooking::Patch<uint8_t>(Base + Rva, 0xC3);
+
+        Hooking::Patch<uint8_t>(Base + 0x338C8F8, 0x01);
+        Hooking::Patch<uint8_t>(Base + 0x721A50C, 0xEB);
+        Hooking::Patch<uint8_t>(Base + 0x3E6E09D, 0xEB);
+        Hooking::Patch<uint32_t>(Base + 0x7C86D88, 0xC0FFC031);
+        Hooking::Patch<uint8_t>(Base + 0x7C86D8C, 0xC3);
+        printf("[Boron][3211] applied Remix 32.11 crash patches\n");
+    }
+
+    if (Offsets::FortniteCL == 39768313)
+    {
+        auto Base = Memcury::PE::GetModuleBase();
+        Hooking::Patch<uint8_t>(Base + 0x5121944, 0xC3);
+        Hooking::Patch<uint8_t>(Base + 0x51217C4, 0xC3);
+        Hooking::Patch<uint8_t>(Base + 0x69DD970, 0xC3);
+        Hooking::Patch<uint8_t>(Base + 0x52F96EF, 0xEB);
+        printf("[Boron][3330] RequestExit patched\n");
+    }
+
     auto SpawnTrackingGate = FindSpawnActorTrackingGate();
     if (SpawnTrackingGate)
     {
@@ -367,6 +393,16 @@ void Main()
 
     auto GIsClientAddr = FindGIsClient();
     auto GIsServerAddr = FindGIsServer();
+    if (Offsets::FortniteCL == 38202817)
+    {
+        GIsClientAddr = Memcury::PE::GetModuleBase() + 0x12D4E1CA;
+        GIsServerAddr = Memcury::PE::GetModuleBase() + 0x12D4E166;
+    }
+    else if (Offsets::FortniteCL == 39768313)
+    {
+        GIsClientAddr = Memcury::PE::GetModuleBase() + 0x161B4DE9;
+        GIsServerAddr = Memcury::PE::GetModuleBase() + 0x161B4D72;
+    }
     printf("[Boron] GIsClient=0x%llX GIsServer=0x%llX (FN %.2f)\n",
            (unsigned long long)GIsClientAddr, (unsigned long long)GIsServerAddr, VersionInfo.FortniteVersion);
 
@@ -417,7 +453,7 @@ void Main()
     // forgot to update thsi shit
     else if (VersionInfo.FortniteVersion >= 31.00 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_Sunflower"))
         terrainOpen = L"open BlastBerry_Terrain";
-    else if (Offsets::FortniteCL == 37770125 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_PunchBerry"))
+    else if (Offsets::FortniteCL == 37770125 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_PunchBerry")) // 32.00 and 32.11 used here btw!!
     {
         auto Base = Memcury::PE::GetModuleBase();
         auto GFS = ((void* (*)())(Base + 0x2bacc18))();
@@ -437,6 +473,8 @@ void Main()
     }
     else if (VersionInfo.FortniteVersion >= 32.10 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_PunchBerry"))
         terrainOpen = L"open PunchBerry_Terrain";
+    else if (VersionInfo.FortniteVersion >= 33.00 && wcsstr(FConfig::Playlist, L"/FigmentPlaylists/"))
+        terrainOpen = L"open /Figment_S02_Map/Athena_Terrain_S02";
     /*
      else if (VersionInfo.FortniteVersion == 32.00 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_PunchBerrySolo.Playlist_PunchBerrySolo"))
         terrainOpen = L"open PunchBerry_Terrain";*/
@@ -444,7 +482,9 @@ void Main()
     {
         if (VersionInfo.FortniteVersion >= 27.00)
         {
-            if (VersionInfo.FortniteVersion >= 32.00 && VersionInfo.FortniteVersion < 33.00)
+            if (VersionInfo.FortniteVersion >= 33.00)
+                terrainOpen = L"open Hermes_Terrain";
+            else if (VersionInfo.FortniteVersion >= 32.00 && VersionInfo.FortniteVersion < 33.00)
                 terrainOpen = L"open Apollo_Terrain_Retro";
             else if (VersionInfo.FortniteVersion >= 28.00)
                 terrainOpen = L"open Helios_Terrain";

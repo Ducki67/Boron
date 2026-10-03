@@ -334,6 +334,20 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::StartAircraftPhase()
         Aircraft->ReplicatedFlightTimestamp = (float)Time;
         bAircraftIsLocked = true;
 
+        if (VersionInfo.FortniteVersion >= 33)
+        {
+            printf("[Boron][Aircraft] flight times: dropStart=%.1f dropEnd=%.1f flightEnd=%.1f speed=%.1f\n",
+                   FlightInfo.TimeTillDropStart, FlightInfo.TimeTillDropEnd, FlightInfo.TimeTillFlightEnd, FlightInfo.FlightSpeed);
+            if (Aircraft->DropEndTime - Aircraft->DropStartTime < 20.f)
+            {
+                auto NewEnd = FlightInfo.TimeTillFlightEnd - 5.f > FlightInfo.TimeTillDropStart + 20.f ? (float)Time + FlightInfo.TimeTillFlightEnd - 5.f : Aircraft->DropStartTime + 60.f;
+                printf("[Boron][Aircraft] drop window %.1fs too short -> dropEnd %.1f -> %.1f\n", Aircraft->DropEndTime - Aircraft->DropStartTime, Aircraft->DropEndTime, NewEnd);
+                Aircraft->DropEndTime = NewEnd;
+                if (Aircraft->FlightEndTime < NewEnd)
+                    Aircraft->FlightEndTime = NewEnd + 5.f;
+            }
+        }
+
         for (auto& Player__Uncasted : ((AFortGameMode*)UWorld::GetWorld()->AuthorityGameMode)->AlivePlayers)
         {
             auto Player = (AFortPlayerControllerAthena*)Player__Uncasted;
