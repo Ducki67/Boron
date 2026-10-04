@@ -103,6 +103,31 @@ static void FinishPickup(AFortPickupAthena* Pickup, AFortPlayerPawnAthena* Pawn,
                Pawn->HasIncomingPickups() ? Pawn->IncomingPickups.Num() : -1);
 }
 
+int64* CH6StackSize(FFortItemEntry* Entry);
+static int CH6MergeStack(AFortInventory* Inv, const UFortItemDefinition* Def, int MaxStack, int Incoming, int64* OutHave)
+{
+    auto ItemP = MaxStack > 1 ? Inv->Inventory.ItemInstances.Search([&](UFortWorldItem* e) { return e->ItemEntry.ItemDefinition == Def; }) : nullptr;
+    int64* Have = ItemP ? CH6StackSize(&(*ItemP)->ItemEntry) : nullptr;
+    if (Have && *Have < MaxStack)
+    {
+        int Add = (int)(MaxStack - *Have) < Incoming ? (int)(MaxStack - *Have) : Incoming;
+        *Have += Add;
+        auto RepEntry = Inv->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& e) { return e.ItemDefinition == Def; }, FFortItemEntry::Size());
+        if (RepEntry)
+        {
+            if (auto RepStack = CH6StackSize(RepEntry))
+                *RepStack = *Have;
+            Inv->Inventory.MarkItemDirty(*RepEntry);
+        }
+        Inv->bRequiresLocalUpdate = true;
+        Inv->HandleInventoryLocalUpdate();
+        Incoming -= Add;
+    }
+    if (OutHave)
+        *OutHave = Have ? *Have : -1;
+    return Incoming;
+}
+
 static void ServerHandlePickupProbe(UObject* Context, FFrame& Stack)
 {
     AFortPickupAthena* Pickup = nullptr;
@@ -140,6 +165,23 @@ static void ServerHandlePickupProbe(UObject* Context, FFrame& Stack)
         auto Inv = PC->WorldInventory;
         auto Def = Pickup->PrimaryPickupItemEntry.ItemDefinition;
         auto MaxStack = Def->GetMaxStackSize();
+
+        if (!FFortItemEntry::HasCount())
+        {
+            auto PickupStack = CH6StackSize(&Pickup->PrimaryPickupItemEntry);
+            int64 Have = -1;
+            int Incoming = CH6MergeStack(Inv, Def, (int)MaxStack, PickupStack ? (int)*PickupStack : 1, &Have);
+            if (Incoming > 0)
+                Inv->GiveItem(Def, Incoming, 0, 0);
+            Inv->SetRequiresUpdate();
+            after = Inv->Inventory.ReplicatedEntries.Num();
+            bool bFlew = BeginPickupFlight(Pickup, Pawn, InFlyTime, InStartDirection, bPlayPickupSound);
+            FinishPickup(Pickup, Pawn, bFlew, "walkover");
+            static int ch6n = 0;
+            if (ch6n++ < 25)
+                printf("[Boron][Pickup] CH6 walkover def=%s incoming=%d have=%lld max=%d entries %d -> %d\n", Def->Name.ToString().c_str(), PickupStack ? (int)*PickupStack : 1, (long long)Have, (int)MaxStack, before, after);
+            return;
+        }
 
         auto Existing = Inv->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& e) {
             return e.ItemDefinition == Def && e.Count < MaxStack;
@@ -185,7 +227,7 @@ static void ServerHandlePickupProbe(UObject* Context, FFrame& Stack)
         printf("[Boron][Pickup] ServerHandlePickup #%d pickup=%p PC=%p def=%p count=%d entries %d -> %d\n",
                n, (void*)Pickup, (void*)PC,
                (void*)(Pickup ? Pickup->PrimaryPickupItemEntry.ItemDefinition : nullptr),
-               Pickup ? Pickup->PrimaryPickupItemEntry.Count : -1, before, after);
+               Pickup && FFortItemEntry::HasCount() ? Pickup->PrimaryPickupItemEntry.Count : -1, before, after);
 }
 
 void AFortPlayerPawnAthena::ServerHandlePickup_(UObject* Context, FFrame& Stack)
@@ -278,7 +320,7 @@ void AFortPlayerPawnAthena::ServerHandlePickupInfo(UObject* Context, FFrame& Sta
         if (pn++ < 25)
             printf("[Boron][Pickup] RPC #%d pickup=%p bPickedUp=%d def=%p count=%d PC=%p inv=%p\n",
                    pn, (void*)Pickup, (int)Pickup->bPickedUp,
-                   (void*)Pickup->PrimaryPickupItemEntry.ItemDefinition, Pickup->PrimaryPickupItemEntry.Count,
+                   (void*)Pickup->PrimaryPickupItemEntry.ItemDefinition, FFortItemEntry::HasCount() ? Pickup->PrimaryPickupItemEntry.Count : -1,
                    (void*)PC, (void*)(PC ? PC->WorldInventory : nullptr));
 
         if (PC && PC->WorldInventory && Pickup->PrimaryPickupItemEntry.ItemDefinition)
@@ -287,9 +329,16 @@ void AFortPlayerPawnAthena::ServerHandlePickupInfo(UObject* Context, FFrame& Sta
             auto& Entry = Pickup->PrimaryPickupItemEntry;
             auto Def = Entry.ItemDefinition;
             auto MaxStack = Def->GetMaxStackSize();
-            int32 Remaining = Entry.Count > 0 ? Entry.Count : 1;
+            int32 Remaining = 1;
+            if (!FFortItemEntry::HasCount())
+            {
+                auto PickupStack = CH6StackSize(&Entry);
+                Remaining = CH6MergeStack(Inv, Def, (int)MaxStack, PickupStack ? (int)*PickupStack : 1, nullptr);
+            }
+            else
+                Remaining = Entry.Count > 0 ? Entry.Count : 1;
 
-            if (MaxStack > 1)
+            if (MaxStack > 1 && FFortItemEntry::HasCount())
                 for (int i = 0; i < Inv->Inventory.ReplicatedEntries.Num() && Remaining > 0; i++)
                 {
                     auto& Existing = Inv->Inventory.ReplicatedEntries.Get(i, FFortItemEntry::Size());
@@ -307,7 +356,7 @@ void AFortPlayerPawnAthena::ServerHandlePickupInfo(UObject* Context, FFrame& Sta
 
             static int dumpN = 0;
 
-            if (dumpN++ < 4)
+            if (FFortItemEntry::HasCount() && dumpN++ < 4)
             {
                 printf("[Boron][Inv] ---- dump #%d entries=%d ----\n", dumpN, Inv->Inventory.ReplicatedEntries.Num());
 
@@ -415,7 +464,7 @@ void AFortPlayerPawnAthena::ServerHandlePickupInfo(UObject* Context, FFrame& Sta
             static int gn = 0;
             if (gn++ < 25)
                 printf("[Boron][Pickup] give #%d def=%s max=%d want=%d left=%d prim=%d primCount=%d cap=%d swapped=%d blocked=%d entries=%d\n",
-                       gn, Def->Name.ToString().c_str(), MaxStack, Entry.Count, Remaining, (int)bPrimary, PrimaryCount,
+                       gn, Def->Name.ToString().c_str(), MaxStack, FFortItemEntry::HasCount() ? Entry.Count : -1, Remaining, (int)bPrimary, PrimaryCount,
                        5, (int)bSwapped, (int)bBlocked,
                        Inv->Inventory.ReplicatedEntries.Num());
 
@@ -728,7 +777,7 @@ void AFortPlayerPawnAthena::OnCapsuleBeginOverlap_(UObject* Context, FFrame& Sta
 
     auto MaxStack = Pickup->PrimaryPickupItemEntry.ItemDefinition->GetMaxStackSize();
     auto itemEntry = ((AFortPlayerControllerAthena*)Pawn->Controller)->WorldInventory->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& entry) {
-        return entry.ItemDefinition == Pickup->PrimaryPickupItemEntry.ItemDefinition && entry.Count <= MaxStack;
+        return entry.ItemDefinition == Pickup->PrimaryPickupItemEntry.ItemDefinition && (!FFortItemEntry::HasCount() || entry.Count <= MaxStack);
     }, FFortItemEntry::Size());
 
     if (GameRuleConfig::bCH5AutoPickupWeapons && VersionInfo.EngineVersion >= 5.4 && Pickup && Pickup->PawnWhoDroppedPickup != Pawn &&

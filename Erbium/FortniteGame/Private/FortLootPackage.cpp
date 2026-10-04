@@ -336,6 +336,13 @@ void UFortLootPackage::ChooseLootForContainer(TArray<FFortItemEntry*>& LootDrops
 
     // printf("Picked LootTierData %s\n", LootTierData->LootPackage.ToString().c_str());
 
+    if (FFortLootTierData::HasNumLootPackageDropsRange())
+    {
+        auto& Range = LootTierData->NumLootPackageDropsRange;
+        if (Range.Y > 0)
+            LootTierData->NumLootPackageDrops = (float)(Range.X + ((double)rand() / 32767.0) * (Range.Y - Range.X));
+    }
+
     if (LootTierData->NumLootPackageDrops <= 0)
         return;
 

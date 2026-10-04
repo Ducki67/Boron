@@ -1844,6 +1844,16 @@ void AFortPlayerControllerAthena::ServerAttemptInventoryDrop(UObject* Context, F
     if (!PlayerController || !PlayerController->Pawn)
         return;
 
+    static bool bVtLogged = false;
+    if (!bVtLogged && VersionInfo.FortniteVersion >= 33)
+    {
+        bVtLogged = true;
+        auto Vt = *(uint64_t**)PlayerController;
+        auto Base = Memcury::PE::GetModuleBase();
+        printf("[Boron][VT] dropImpl=0x%llx editValidate=0x%llx editImpl=0x%llx\n", Vt[0x11F0 / 8] - Base, Vt[0x12B0 / 8] - Base, Vt[0x12B8 / 8] - Base);
+    }
+    printf("[Boron][Drop] count=%d trash=%d\n", Count, (int)bTrash);
+
     auto ItemP = PlayerController->WorldInventory->Inventory.ItemInstances.Search([&](UFortWorldItem* entry) { return entry->ItemEntry.ItemGuid == Guid; });
     auto itemEntry = PlayerController->WorldInventory->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& entry) { return entry.ItemGuid == Guid; }, FFortItemEntry::Size());
     if (!ItemP)

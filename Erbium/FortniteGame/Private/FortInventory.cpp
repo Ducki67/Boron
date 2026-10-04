@@ -207,10 +207,18 @@ UFortWorldItem* AFortInventory::GiveItem(const UFortItemDefinition* Def, int Cou
     return Item;
 }
 
+int64* CH6StackSize(FFortItemEntry* Entry);
 UFortWorldItem* AFortInventory::GiveItem(FFortItemEntry& entry, int Count, bool ShowPickupNoti, bool updateInventory)
 {
     if (!FFortItemEntry::HasCount())
-        return GiveItem(entry.ItemDefinition, Count == -1 ? 1 : Count, 0, 0, ShowPickupNoti, updateInventory);
+    {
+        if (Count == -1)
+        {
+            auto EntryStack = CH6StackSize(&entry);
+            Count = EntryStack ? (int)*EntryStack : 1;
+        }
+        return GiveItem(entry.ItemDefinition, Count, 0, 0, ShowPickupNoti, updateInventory);
+    }
 
     if (Count == -1)
         Count = entry.Count;
@@ -568,7 +576,7 @@ int64* CH6StackSize(FFortItemEntry* Entry)
     return nullptr;
 }
 
-static AFortPickupAthena* SpawnPickupCH6(FVector Loc, const UFortItemDefinition* ItemDefinition, int Count, long long SourceTypeFlag, long long SpawnSource, AFortPlayerPawnAthena* Pawn, bool Toss)
+static AFortPickupAthena* SpawnPickupCH6(FVector Loc, const UFortItemDefinition* ItemDefinition, int Count, long long SourceTypeFlag, long long SpawnSource, AFortPlayerPawnAthena* Pawn, bool Toss, FFortItemEntry* SourceEntry = nullptr)
 {
     static auto SpawnFn = UFortKismetLibrary::GetDefaultObj()->GetFunction("K2_SpawnPickupInWorld");
     if (!SpawnFn || !ItemDefinition || Count <= 0)
@@ -608,9 +616,27 @@ static AFortPickupAthena* SpawnPickupCH6(FVector Loc, const UFortItemDefinition*
     UFortKismetLibrary::GetDefaultObj()->ProcessEvent(SpawnFn, Mem);
     auto Ret = RetOffset >= 0 ? *(AFortPickupAthena**)(Mem + RetOffset) : nullptr;
     FMemory::Free(Mem);
+    bool bManual = false;
+    if (!Ret && SetPickupItems)
+    {
+        auto Temp = SourceEntry ? nullptr : (UFortWorldItem*)ItemDefinition->CreateTemporaryItemInstanceBP(Count, -1);
+        auto CopyFrom = SourceEntry ? SourceEntry : Temp ? &Temp->ItemEntry : nullptr;
+        auto NewPickup = CopyFrom ? UWorld::SpawnActor<AFortPickupAthena>(AFortPickupAthena::StaticClass(), Pawn ? Pawn->K2_GetActorLocation() + FVector(0, 0, 50) : Loc, {}) : nullptr;
+        if (NewPickup)
+        {
+            auto Src = SpawnSource == -1 ? 0 : (uint8_t)SpawnSource;
+            TArray<FFortItemEntry> a{};
+            ((void (*)(AFortPickupAthena*, FFortItemEntry*, TArray<FFortItemEntry>*, uint8_t, bool, uint8_t))SetPickupItems)(NewPickup, CopyFrom, &a, (uint8_t)SourceTypeFlag, false, Src);
+            if (auto PickupStack = CH6StackSize(&NewPickup->PrimaryPickupItemEntry))
+                *PickupStack = Count;
+            NewPickup->TossPickup(Loc, Pawn, -1, Toss, true, (uint8)SourceTypeFlag, Src);
+            Ret = NewPickup;
+            bManual = true;
+        }
+    }
     static int ch6Pickups = 0;
     if (ch6Pickups++ < 20)
-        printf("[Boron][CH6Pickup] %s x%d -> %p\n", ItemDefinition->Name.ToString().c_str(), Count, (void*)Ret);
+        printf("[Boron][CH6Pickup] %s x%d -> %p manual=%d stack=%lld\n", ItemDefinition->Name.ToString().c_str(), Count, (void*)Ret, bManual, Ret && CH6StackSize(&Ret->PrimaryPickupItemEntry) ? (long long)*CH6StackSize(&Ret->PrimaryPickupItemEntry) : -1ll);
     return Ret;
 }
 
@@ -622,7 +648,7 @@ AFortPickupAthena* AFortInventory::SpawnPickup(FVector Loc, FFortItemEntry& Entr
     if (!FFortItemEntry::HasCount())
     {
         auto Stack = CH6StackSize(&Entry);
-        return SpawnPickupCH6(FinalLoc.X || FinalLoc.Y || FinalLoc.Z ? FinalLoc : Loc, Entry.ItemDefinition, OverrideCount != -1 ? OverrideCount : (Stack ? (int)*Stack : 1), SourceTypeFlag, SpawnSource, Pawn, Toss);
+        return SpawnPickupCH6(FinalLoc.X || FinalLoc.Y || FinalLoc.Z ? FinalLoc : Loc, Entry.ItemDefinition, OverrideCount != -1 ? OverrideCount : (Stack ? (int)*Stack : 1), SourceTypeFlag, SpawnSource, Pawn, Toss, &Entry);
     }
     AFortPickupAthena* NewPickup = UWorld::SpawnActor<AFortPickupAthena>(OverrideClass ? OverrideClass : AFortPickupAthena::StaticClass(), Loc, {});
     if (!NewPickup)

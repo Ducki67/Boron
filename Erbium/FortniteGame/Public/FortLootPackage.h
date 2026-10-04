@@ -49,12 +49,19 @@ public:
     DEFINE_STRUCT_PROP(MaxWorldLevel, int);
 };
 
+struct FLootDropsRange
+{
+    double X;
+    double Y;
+};
+
 struct FFortLootTierData
 {
 public:
     USCRIPTSTRUCT_COMMON_MEMBERS(FFortLootTierData);
 
     DEFINE_STRUCT_PROP(NumLootPackageDrops, float);
+    DEFINE_STRUCT_PROP(NumLootPackageDropsRange, FLootDropsRange);
     DEFINE_STRUCT_PROP(TierGroup, FName);
     DEFINE_STRUCT_PROP(LootTier, int);
     DEFINE_STRUCT_PROP(Weight, float);

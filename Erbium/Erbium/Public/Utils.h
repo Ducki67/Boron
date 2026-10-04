@@ -49,6 +49,23 @@ public:
     }
 };
 
+template <typename T>
+inline T* ReadObjectOrWeak(const void* Base, int32 Offset)
+{
+    if (Offset < 0)
+        return nullptr;
+    auto Raw = *(uint64_t*)(__int64(Base) + Offset);
+    auto Index = (int32)(Raw & 0xFFFFFFFF);
+    auto Serial = (int32)(Raw >> 32);
+    if (Index >= 0 && Serial > 0 && Index < TUObjectArray::Num())
+    {
+        auto Item = TUObjectArray::GetItemByIndex(Index);
+        if (Item && Item->SerialNumber == Serial)
+            return (T*)Item->Object;
+    }
+    return (T*)Raw;
+}
+
 #define DEFINE_NEWOBJ_PROP(Name, ...)                                                                                                                                                                                 \
     static inline int32 Name##__Offset = -2;                                                                                                                                                                          \
     static inline bool Name##__Weak = false;                                                                                                                                                                          \
@@ -72,7 +89,7 @@ public:
                 Name##__Offset = ReadPropertyOffset(Prop);                                                                                                                               \
             }                                                                                                                                                                                                         \
         }                                                                                                                                                                                                             \
-        return Name##__Weak ? GetFromOffset<TWeakObjectPtr<__VA_ARGS__>>(this, Name##__Offset).Get() : GetFromOffset<__VA_ARGS__*>(this, Name##__Offset);                                                             \
+        return Offsets::bEncryptedObjectArray ? ReadObjectOrWeak<__VA_ARGS__>(this, Name##__Offset) : Name##__Weak ? GetFromOffset<TWeakObjectPtr<__VA_ARGS__>>(this, Name##__Offset).Get() : GetFromOffset<__VA_ARGS__*>(this, Name##__Offset);                                                             \
     }                                                                                                                                                                                                                 \
                                                                                                                                                                                                                       \
     bool Has##Name() const                                                                                                                                                                                            \
@@ -176,7 +193,7 @@ public:
                 Name##__Offset = ReadPropertyOffset(Prop);                                                                                                                               \
             }                                                                                                                                                                                                         \
         }                                                                                                                                                                                                             \
-        return Name##__Weak ? GetFromOffset<TWeakObjectPtr<__VA_ARGS__>>(this, Name##__Offset).Get() : GetFromOffset<__VA_ARGS__*>(this, Name##__Offset);                                                             \
+        return Offsets::bEncryptedObjectArray ? ReadObjectOrWeak<__VA_ARGS__>(this, Name##__Offset) : Name##__Weak ? GetFromOffset<TWeakObjectPtr<__VA_ARGS__>>(this, Name##__Offset).Get() : GetFromOffset<__VA_ARGS__*>(this, Name##__Offset);                                                             \
     }                                                                                                                                                                                                                 \
                                                                                                                                                                                                                       \
     bool Has##Name() const                                                                                                                                                                                            \
