@@ -812,7 +812,7 @@ void AFortPlayerPawnAthena::OnCapsuleBeginOverlap_(UObject* Context, FFrame& Sta
                                   ? Pickup->PrimaryPickupItemEntry.ItemDefinition->bForceAutoPickup
                                   : (Pickup->PrimaryPickupItemEntry.ItemDefinition->GetPickupComponent() ? Pickup->PrimaryPickupItemEntry.ItemDefinition->GetPickupComponent()->bForceAutoPickup : false))) ||
                             !AFortInventory::IsPrimaryQuickbar(Pickup->PrimaryPickupItemEntry.ItemDefinition))) ||
-            (itemEntry && itemEntry->Count < MaxStack))
+            (itemEntry && (FFortItemEntry::HasCount() ? itemEntry->Count < MaxStack : (CH6StackSize(itemEntry) && *CH6StackSize(itemEntry) < MaxStack))))
             Pawn->ServerHandlePickup(Pickup, Pickup->PickupLocationData.FlyTime, FVector(), true);
     }
 

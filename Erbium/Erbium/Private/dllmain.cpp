@@ -119,6 +119,13 @@ void Main()
     {
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"log LogSpecialRelevancyHealthComponent None"), nullptr);
     }
+    if (VersionInfo.EngineVersion >= 5.4)
+    {
+        for (auto Category : { L"LogDataTable", L"LogFortCosmetics", L"LogJunoBuildingCosmeticsUI", L"LogSanitizeVehicleGamepadBindings", L"LogFortRatingDataManager",
+                               L"LogFortLinkDataManager", L"LogFortQuest", L"LogHotfixManager", L"LogParty", L"LogOnline", L"LogLandscape", L"LogUIActionRouter", L"LogViewport",
+                               L"LogCosmeticsGating", L"LogCosmeticsFrameworkLoadouts", L"LogEOSSDK", L"LogTextChat", L"LogDataRegistry" })
+            UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString((std::wstring(L"log ") + Category + L" None").c_str()), nullptr);
+    }
     if (VersionInfo.EngineVersion >= 5.1)
     {
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"net.AllowEncryption 0"), nullptr);
@@ -425,16 +432,44 @@ void Main()
     const wchar_t* terrainOpen = L"open Athena_Terrain";
     bool bDeferOpen = false;
 
+    uint64_t GFSGet = 0, GFSURLByName = 0, GFSChangeState = 0;
     if (Offsets::FortniteCL == 37770125)
     {
+        GFSGet = 0x2bacc18;
+        GFSURLByName = 0x189f954;
+        GFSChangeState = 0x189b27c;
+    }
+    else if (Offsets::FortniteCL == 38202817)
+    {
+        GFSGet = 0x2cc699c;
+        GFSURLByName = 0x1947598;
+        GFSChangeState = 0x23f5f80;
+    }
+    else if (Offsets::FortniteCL == 39768313)
+    {
+        GFSGet = 0x3541bd8;
+        GFSURLByName = 0x1f84d4c;
+        GFSChangeState = 0x4610898;
+    }
+
+    if (GFSGet)
+    {
         auto Base = Memcury::PE::GetModuleBase();
-        auto GFS = ((void* (*)())(Base + 0x2bacc18))();
+        auto GFS = ((void* (*)())(Base + GFSGet))();
         if (GFS)
         {
             alignas(16) FString DoorBashURL = L"file:../../../FortniteGame/Plugins/GameFeatures/DoorBashContent/DoorBashContent.uplugin";
             alignas(16) uint8_t Done[0x10] = {};
-            ((void (*)(void*, FString*, uint8_t, void*))(Base + 0x189b27c))(GFS, &DoorBashURL, 3, Done);
+            ((void (*)(void*, FString*, uint8_t, void*))(Base + GFSChangeState))(GFS, &DoorBashURL, 3, Done);
             printf("[Boron][DoorBash] activated DoorBashContent GFP\n");
+
+            if (Offsets::FortniteCL == 39768313)
+            {
+                alignas(16) FString SimpleEditURL = L"file:../../../FortniteGame/Plugins/GameFeatures/SimpleEdit/SimpleEdit.uplugin";
+                alignas(16) uint8_t SimpleEditDone[0x10] = {};
+                ((void (*)(void*, FString*, uint8_t, void*))(Base + GFSChangeState))(GFS, &SimpleEditURL, 3, SimpleEditDone);
+                printf("[Boron][SimpleEdit] activated SimpleEdit GFP\n");
+            }
         }
     }
 
@@ -453,19 +488,19 @@ void Main()
     // forgot to update thsi shit
     else if (VersionInfo.FortniteVersion >= 31.00 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_Sunflower"))
         terrainOpen = L"open BlastBerry_Terrain";
-    else if (Offsets::FortniteCL == 37770125 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_PunchBerry")) // 32.00 and 32.11 used here btw!!
+    else if (GFSGet && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_PunchBerry")) // 32.00 and 32.11 used here btw!!
     {
         auto Base = Memcury::PE::GetModuleBase();
-        auto GFS = ((void* (*)())(Base + 0x2bacc18))();
+        auto GFS = ((void* (*)())(Base + GFSGet))();
         struct alignas(16) { const wchar_t* Ptr; int32_t Len; } GFPName{ L"632de27e-4506-41f8-532f-93ac01dc10ca", 36 };
         alignas(16) FString ByName;
         alignas(16) FString FileURL = L"file:../../../FortniteGame/Plugins/GameFeatures/632de27e-4506-41f8-532f-93ac01dc10ca/632de27e-4506-41f8-532f-93ac01dc10ca.uplugin";
-        bool bByName = GFS && ((bool (*)(void*, void*, FString*))(Base + 0x189f954))(GFS, &GFPName, &ByName);
+        bool bByName = GFS && ((bool (*)(void*, void*, FString*))(Base + GFSURLByName))(GFS, &GFPName, &ByName);
         printf("[Boron][Oasis] GFS=%p byName=%d\n", GFS, bByName);
         if (GFS)
         {
             alignas(16) uint8_t Done[0x10] = {};
-            ((void (*)(void*, FString*, uint8_t, void*))(Base + 0x189b27c))(GFS, bByName ? &ByName : &FileURL, 3, Done);
+            ((void (*)(void*, FString*, uint8_t, void*))(Base + GFSChangeState))(GFS, bByName ? &ByName : &FileURL, 3, Done);
         }
         Sleep(8000);
         terrainOpen = L"open /632de27e-4506-41f8-532f-93ac01dc10ca/Maps/PunchBerry_Terrain?game=/Game/Athena/Athena_GameMode.Athena_GameMode_C";

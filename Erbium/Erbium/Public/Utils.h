@@ -49,6 +49,23 @@ public:
     }
 };
 
+inline bool IsWeakObjectField(const void* Prop)
+{
+    auto FieldClass = ReadFieldClass(Prop);
+    if (!FieldClass)
+        return false;
+    if (Offsets::bEncryptedObjectArray)
+    {
+        auto ClassName = (FName*)((uint8_t*)FieldClass + (Offsets::FortniteCL == 39768313 ? 0x38 : 0));
+        bool bWeak = ClassName->ToString() == "WeakObjectProperty";
+        static int Logged = 0;
+        if (Logged++ < 8)
+            printf("[Boron][WeakProp] %s class=%s weak=%d\n", ((FName*)((uint8_t*)Prop + Offsets::FField_Name))->ToString().c_str(), ClassName->ToString().c_str(), (int)bWeak);
+        return bWeak;
+    }
+    return (*(uint64_t*)(__int64(FieldClass) + 0x10) & 0x8000000) != 0;
+}
+
 template <typename T>
 inline T* ReadObjectOrWeak(const void* Base, int32 Offset)
 {
@@ -81,7 +98,7 @@ inline T* ReadObjectOrWeak(const void* Base, int32 Offset)
                 if (VersionInfo.FortniteVersion >= 12.10)                                                                                                                                                             \
                 {                                                                                                                                                                                                     \
                     auto FieldClass = ReadFieldClass(Prop);                                                                                                                                                 \
-                    auto FieldFlags = *(uint64_t*)(__int64(FieldClass) + 0x10);                                                                                                                                       \
+                    auto FieldFlags = IsWeakObjectField(Prop) ? 0x8000000ull : 0ull;                                                                                                                                       \
                     if ((FieldFlags & 0x8000000) != 0)                                                                                                                                                                \
                         Name##__Weak = true;                                                                                                                                                                          \
                 }                                                                                                                                                                                                     \
@@ -104,7 +121,7 @@ inline T* ReadObjectOrWeak(const void* Base, int32 Offset)
                 if (VersionInfo.FortniteVersion >= 12.10)                                                                                                                                                             \
                 {                                                                                                                                                                                                     \
                     auto FieldClass = ReadFieldClass(Prop);                                                                                                                                                 \
-                    auto FieldFlags = *(uint64_t*)(__int64(FieldClass) + 0x10);                                                                                                                                       \
+                    auto FieldFlags = IsWeakObjectField(Prop) ? 0x8000000ull : 0ull;                                                                                                                                       \
                     if ((FieldFlags & 0x8000000) != 0)                                                                                                                                                                \
                         Name##__Weak = true;                                                                                                                                                                          \
                 }                                                                                                                                                                                                     \
@@ -127,7 +144,7 @@ inline T* ReadObjectOrWeak(const void* Base, int32 Offset)
                 if (VersionInfo.FortniteVersion >= 12.10)                                                                                                                                                             \
                 {                                                                                                                                                                                                     \
                     auto FieldClass = ReadFieldClass(Prop);                                                                                                                                                 \
-                    auto FieldFlags = *(uint64_t*)(__int64(FieldClass) + 0x10);                                                                                                                                       \
+                    auto FieldFlags = IsWeakObjectField(Prop) ? 0x8000000ull : 0ull;                                                                                                                                       \
                     if ((FieldFlags & 0x8000000) != 0)                                                                                                                                                                \
                         Name##__Weak = true;                                                                                                                                                                          \
                 }                                                                                                                                                                                                     \
@@ -154,7 +171,7 @@ inline T* ReadObjectOrWeak(const void* Base, int32 Offset)
                 if (VersionInfo.FortniteVersion >= 12.10)                                                                                                                                                             \
                 {                                                                                                                                                                                                     \
                     auto FieldClass = ReadFieldClass(Prop);                                                                                                                                                 \
-                    auto FieldFlags = *(uint64_t*)(__int64(FieldClass) + 0x10);                                                                                                                                       \
+                    auto FieldFlags = IsWeakObjectField(Prop) ? 0x8000000ull : 0ull;                                                                                                                                       \
                     if ((FieldFlags & 0x8000000) != 0)                                                                                                                                                                \
                         Name##__Weak = true;                                                                                                                                                                          \
                 }                                                                                                                                                                                                     \
@@ -186,7 +203,7 @@ inline T* ReadObjectOrWeak(const void* Base, int32 Offset)
                 if (VersionInfo.FortniteVersion >= 12.10)                                                                                                                                                             \
                 {                                                                                                                                                                                                     \
                     auto FieldClass = ReadFieldClass(Prop);                                                                                                                                                 \
-                    auto FieldFlags = *(uint64_t*)(__int64(FieldClass) + 0x10);                                                                                                                                       \
+                    auto FieldFlags = IsWeakObjectField(Prop) ? 0x8000000ull : 0ull;                                                                                                                                       \
                     if ((FieldFlags & 0x8000000) != 0)                                                                                                                                                                \
                         Name##__Weak = true;                                                                                                                                                                          \
                 }                                                                                                                                                                                                     \
@@ -208,7 +225,7 @@ inline T* ReadObjectOrWeak(const void* Base, int32 Offset)
                 if (VersionInfo.FortniteVersion >= 12.10)                                                                                                                                                             \
                 {                                                                                                                                                                                                     \
                     auto FieldClass = ReadFieldClass(Prop);                                                                                                                                                 \
-                    auto FieldFlags = *(uint64_t*)(__int64(FieldClass) + 0x10);                                                                                                                                       \
+                    auto FieldFlags = IsWeakObjectField(Prop) ? 0x8000000ull : 0ull;                                                                                                                                       \
                     if ((FieldFlags & 0x8000000) != 0)                                                                                                                                                                \
                         Name##__Weak = true;                                                                                                                                                                          \
                 }                                                                                                                                                                                                     \
@@ -230,7 +247,7 @@ inline T* ReadObjectOrWeak(const void* Base, int32 Offset)
                 if (VersionInfo.FortniteVersion >= 12.10)                                                                                                                                                             \
                 {                                                                                                                                                                                                     \
                     auto FieldClass = ReadFieldClass(Prop);                                                                                                                                                 \
-                    auto FieldFlags = *(uint64_t*)(__int64(FieldClass) + 0x10);                                                                                                                                       \
+                    auto FieldFlags = IsWeakObjectField(Prop) ? 0x8000000ull : 0ull;                                                                                                                                       \
                     if ((FieldFlags & 0x8000000) != 0)                                                                                                                                                                \
                         Name##__Weak = true;                                                                                                                                                                          \
                 }                                                                                                                                                                                                     \
@@ -256,7 +273,7 @@ inline T* ReadObjectOrWeak(const void* Base, int32 Offset)
                 if (VersionInfo.FortniteVersion >= 12.10)                                                                                                                                                             \
                 {                                                                                                                                                                                                     \
                     auto FieldClass = ReadFieldClass(Prop);                                                                                                                                                 \
-                    auto FieldFlags = *(uint64_t*)(__int64(FieldClass) + 0x10);                                                                                                                                       \
+                    auto FieldFlags = IsWeakObjectField(Prop) ? 0x8000000ull : 0ull;                                                                                                                                       \
                     if ((FieldFlags & 0x8000000) != 0)                                                                                                                                                                \
                         Name##__Weak = true;                                                                                                                                                                          \
                 }                                                                                                                                                                                                     \

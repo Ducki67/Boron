@@ -2491,6 +2491,73 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
         LootPackageMap[Val->LootPackageID.ComparisonIndex].Add(Val);
 
     auto GameFeatureDataClass = FindClass("FortGameFeatureData");
+
+    std::unordered_map<const UObject*, uint8> GFDStates;
+    uint8 ActiveState = 0;
+    int ActiveLootGFDs = 0;
+    if (Offsets::FortniteCL == 39768313)
+    {
+        auto StateMachineClass = FindClass("GameFeaturePluginStateMachine");
+        for (int i = 0; StateMachineClass && i < TUObjectArray::Num(); i++)
+        {
+            auto Object = TUObjectArray::GetObjectByIndex(i);
+            if (!Object || !Object->Class || Object->IsDefaultObject() || !Object->IsA(StateMachineClass))
+                continue;
+            auto State = *(uint8*)(__int64(Object) + 0x28);
+            if (auto GFD = *(const UObject**)(__int64(Object) + 0xD0))
+                GFDStates[GFD] = State;
+            if (State > ActiveState)
+                ActiveState = State;
+        }
+        for (auto& [GFD, State] : GFDStates)
+            if (State == ActiveState && GameFeatureDataClass && GFD->IsA(GameFeatureDataClass))
+            {
+                auto Offset = GFD->GetOffset("DefaultLootTableData");
+                auto& Data = GetFromOffset<FFortGameFeatureLootTableData_UE53>(GFD, Offset);
+                if (Data.LootTierData.Get() || Data.LootPackageData.Get())
+                    ActiveLootGFDs++;
+            }
+        printf("[Boron][LootGFD] state machines=%zu activeState=%d activeLootGFDs=%d\n", GFDStates.size(), (int)ActiveState, ActiveLootGFDs);
+    }
+
+    static const char* CurrentSeasonPlugins[] = {
+        "LootCurrentSeason", "DaisyWeaponGameplay", "ChronoCloak", "GrappleGloves", "Fringeplank_Firework", "FlipperGameplay", "CorruptionItems",
+        "SawbladeGun", "PrimalGameplay", "IceCream", "PortAShackGameplay", "KeysAndLocks", "HeadsetGameplay", "LaunchPadItemGameplay",
+        "ResolveGameplay", "SupplyDropRadioGameplay", "GrappleGlider", "MusterCoreWeapons", "MusterConsumables", "ShockwaveMace", "CobraDMR",
+        "ValetMods", "RadicalWeaponsGameplay", "AncientWeapon", "ChronoWeaponGameplay", "ChronoSwarmGrenade", "ChronoConsumables", "BigBushGrenade",
+        "HopscotchWeaponsGameplay", "RocketRamGameplay", "EMPGameplay", "MidMatchRadioTowerGameplay", "ToggleZoomDMRGameplay", "PaprikaCoreWeapons",
+        "PaprikaConsumables", "Smartgun", "BallisticShieldGameplay", "ClusterBombGameplay", "GrappleWeapon", "TakedownMedallion", "PaprikaStronghold",
+        "CorruptionGameplay", "DeployableTurretGameplay", "SunRoseWeaponsGameplay", "SunRoseFlyingGameplay", "SunRoseChainWhipGameplay",
+        "SunRoseConsumablesGameplay", "SunRoseZeusGameplay", "WeaponsUpdated", "ShieldBubble", "MoonFlaxWeaponGameplay", "MoonflaxMedallions",
+        "KatanaGameplay", "FlexLegendWeaponGameplay", "VampireStakeGameplay", "MotherGameplay", "FirePetalWeaponGameplay", "DemonMaskFire",
+        "DemonMaskVoid", "MasamuneGameplay", "FirePetalBoonsGameplay", "BRWeapons", "BRCosmetics", "WeaponsUnvaulted",
+    };
+    auto PluginNameOf = [](const UObject* GFD) -> std::string
+    {
+        std::string Path = (GFD->Outer ? GFD->Outer->Name.ToString() : GFD->Name.ToString()).c_str();
+        auto Start = Path.starts_with("/") ? 1 : 0;
+        auto End = Path.find('/', Start);
+        return Path.substr(Start, End == std::string::npos ? std::string::npos : End - Start);
+    };
+    bool bCurrentSeasonLoot = wcsstr(FConfig::Playlist, L"/BRPlaylists/") != nullptr;
+    if (Playlist && Offsets::FortniteCL == 39768313)
+        for (auto ListName : { "GameFeaturePluginURLsToLoad", "BuiltInGameFeaturePluginsToLoad" })
+        {
+            auto ListOffset = Playlist->GetOffset(ListName);
+            if (ListOffset == -1)
+                continue;
+            auto& List = GetFromOffset<TArray<FString>>(Playlist, ListOffset);
+            for (int i = 0; i < List.Num(); i++)
+            {
+                std::wstring Url(List[i].Data && List[i].Num() ? List[i].Data : L"");
+                if (Url.find(L"LootCurrentSeason") != std::wstring::npos)
+                {
+                    printf("[Boron][LootGFD] playlist %s[%d] = %ls\n", ListName, i, Url.c_str());
+                    bCurrentSeasonLoot = true;
+                }
+            }
+        }
+
     if (GameFeatureDataClass)
         for (int i = 0; i < TUObjectArray::Num(); i++)
         {
@@ -2511,6 +2578,18 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
                 auto& PlaylistOverrideLootTableDataUE53 = GetFromOffset<TMap<int32, FFortGameFeatureLootTableData_UE53>>(Object, PlaylistOverrideLootTableDataOffset);
                 auto LTDFeatureData = VersionInfo.EngineVersion >= 5.3 ? LootTableDataUE53.LootTierData.Get() : LootTableData.LootTierData.Get();
                 auto LootPackageData = VersionInfo.EngineVersion >= 5.3 ? LootTableDataUE53.LootPackageData.Get() : LootTableData.LootPackageData.Get();
+
+                if (ActiveLootGFDs > 0 && (LTDFeatureData || LootPackageData))
+                {
+                    auto It = GFDStates.find(Object);
+                    int State = It != GFDStates.end() ? It->second : -1;
+                    auto Plugin = PluginNameOf(Object);
+                    bool bSeason = bCurrentSeasonLoot && std::any_of(std::begin(CurrentSeasonPlugins), std::end(CurrentSeasonPlugins), [&](const char* Name) { return Plugin == Name; });
+                    bool bApplied = State == ActiveState || bSeason;
+                    if (!bApplied)
+                        continue;
+                    printf("[Boron][LootGFD] %s state=%d season=%d tier=%s\n", Plugin.c_str(), State, (int)bSeason, LTDFeatureData ? LTDFeatureData->Name.ToString().c_str() : "-");
+                }
 
                 if (LTDFeatureData)
                 {
@@ -3106,7 +3185,8 @@ void AFortGameMode::TickCH5FloorLoot()
         }
     }
 
-    printf("[Boron][Perf] floor-loot wave %d took=%llums\n", wave, (unsigned long long)(GetTickCount64() - WaveStart));
+    if (auto Took = GetTickCount64() - WaveStart; Took >= 5)
+        printf("[Boron][Perf] floor-loot wave %d took=%llums\n", wave, (unsigned long long)Took);
 }
 
 void AFortGameMode::TickCH5PickupDummies()

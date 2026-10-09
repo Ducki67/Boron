@@ -524,10 +524,51 @@ namespace WeaponMods
         printf("[Boron][Mods] cleared mods on %s\n", Weapon->HasWeaponData() && Weapon->WeaponData ? Weapon->WeaponData->Name.ToString().c_str() : "weapon");
     }
 
+    inline void SeedDefaultsFromDef(AFortWeapon* Weapon)
+    {
+        if (FFortItemEntry::HasWeaponModSlots() || !IsSupported(Weapon) || FindStore(Weapon->ItemEntryGuid))
+            return;
+
+        auto Def = Weapon->HasWeaponData() ? Weapon->WeaponData : nullptr;
+
+        if (!Def || !Def->GetFunction("GetWeaponModSlots"))
+            return;
+
+        auto Defaults = Def->GetWeaponModSlots();
+        auto SlotSize = FFortWeaponModSlot::Size();
+        int Seeded = 0;
+
+        for (int i = 0; SlotSize > 0 && i < Defaults.Num(); i++)
+            if (auto Mod = Defaults.Get(i, SlotSize).WeaponMod)
+            {
+                PushStore(Weapon->ItemEntryGuid, (const UFortWeaponModItemDefinition*)Mod);
+                Seeded++;
+            }
+
+        auto& Slots = Weapon->WeaponModSlots;
+
+        if (Seeded > 0 && Slots.Num() == 0)
+        {
+            TArray<FFortWeaponModSlot> Previous{};
+
+            for (int i = 0; i < Defaults.Num(); i++)
+                Slots.Add(Defaults.Get(i, SlotSize), SlotSize);
+
+            NotifyRep(Weapon, Previous);
+        }
+
+        static int Logged = 0;
+
+        if (Logged++ < 20)
+            printf("[Boron][Mods] CH6 default mods for %s: %d\n", Def->Name.ToString().c_str(), Seeded);
+    }
+
     inline void Reapply(AFortWeapon* Weapon)
     {
         if (!IsSupported(Weapon))
             return;
+
+        SeedDefaultsFromDef(Weapon);
 
         auto Entry = FindStore(Weapon->ItemEntryGuid);
 

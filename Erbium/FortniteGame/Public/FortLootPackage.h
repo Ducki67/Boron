@@ -34,6 +34,12 @@ public:
     CountThresholdMap LootPackageData;
 };
 
+struct FLootCountRange
+{
+    int32 X;
+    int32 Y;
+};
+
 struct FFortLootPackageData
 {
 public:
@@ -44,6 +50,7 @@ public:
     DEFINE_STRUCT_PROP(LootPackageCall, FString);
     DEFINE_STRUCT_PROP(ItemDefinition, TSoftObjectPtr<UFortItemDefinition>);
     DEFINE_STRUCT_PROP(Count, int32);
+    DEFINE_STRUCT_PROP(CountRange, FLootCountRange);
     DEFINE_STRUCT_PROP(LootPackageCategory, int);
     DEFINE_STRUCT_PROP(MinWorldLevel, int);
     DEFINE_STRUCT_PROP(MaxWorldLevel, int);

@@ -236,13 +236,67 @@ public:
     DEFINE_STRUCT_PROP(bIsDynamic, bool);
 };
 
+struct FFortItemEntry;
+int64* CH6StackSize(FFortItemEntry* Entry);
+void* CH6Component(FFortItemEntry* Entry, const char* StructName, UObject** Cache);
+void* CH6AddComponent(FFortItemEntry* Entry, const char* StructName, UObject** Cache, int32 Size);
+
+#define CH6_SAFE_STRUCT_PROP(Name, Type)                                                \
+    static inline int32 Name##__Offset = -2;                                            \
+    static bool Has##Name()                                                             \
+    {                                                                                   \
+        if (Name##__Offset == -2)                                                       \
+            Name##__Offset = StaticStruct()->GetOffset(#Name, GUESS_PROP_FLAGS(Type));  \
+        return Name##__Offset != -1;                                                    \
+    }                                                                                   \
+    Type Get##Name() const                                                              \
+    {                                                                                   \
+        return Has##Name() ? GetFromOffset<Type>(this, Name##__Offset) : Type{};        \
+    }                                                                                   \
+    Type Set##Name(Type Value) const                                                    \
+    {                                                                                   \
+        if (Has##Name())                                                                \
+            GetFromOffset<Type>(this, Name##__Offset) = Value;                          \
+        return Value;                                                                   \
+    }                                                                                   \
+    __declspec(property(get = Get##Name, put = Set##Name)) Type Name;
+
+#define CH6_COMPONENT_PROP(Name, Type, Component, Default, bAddOnSet)                   \
+    static inline int32 Name##__Offset = -2;                                            \
+    static bool Has##Name()                                                             \
+    {                                                                                   \
+        if (Name##__Offset == -2)                                                       \
+            Name##__Offset = StaticStruct()->GetOffset(#Name, GUESS_PROP_FLAGS(Type));  \
+        return Name##__Offset != -1;                                                    \
+    }                                                                                   \
+    Type Get##Name() const                                                              \
+    {                                                                                   \
+        if (Has##Name())                                                                \
+            return GetFromOffset<Type>(this, Name##__Offset);                           \
+        static UObject* Cache = nullptr;                                                \
+        auto Data = (Type*)CH6Component((FFortItemEntry*)this, Component, &Cache);      \
+        return Data ? *Data : Default;                                                  \
+    }                                                                                   \
+    Type Set##Name(Type Value) const                                                    \
+    {                                                                                   \
+        if (Has##Name())                                                                \
+            return GetFromOffset<Type>(this, Name##__Offset) = Value;                   \
+        static UObject* Cache = nullptr;                                                \
+        auto Data = (Type*)(bAddOnSet ? CH6AddComponent((FFortItemEntry*)this, Component, &Cache, sizeof(Type)) \
+                                      : CH6Component((FFortItemEntry*)this, Component, &Cache)); \
+        if (Data)                                                                       \
+            *Data = Value;                                                              \
+        return Value;                                                                   \
+    }                                                                                   \
+    __declspec(property(get = Get##Name, put = Set##Name)) Type Name;
+
 struct FFortItemEntry : public FFastArraySerializerItem
 {
 public:
     USCRIPTSTRUCT_COMMON_MEMBERS(FFortItemEntry);
 
-    DEFINE_STRUCT_PROP(LoadedAmmo, int32);
-    DEFINE_STRUCT_PROP(PhantomReserveAmmo, int32);
+    CH6_COMPONENT_PROP(LoadedAmmo, int32, "FortItemComponentData_LoadedAmmo", 0, true);
+    CH6_COMPONENT_PROP(PhantomReserveAmmo, int32, "FortItemComponentData_PhantomReserveAmmo", 0, true);
     static inline int32 ItemGuid__Offset = -2;
     static void ResolveItemGuid()
     {
@@ -274,14 +328,36 @@ public:
     DEFINE_STRUCT_PROP(ItemEntryID, FGuid);
     DEFINE_STRUCT_PROP(TrackerGuid, FGuid);
     DEFINE_STRUCT_PROP(ItemDefinition, const UFortItemDefinition*);
-    DEFINE_STRUCT_PROP(Count, int32);
-    DEFINE_STRUCT_PROP(Durability, float);
+    static inline int32 Count__Offset = -2;
+    static bool HasCount()
+    {
+        if (Count__Offset == -2)
+            Count__Offset = StaticStruct()->GetOffset("Count", GUESS_PROP_FLAGS(int32));
+        return Count__Offset != -1;
+    }
+    int32 GetCount() const
+    {
+        if (HasCount())
+            return GetFromOffset<int32>(this, Count__Offset);
+        auto Stack = CH6StackSize((FFortItemEntry*)this);
+        return Stack ? (int32)*Stack : 1;
+    }
+    int32 SetCount(int32 Value) const
+    {
+        if (HasCount())
+            return GetFromOffset<int32>(this, Count__Offset) = Value;
+        if (auto Stack = CH6StackSize((FFortItemEntry*)this))
+            *Stack = Value;
+        return Value;
+    }
+    __declspec(property(get = GetCount, put = SetCount)) int32 Count;
+    CH6_COMPONENT_PROP(Durability, float, "FortItemComponentData_Durability", 1.f, false);
     DEFINE_STRUCT_PROP(GameplayAbilitySpecHandle, FGameplayAbilitySpecHandle);
     DEFINE_STRUCT_PROP(ParentInventory, TWeakObjectPtr<class AFortInventory>);
-    DEFINE_STRUCT_PROP(Level, int32);
+    CH6_COMPONENT_PROP(Level, int32, "FortItemComponentData_Level", -1, false);
     DEFINE_STRUCT_PROP(StateValues, TArray<FFortItemEntryStateValue>);
-    DEFINE_STRUCT_PROP(bIsReplicatedCopy, bool);
-    DEFINE_STRUCT_PROP(bIsDirty, bool);
+    CH6_SAFE_STRUCT_PROP(bIsReplicatedCopy, bool);
+    CH6_SAFE_STRUCT_PROP(bIsDirty, bool);
     DEFINE_STRUCT_PROP(WeaponModSlots, TArray<FFortWeaponModSlot>);
     DEFINE_STRUCT_PROP(PickupVariantIndex, int32);
     DEFINE_STRUCT_PROP(OrderIndex, int16);

@@ -95,6 +95,17 @@ public:
     DEFINE_PROP(SourceToAmmoMultiplierOverrideArray, TArray<FHelperGameplayTagToAmmoCountMultiplier>);
 };
 
+static int LootPackageCount(FFortLootPackageData* LootPackage)
+{
+    if (FFortLootPackageData::HasCountRange())
+    {
+        auto& Range = LootPackage->CountRange;
+        if (Range.X > 0 || Range.Y > 0)
+            return Range.Y > Range.X ? Range.X + rand() % (Range.Y - Range.X + 1) : Range.X;
+    }
+    return LootPackage->Count;
+}
+
 void UFortLootPackage::SetupLDSForPackage(TArray<FFortItemEntry*>& LootDrops, SDK::FName Package, int i, FName TierGroup, int WorldLevel, ABuildingContainer* Container)
 {
     TArray<FFortLootPackageData*> LPGroups{};
@@ -128,14 +139,15 @@ void UFortLootPackage::SetupLDSForPackage(TArray<FFortItemEntry*>& LootDrops, SD
         return;
 
     auto LootPackage = PickWeighted(LPGroups, [](float Total) { return ((float)rand() / 32767.f) * Total; });
+    int PackageCount = LootPackage ? LootPackageCount(LootPackage) : -1;
     if (bLDSDiag)
-        printf("[Boron][LDS]   picked=%p call=%d count=%d item=%p\n", LootPackage, LootPackage ? LootPackage->LootPackageCall.Num() : -1, LootPackage ? LootPackage->Count : -1, LootPackage ? (void*)LootPackage->ItemDefinition.Get() : nullptr);
+        printf("[Boron][LDS]   picked=%p call=%d count=%d item=%p\n", LootPackage, LootPackage ? LootPackage->LootPackageCall.Num() : -1, PackageCount, LootPackage ? (void*)LootPackage->ItemDefinition.Get() : nullptr);
     if (!LootPackage)
         return;
 
     if (LootPackage->LootPackageCall.Num() > 1)
     {
-        for (int i = 0; i < LootPackage->Count; i++)
+        for (int i = 0; i < PackageCount; i++)
             SetupLDSForPackage(LootDrops, UKismetStringLibrary::Conv_StringToName(LootPackage->LootPackageCall), 0, TierGroup, WorldLevel);
 
         return;
@@ -257,7 +269,7 @@ void UFortLootPackage::SetupLDSForPackage(TArray<FFortItemEntry*>& LootDrops, SD
 
         if (/*(!AmmoDef || AmmoDef->DropCount) && */ LootDrop->ItemDefinition == ItemDefinition && LootDrop->Count < ItemDefinition->GetMaxStackSize())
         {
-            LootDrop->Count += LootPackage->Count;
+            LootDrop->Count += PackageCount;
 
             if (LootDrop->Count > ItemDefinition->GetMaxStackSize())
             {
@@ -301,14 +313,14 @@ void UFortLootPackage::SetupLDSForPackage(TArray<FFortItemEntry*>& LootDrops, SD
         }
     }
 
-    if (!found && LootPackage->Count > 0)
+    if (!found && PackageCount > 0)
         LootDrops.Add(AFortInventory::MakeItemEntry(
-            ItemDefinition, LootPackage->Count,
+            ItemDefinition, PackageCount,
             ItemDefinition->IsA(UFortWorldItemDefinition::StaticClass())
                 ? (ItemDefinition->HasLootLevelData() ? std::clamp(GetLevel(ItemDefinition->LootLevelData), ItemDefinition->MinLevel, ItemDefinition->MaxLevel > 0 ? ItemDefinition->MaxLevel : 99999) : 0)
                 : 0));
 
-    if (!foundAmmo && AmmoEntry && LootPackage->Count > 0)
+    if (!foundAmmo && AmmoEntry && PackageCount > 0)
         LootDrops.Add(AmmoEntry);
     LPGroups.Free();
 }

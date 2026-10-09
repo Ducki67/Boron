@@ -1044,7 +1044,7 @@ void AFortPlayerControllerAthena::ServerExecuteInventoryItem_(UObject* Context, 
         }
 
         auto RangedWeap = CurrentWeap && CurrentWeap->IsA(AFortWeaponRanged::StaticClass()) ? (AFortWeaponRanged*)CurrentWeap : nullptr;
-        if (VersionInfo.FortniteVersion >= 32 && RangedWeap && RangedWeap->HasAmmoCount() && FFortItemEntry::HasLoadedAmmo())
+        if (VersionInfo.FortniteVersion >= 32 && RangedWeap && RangedWeap->HasAmmoCount() && (FFortItemEntry::HasLoadedAmmo() || !FFortItemEntry::HasCount()))
         {
             auto OldGuid = CurrentWeap->ItemEntryGuid;
             auto OldEntry = PC->WorldInventory->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& en) { return en.ItemGuid == OldGuid; }, FFortItemEntry::Size());
@@ -1063,8 +1063,25 @@ void AFortPlayerControllerAthena::ServerExecuteInventoryItem_(UObject* Context, 
 
         WeaponMods::Reapply((AFortWeapon*)NativeCW);
 
+        if (Offsets::FortniteCL == 39768313 && NativeCW && NativeCW->IsA(AFortWeaponRanged::StaticClass()) && ((AFortWeaponRanged*)NativeCW)->HasAmmoCount())
+        {
+            auto NewWeap = (AFortWeaponRanged*)NativeCW;
+            auto NewGuid = NewWeap->ItemEntryGuid;
+            auto NewEntry = PC->WorldInventory->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& en) { return en.ItemGuid == NewGuid; }, FFortItemEntry::Size());
+            static UObject* LoadedAmmoCache = nullptr;
+            auto Saved = NewEntry ? (int32*)CH6Component(NewEntry, "FortItemComponentData_LoadedAmmo", &LoadedAmmoCache) : nullptr;
+            static int AmmoLogs = 0;
+            if (AmmoLogs++ < 30)
+                printf("[Boron][AmmoSwap] %s weapon=%d saved=%d\n", RealDef->Name.ToString().c_str(), NewWeap->AmmoCount, Saved ? *Saved : -1);
+            if (Saved && NewWeap->AmmoCount != *Saved)
+            {
+                NewWeap->AmmoCount = *Saved;
+                NewWeap->ForceNetUpdate();
+            }
+        }
+
         static int nx = 0;
-        if (Utils::LogBudget(nx, 200, "[Equip] CH5 equip"))
+        if (Utils::LogBudget(nx, 25, "[Equip] CH5 equip"))
         {
             auto imgBase = (uint64_t)GetModuleHandleW(nullptr);
             printf("[Boron][Equip] CH5 equip #%d def=%s ok=%d CurrentWeapon=%p (%s) | exc=%08X at=%llX(rva %llX) badAddr=%llX pawn=%p def=%p\n", nx,
@@ -1613,13 +1630,15 @@ void AFortPlayerControllerAthena::ServerBeginEditingBuildingActor(UObject* Conte
     if (!PlayerState)
         return;
 
+    auto PrevEditingPlayer = Building->EditingPlayer;
     SetEditingPlayer(Building, PlayerState);
 
     if (VersionInfo.FortniteVersion >= 33)
     {
         static int bn = 0;
-        if (bn++ < 10)
-            printf("[Boron][Edit] begin %s weapon=%p\n", Building->Class->Name.ToString().c_str(), (void*)PlayerController->MyFortPawn->CurrentWeapon);
+        if (bn++ < 40)
+            printf("[Boron][Edit] begin %s weapon=%p prevEditor=%p self=%p nowEditor=%p\n", Building->Class->Name.ToString().c_str(), (void*)PlayerController->MyFortPawn->CurrentWeapon,
+                   (void*)PrevEditingPlayer, (void*)PlayerState, (void*)Building->EditingPlayer);
     }
 
     if (!PlayerController->MyFortPawn->CurrentWeapon || !PlayerController->MyFortPawn->CurrentWeapon->IsA<AFortWeap_EditingTool>())
@@ -1662,7 +1681,14 @@ void AFortPlayerControllerAthena::ServerEditBuildingActor(UObject* Context, FFra
     if (!ReplaceBuildingActor_ && VersionInfo.FortniteVersion >= 33)
     {
         if (!PlayerController || !Building || !NewClass || !Building->IsA<ABuildingSMActor>() || Building->EditingPlayer != PlayerController->PlayerState || Building->bDestroyed)
+        {
+            static int rn = 0;
+            if (rn++ < 40)
+                printf("[Boron][Edit] REJECT pc=%p building=%p class=%p isSM=%d editor=%p self=%p destroyed=%d\n", (void*)PlayerController, (void*)Building, NewClass ? (void*)NewClass.operator->() : nullptr,
+                       Building ? (int)Building->IsA<ABuildingSMActor>() : -1, Building ? (void*)Building->EditingPlayer : nullptr, PlayerController ? (void*)PlayerController->PlayerState : nullptr,
+                       Building ? (int)Building->bDestroyed : -1);
             return;
+        }
 
         SetEditingPlayer(Building, nullptr);
 
@@ -1761,6 +1787,13 @@ void AFortPlayerControllerAthena::ServerEndEditingBuildingActor(UObject* Context
     Stack.IncrementCode();
 
     auto PlayerController = (AFortPlayerControllerAthena*)Context;
+    if (VersionInfo.FortniteVersion >= 33)
+    {
+        static int en = 0;
+        if (en++ < 40)
+            printf("[Boron][Edit] end building=%p editor=%p self=%p destroyed=%d\n", (void*)Building, Building ? (void*)Building->EditingPlayer : nullptr,
+                   PlayerController ? (void*)PlayerController->PlayerState : nullptr, Building ? (int)Building->bDestroyed : -1);
+    }
     if (!PlayerController || !PlayerController->MyFortPawn || !Building || !Building->IsA<ABuildingSMActor>() ||
         Building->EditingPlayer != PlayerController->PlayerState /* || Building->Team != static_cast<AFortPlayerStateAthena*>(PlayerController->PlayerState)->TeamIndex*/
         || Building->bDestroyed)
@@ -2554,7 +2587,7 @@ void AFortPlayerControllerAthena::InternalPickup(FFortItemEntry* PickupEntry)
             }
 
             // full proper
-            for (int i = 0; i < itemEntry->StateValues.Num(); i++)
+            for (int i = 0; FFortItemEntry::HasStateValues() && i < itemEntry->StateValues.Num(); i++)
             {
                 auto& StateValue = itemEntry->StateValues.Get(i, FFortItemEntryStateValue::Size());
 
@@ -2566,7 +2599,7 @@ void AFortPlayerControllerAthena::InternalPickup(FFortItemEntry* PickupEntry)
                 break;
             }
 
-            if (!bFound)
+            if (!bFound && FFortItemEntry::HasStateValues())
             {
                 auto Value = (FFortItemEntryStateValue*)malloc(FFortItemEntryStateValue::Size());
                 memset((PBYTE)Value, 0, FFortItemEntryStateValue::Size());

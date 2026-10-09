@@ -38,6 +38,12 @@ static void LogGiveCaller(void* Ret)
         printf("[Boron][GiveTrace] caller=%s (no line info) addr=%p\n", name, Ret);
 }
 
+static int32* CH6LoadedAmmo(FFortItemEntry* Entry)
+{
+    static UObject* Cache = nullptr;
+    return (int32*)CH6Component(Entry, "FortItemComponentData_LoadedAmmo", &Cache);
+}
+
 UFortWorldItem* AFortInventory::GiveItem(const UFortItemDefinition* Def, int Count, int LoadedAmmo, int Level, bool ShowPickupNoti, bool updateInventory, int PhantomReserveAmmo,
                                          TArray<FFortItemEntryStateValue> StateValues)
 {
@@ -67,7 +73,12 @@ UFortWorldItem* AFortInventory::GiveItem(const UFortItemDefinition* Def, int Cou
                 CoCreateGuid((GUID*)&EntryID);
         }
 
+        if (Def->IsA<UFortWeaponRangedItemDefinition>())
+            CH6Item->ItemEntry.LoadedAmmo = LoadedAmmo >= 0 ? LoadedAmmo : ((int32 (*)(UFortWorldItem*))CH6Item->Vft[0x82])(CH6Item);
+
         auto& CH6Rep = this->Inventory.ReplicatedEntries.Add(CH6Item->ItemEntry, FFortItemEntry::Size());
+        if (Offsets::FortniteCL == 39768313)
+            ((FFortItemEntry * (*)(FFortItemEntry*, const FFortItemEntry*))(Memcury::PE::GetModuleBase() + 0x3B1BA38))(&CH6Rep, &CH6Item->ItemEntry);
         this->Inventory.ItemInstances.Add(CH6Item);
 
         if (updateInventory)
@@ -217,7 +228,8 @@ UFortWorldItem* AFortInventory::GiveItem(FFortItemEntry& entry, int Count, bool 
             auto EntryStack = CH6StackSize(&entry);
             Count = EntryStack ? (int)*EntryStack : 1;
         }
-        return GiveItem(entry.ItemDefinition, Count, 0, 0, ShowPickupNoti, updateInventory);
+        auto Loaded = CH6LoadedAmmo(&entry);
+        return GiveItem(entry.ItemDefinition, Count, Loaded ? *Loaded : -1, 0, ShowPickupNoti, updateInventory);
     }
 
     if (Count == -1)
@@ -292,7 +304,15 @@ void AFortInventory::Update(FFortItemEntry* Entry)
 
         if (repEntry.ItemGuid == Entry->ItemGuid)
         {
-            repEntry = *Entry;
+            if (FFortItemEntry::HasCount())
+                repEntry = *Entry;
+            else if (&repEntry != Entry)
+            {
+                repEntry.Count = Entry->Count;
+                repEntry.LoadedAmmo = Entry->LoadedAmmo;
+                repEntry.PhantomReserveAmmo = Entry->PhantomReserveAmmo;
+                repEntry.Durability = Entry->Durability;
+            }
             repEntry.bIsDirty = false;
             Inventory.MarkItemDirty(repEntry);
             SetRequiresUpdate();
@@ -557,23 +577,50 @@ FFortItemEntry* AFortInventory::MakeItemEntry(const UFortItemDefinition* ItemDef
 }
 
 uint64_t SetPickupItems;
-int64* CH6StackSize(FFortItemEntry* Entry)
+struct FRawInstancedStruct
+{
+    UObject* ScriptStruct;
+    uint8* Memory;
+};
+
+void* CH6Component(FFortItemEntry* Entry, const char* StructName, UObject** Cache)
 {
     if (!Entry || Offsets::FortniteCL != 39768313)
         return nullptr;
-    struct FRawInstancedStruct
-    {
-        UObject* ScriptStruct;
-        uint8* Memory;
-    };
+    if (!*Cache)
+        *Cache = (UObject*)FindStruct(StructName);
+    if (!*Cache)
+        return nullptr;
     auto& List = *(TArray<FRawInstancedStruct>*)((uint8*)Entry + 0x30);
     for (int i = 0; i < List.Num(); i++)
     {
         auto& Data = List[i];
-        if (Data.ScriptStruct && Data.Memory && Data.ScriptStruct->Name.ToString() == "ItemComponentData_StackSize")
-            return (int64*)Data.Memory;
+        if (Data.ScriptStruct == *Cache && Data.Memory)
+            return Data.Memory;
     }
     return nullptr;
+}
+
+void* CH6AddComponent(FFortItemEntry* Entry, const char* StructName, UObject** Cache, int32 Size)
+{
+    if (auto Existing = CH6Component(Entry, StructName, Cache))
+        return Existing;
+    if (!Entry || !*Cache || Offsets::FortniteCL != 39768313)
+        return nullptr;
+    auto Memory = FMemory::Malloc<uint8>(Size, 8);
+    memset(Memory, 0, Size);
+    auto& List = *(TArray<FRawInstancedStruct>*)((uint8*)Entry + 0x30);
+    List.Add(FRawInstancedStruct{ *Cache, Memory });
+    static int Logged = 0;
+    if (Logged++ < 10)
+        printf("[Boron][CH6Inv] added %s to entry %p (components=%d)\n", StructName, (void*)Entry, List.Num());
+    return Memory;
+}
+
+int64* CH6StackSize(FFortItemEntry* Entry)
+{
+    static UObject* Cache = nullptr;
+    return (int64*)CH6Component(Entry, "ItemComponentData_StackSize", &Cache);
 }
 
 static AFortPickupAthena* SpawnPickupCH6(FVector Loc, const UFortItemDefinition* ItemDefinition, int Count, long long SourceTypeFlag, long long SpawnSource, AFortPlayerPawnAthena* Pawn, bool Toss, FFortItemEntry* SourceEntry = nullptr)
@@ -634,6 +681,8 @@ static AFortPickupAthena* SpawnPickupCH6(FVector Loc, const UFortItemDefinition*
             bManual = true;
         }
     }
+    if (auto SourceLoaded = Ret && SourceEntry ? CH6LoadedAmmo(SourceEntry) : nullptr)
+        Ret->PrimaryPickupItemEntry.LoadedAmmo = *SourceLoaded;
     static int ch6Pickups = 0;
     if (ch6Pickups++ < 20)
         printf("[Boron][CH6Pickup] %s x%d -> %p manual=%d stack=%lld\n", ItemDefinition->Name.ToString().c_str(), Count, (void*)Ret, bManual, Ret && CH6StackSize(&Ret->PrimaryPickupItemEntry) ? (long long)*CH6StackSize(&Ret->PrimaryPickupItemEntry) : -1ll);
@@ -957,6 +1006,50 @@ void SetPhantomReserveAmmo(UFortWorldItem* Item, unsigned int PhantomReserveAmmo
     Item->ItemEntry.bIsDirty = true;
 }
 
+static FFortItemEntry* FindRepEntryCH5(UFortWorldItem* Item, AFortInventory*& Inventory)
+{
+    auto OwningController = Item->GetOwningController();
+    auto PlayerController = OwningController && OwningController->IsA<AFortPlayerControllerAthena>() ? (AFortPlayerControllerAthena*)OwningController : nullptr;
+    if (!PlayerController || !PlayerController->WorldInventory)
+        return nullptr;
+    Inventory = PlayerController->WorldInventory;
+    return Inventory->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& Entry) { return Entry.ItemGuid == Item->ItemEntry.ItemGuid; }, FFortItemEntry::Size());
+}
+
+static bool SetLoadedAmmoCH5(UFortWorldItem* Item, int LoadedAmmo)
+{
+    if (!Item)
+        return false;
+    Item->ItemEntry.LoadedAmmo = LoadedAmmo;
+    AFortInventory* Inventory = nullptr;
+    auto RepEntry = FindRepEntryCH5(Item, Inventory);
+    if (RepEntry)
+    {
+        RepEntry->LoadedAmmo = LoadedAmmo;
+        Inventory->Inventory.MarkItemDirty(*RepEntry);
+        Inventory->ForceNetUpdate();
+    }
+    static int Logged = 0;
+    if (Logged++ < 15)
+        printf("[Boron][Ammo] SetLoadedAmmo item=%p ammo=%d rep=%p\n", (void*)Item, LoadedAmmo, (void*)RepEntry);
+    return true;
+}
+
+static bool SetPhantomReserveAmmoCH5(UFortWorldItem* Item, unsigned int PhantomReserveAmmo)
+{
+    if (!Item)
+        return false;
+    Item->ItemEntry.PhantomReserveAmmo = PhantomReserveAmmo;
+    AFortInventory* Inventory = nullptr;
+    if (auto RepEntry = FindRepEntryCH5(Item, Inventory))
+    {
+        RepEntry->PhantomReserveAmmo = PhantomReserveAmmo;
+        Inventory->Inventory.MarkItemDirty(*RepEntry);
+        Inventory->ForceNetUpdate();
+    }
+    return true;
+}
+
 void SpawnPickup_(UObject* Object, FFrame& Stack, AFortPickupAthena** Ret)
 {
     UFortItemDefinition* ItemDefinition;
@@ -1074,6 +1167,12 @@ void AFortInventory::PostLoadHook()
             if (HasPhantomReserveAmmo)
                 Hooking::Hook<UFortWorldItem>(uint32(SetOwningInventoryIdx - (VersionInfo.EngineVersion < 4.27 ? 1 : 2)), SetPhantomReserveAmmo);
         }
+    }
+
+    if (!SetOwningInventory && (Offsets::FortniteCL == 38202817 || Offsets::FortniteCL == 39768313))
+    {
+        Hooking::Hook<UFortWorldItem>(uint32(0xC4), SetLoadedAmmoCH5);
+        Hooking::Hook<UFortWorldItem>(uint32(0xC5), SetPhantomReserveAmmoCH5);
     }
 
     Hooking::ExecHook(DefaultObjImpl("FortAthenaSupplyDrop")->GetFunction("SpawnPickup"), SpawnPickup_);

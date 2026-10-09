@@ -1159,6 +1159,11 @@ uint64 FindSpawnLoot()
     {
         bInitialized = true;
 
+        if (Offsets::FortniteCL == 38202817)
+            return SpawnLoot = Memcury::PE::GetModuleBase() + 0x94CCD48;
+        if (Offsets::FortniteCL == 39768313)
+            return SpawnLoot = Memcury::PE::GetModuleBase() + 0xBFAA33C;
+
         auto sRef = Memcury::Scanner::FindStringRef(L"ABuildingContainer::SpawnLoot() called on %s (%s)...", false, 0, VersionInfo.FortniteVersion >= 19).Get();
 
         if (!sRef)

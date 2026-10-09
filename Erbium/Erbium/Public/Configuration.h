@@ -19,10 +19,11 @@ set bGUI to false (for now this is very needed)
 
 
 
-struct LategameConfig // dont use lategame on s30+ plz, for now cuz barely tested!! :sob:
+struct LategameConfig // dont use lategame on s32+ plz, for now cuz barely tested!! :sob:
 {
     // loot settings
     static inline auto bLateGameVersionized = true;
+    static inline auto bPullGamemodeLootPool = false; // new | this will pull weapons and items From the gamemode's loot pool Example  Fortnite OG mode on ch6 will give its ch1/classic loot
     static inline auto bLateGameCustom = false;
     static inline wchar_t CustomSlot1Item[500] = L"/Game/Athena/Items/Weapons/WID_Shotgun_Standard_Athena_SR_Ore_T03.WID_Shotgun_Standard_Athena_SR_Ore_T03";
     static inline int CustomSlot1ItemCount = 1;
@@ -36,7 +37,7 @@ struct LategameConfig // dont use lategame on s30+ plz, for now cuz barely teste
     static inline int CustomSlot5ItemCount = 6;
 
     // zones
-    static inline auto bLateGame = false;
+    static inline auto bLateGame = false; // lategame should work fine up to 32.00 atm
     static inline auto LateGameZone = 3;          // starting zone  (recomend setting this to 3 if u suing Reload Solo with Lategame so u will have a cool "Reloaded" LateGame"
     static inline auto bLateGameLongZone = false; // zone does not close for a long time
     static inline auto bLateGameMovingBus = false;
