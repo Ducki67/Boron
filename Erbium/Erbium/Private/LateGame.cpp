@@ -35,7 +35,7 @@ static UEAllocatedVector<FLateGameItem> LootPoolWeapons(std::initializer_list<co
             if (!Def)
                 continue;
             auto Name = Def->Name.ToString();
-            if (std::none_of(Prefixes.begin(), Prefixes.end(), [&](const char* Prefix) { return Name.starts_with(Prefix); }))
+            if (std::none_of(Prefixes.begin(), Prefixes.end(), [&](const char* Prefix) { return Name.starts_with(Prefix) || (Name.starts_with("WID_") && Name.find(Prefix + 3) != std::string::npos); }))
                 continue;
             if (std::any_of(All.begin(), All.end(), [&](FLateGameItem& Item) { return Item.Item == Def; }))
                 continue;
@@ -44,7 +44,7 @@ static UEAllocatedVector<FLateGameItem> LootPoolWeapons(std::initializer_list<co
                 RarePlus.push_back(FLateGameItem(1, Def));
         }
     }
-    printf("[Boron][LateGame] loot pool %s: %d items (%d rare+)\n", *Prefixes.begin(), (int)All.size(), (int)RarePlus.size());
+    BORON_LOG("[Boron][LateGame] loot pool %s: %d items (%d rare+)\n", *Prefixes.begin(), (int)All.size(), (int)RarePlus.size());
     return RarePlus.size() ? RarePlus : All;
 }
 
@@ -195,6 +195,33 @@ FLateGameItem LateGame::GetShotgun()
                 FLateGameItem(1, FindObject<UFortWeaponRangedItemDefinition>(L"/FirePetalWeaponGameplay/Gameplay/FirePetal_AutoShotgun/WID_Shotgun_Auto_FirePetal_Athena_SR.WID_Shotgun_Auto_FirePetal_Athena_SR")),
             };
         }
+        else if (VersionInfo.FortniteVersion >= 32.00 && VersionInfo.FortniteVersion < 33.00)
+        {
+            Shotguns =
+            {
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Shotgun_Standard_Athena_VR_Ore_T03.WID_Shotgun_Standard_Athena_VR_Ore_T03")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Shotgun_Standard_Athena_SR_Ore_T03.WID_Shotgun_Standard_Athena_SR_Ore_T03")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Shotgun_HighSemiAuto_Athena_VR_Ore_T03.WID_Shotgun_HighSemiAuto_Athena_VR_Ore_T03")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Shotgun_HighSemiAuto_Athena_SR_Ore_T03.WID_Shotgun_HighSemiAuto_Athena_SR_Ore_T03")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Shotgun_SemiAuto_Athena_R_Ore_T03.WID_Shotgun_SemiAuto_Athena_R_Ore_T03")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Shotgun_SemiAuto_Athena_VR_Ore_T03.WID_Shotgun_SemiAuto_Athena_VR_Ore_T03")),
+            };
+        }
+        else if (VersionInfo.FortniteVersion >= 31.00 && VersionInfo.FortniteVersion < 32.00)
+        {
+            Shotguns =
+            {
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/FlexLegendWeaponGameplay/Gameplay/LeverShotgun/WID_Shotgun_Lever_FlexLegend_Athena_R.WID_Shotgun_Lever_FlexLegend_Athena_R")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/FlexLegendWeaponGameplay/Gameplay/LeverShotgun/WID_Shotgun_Lever_FlexLegend_Athena_VR.WID_Shotgun_Lever_FlexLegend_Athena_VR")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/FlexLegendWeaponGameplay/Gameplay/LeverShotgun/WID_Shotgun_Lever_FlexLegend_Athena_SR.WID_Shotgun_Lever_FlexLegend_Athena_SR")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/PaprikaCoreWeapons/Items/Weapons/PaprikaShotgun_Pump/WID_Shotgun_Pump_Paprika_Athena_R.WID_Shotgun_Pump_Paprika_Athena_R")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/PaprikaCoreWeapons/Items/Weapons/PaprikaShotgun_Pump/WID_Shotgun_Pump_Paprika_Athena_VR.WID_Shotgun_Pump_Paprika_Athena_VR")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/PaprikaCoreWeapons/Items/Weapons/PaprikaShotgun_Pump/WID_Shotgun_Pump_Paprika_Athena_SR.WID_Shotgun_Pump_Paprika_Athena_SR")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/SunRoseWeaponsGameplay/Items/Weapons/CerberusSG/WID_Shotgun_Break_Cerberus_Athena_R.WID_Shotgun_Break_Cerberus_Athena_R")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/SunRoseWeaponsGameplay/Items/Weapons/CerberusSG/WID_Shotgun_Break_Cerberus_Athena_VR.WID_Shotgun_Break_Cerberus_Athena_VR")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/SunRoseWeaponsGameplay/Items/Weapons/CerberusSG/WID_Shotgun_Break_Cerberus_Athena_SR.WID_Shotgun_Break_Cerberus_Athena_SR")),
+            };
+        }
         else if (VersionInfo.FortniteVersion >= 30.00)
         {
             Shotguns =
@@ -230,6 +257,15 @@ FLateGameItem LateGame::GetShotgun()
             FLateGameItem(1, FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Shotgun_Standard_Athena_SR_Ore_T03.WID_Shotgun_Standard_Athena_SR_Ore_T03")), // pump 
         };
     };
+
+    if (VersionInfo.FortniteVersion >= 32.00 && LategameConfig::bPullGamemodeLootPool)
+    {
+        static UEAllocatedVector<FLateGameItem> GamemodePool;
+        if (GamemodePool.empty())
+            GamemodePool = LootPoolWeapons({ "WID_Shotgun_" });
+        if (!GamemodePool.empty())
+            Shotguns = GamemodePool;
+    }
 
     // custom :)
     if (LategameConfig::bLateGameCustom)
@@ -423,12 +459,40 @@ FLateGameItem LateGame::GetAssaultRifle()
         {
             AssaultRifles =
             {
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/FlipperGameplay/Items/Weapons/CoreAR/WID_Assault_CoreAR_Athena_R.WID_Assault_CoreAR_Athena_R")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/FlipperGameplay/Items/Weapons/CoreAR/WID_Assault_CoreAR_Athena_VR.WID_Assault_CoreAR_Athena_VR")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/FlipperGameplay/Items/Weapons/CoreAR/WID_Assault_CoreAR_Athena_SR.WID_Assault_CoreAR_Athena_SR")),
                 FLateGameItem(1, FindObject<UFortWeaponRangedItemDefinition>(L"/FirePetalWeaponGameplay/Gameplay/FirePetal_AR_Fast/WID_Assault_FirePetal_Fast_Athena_R.WID_Assault_FirePetal_Fast_Athena_R")),
                 FLateGameItem(1, FindObject<UFortWeaponRangedItemDefinition>(L"/FirePetalWeaponGameplay/Gameplay/FirePetal_AR_Fast/WID_Assault_FirePetal_Fast_Athena_VR.WID_Assault_FirePetal_Fast_Athena_VR")),
                 FLateGameItem(1, FindObject<UFortWeaponRangedItemDefinition>(L"/FirePetalWeaponGameplay/Gameplay/FirePetal_AR_Fast/WID_Assault_FirePetal_Fast_Athena_SR.WID_Assault_FirePetal_Fast_Athena_SR")),
                 FLateGameItem(1, FindObject<UFortWeaponRangedItemDefinition>(L"/FirePetalWeaponGameplay/Gameplay/FirePetal_AR_Mid/WID_Assault_FirePetal_Mid_Athena_R.WID_Assault_FirePetal_Mid_Athena_R")),
                 FLateGameItem(1, FindObject<UFortWeaponRangedItemDefinition>(L"/FirePetalWeaponGameplay/Gameplay/FirePetal_AR_Mid/WID_Assault_FirePetal_Mid_Athena_VR.WID_Assault_FirePetal_Mid_Athena_VR")),
                 FLateGameItem(1, FindObject<UFortWeaponRangedItemDefinition>(L"/FirePetalWeaponGameplay/Gameplay/FirePetal_AR_Mid/WID_Assault_FirePetal_Mid_Athena_SR.WID_Assault_FirePetal_Mid_Athena_SR")),
+            };
+        }
+        else if (VersionInfo.FortniteVersion >= 32.00 && VersionInfo.FortniteVersion < 33.00)
+        {
+            AssaultRifles =
+            {
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Assault_AutoHigh_Athena_VR_Ore_T03.WID_Assault_AutoHigh_Athena_VR_Ore_T03")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Assault_AutoHigh_Athena_SR_Ore_T03.WID_Assault_AutoHigh_Athena_SR_Ore_T03")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Assault_Auto_Athena_R_Ore_T03.WID_Assault_Auto_Athena_R_Ore_T03")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Assault_AutoDrum_Athena_R_Ore_T03.WID_Assault_AutoDrum_Athena_R_Ore_T03")),
+            };
+        }
+        else if (VersionInfo.FortniteVersion >= 31.00 && VersionInfo.FortniteVersion < 32.00)
+        {
+            AssaultRifles =
+            {
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/PaprikaCoreWeapons/Items/Weapons/PaprikaAR_DPS/WID_Assault_Paprika_DPS_Athena_R.WID_Assault_Paprika_DPS_Athena_R")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/PaprikaCoreWeapons/Items/Weapons/PaprikaAR_DPS/WID_Assault_Paprika_DPS_Athena_VR.WID_Assault_Paprika_DPS_Athena_VR")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/PaprikaCoreWeapons/Items/Weapons/PaprikaAR_DPS/WID_Assault_Paprika_DPS_Athena_SR.WID_Assault_Paprika_DPS_Athena_SR")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/WeaponsUpdated/Gameplay/CombatAR/WID_Assault_MoonFlax_CombatAR_Athena_R.WID_Assault_MoonFlax_CombatAR_Athena_R")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/WeaponsUpdated/Gameplay/CombatAR/WID_Assault_MoonFlax_CombatAR_Athena_VR.WID_Assault_MoonFlax_CombatAR_Athena_VR")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/WeaponsUpdated/Gameplay/CombatAR/WID_Assault_MoonFlax_CombatAR_Athena_SR.WID_Assault_MoonFlax_CombatAR_Athena_SR")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/WeaponsUpdated/Gameplay/StrikerBurstAR/WID_Assault_Update_StrikerBurst_Athena_R.WID_Assault_Update_StrikerBurst_Athena_R")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/WeaponsUpdated/Gameplay/StrikerBurstAR/WID_Assault_Update_StrikerBurst_Athena_VR.WID_Assault_Update_StrikerBurst_Athena_VR")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/WeaponsUpdated/Gameplay/StrikerBurstAR/WID_Assault_Update_StrikerBurst_Athena_SR.WID_Assault_Update_StrikerBurst_Athena_SR")),
             };
         }
         else if (VersionInfo.FortniteVersion >= 30.00)
@@ -458,6 +522,15 @@ FLateGameItem LateGame::GetAssaultRifle()
             FLateGameItem(1, FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Assault_AutoHigh_Athena_VR_Ore_T03.WID_Assault_AutoHigh_Athena_VR_Ore_T03")), // scar
         };
     };
+
+    if (VersionInfo.FortniteVersion >= 32.00 && LategameConfig::bPullGamemodeLootPool)
+    {
+        static UEAllocatedVector<FLateGameItem> GamemodePool;
+        if (GamemodePool.empty())
+            GamemodePool = LootPoolWeapons({ "WID_Assault_" });
+        if (!GamemodePool.empty())
+            AssaultRifles = GamemodePool;
+    }
 
     if (LategameConfig::bLateGameCustom) // yea  custom
     {
@@ -630,12 +703,39 @@ FLateGameItem LateGame::GetUtility()
         {
             Snipers =
             {
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/ChronoWeaponGameplay/Items/ExplosiveRepeater/WID_Sniper_ExplosiveRepeater_Athena_VR.WID_Sniper_ExplosiveRepeater_Athena_VR")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/MotherGameplay/Items/ReactorGrade/WID_Sniper_ReactorGrade_Athena_VR_Ore_T03.WID_Sniper_ReactorGrade_Athena_VR_Ore_T03")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/MotherGameplay/Items/ReactorGrade/WID_Sniper_ReactorGrade_Athena_SR_Ore_T03.WID_Sniper_ReactorGrade_Athena_SR_Ore_T03")),
                 FLateGameItem(1, FindObject<UFortWeaponRangedItemDefinition>(L"/FirePetalWeaponGameplay/Gameplay/FirePetal_SMG/WID_SMG_FirePetal_Athena_R.WID_SMG_FirePetal_Athena_R")),
                 FLateGameItem(1, FindObject<UFortWeaponRangedItemDefinition>(L"/FirePetalWeaponGameplay/Gameplay/FirePetal_SMG/WID_SMG_FirePetal_Athena_VR.WID_SMG_FirePetal_Athena_VR")),
                 FLateGameItem(1, FindObject<UFortWeaponRangedItemDefinition>(L"/FirePetalWeaponGameplay/Gameplay/FirePetal_SMG/WID_SMG_FirePetal_Athena_SR.WID_SMG_FirePetal_Athena_SR")),
                 FLateGameItem(1, FindObject<UFortWeaponRangedItemDefinition>(L"/FirePetalWeaponGameplay/Gameplay/FirePetal_SMG_Quirky/WID_SMG_FirePetal_Quirky_Athena_R.WID_SMG_FirePetal_Quirky_Athena_R")),
                 FLateGameItem(1, FindObject<UFortWeaponRangedItemDefinition>(L"/FirePetalWeaponGameplay/Gameplay/FirePetal_SMG_Quirky/WID_SMG_FirePetal_Quirky_Athena_VR.WID_SMG_FirePetal_Quirky_Athena_VR")),
                 FLateGameItem(1, FindObject<UFortWeaponRangedItemDefinition>(L"/FirePetalWeaponGameplay/Gameplay/FirePetal_SMG_Quirky/WID_SMG_FirePetal_Quirky_Athena_SR.WID_SMG_FirePetal_Quirky_Athena_SR")),
+            };
+        }
+        else if (VersionInfo.FortniteVersion >= 32.00 && VersionInfo.FortniteVersion < 33.00)
+        {
+            Snipers =
+            {
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/Clyde/Weapons/WID_Clyde_Sniper_Standard_Scope_Athena_VR_Ore_T03.WID_Clyde_Sniper_Standard_Scope_Athena_VR_Ore_T03")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/Clyde/Weapons/WID_Clyde_Sniper_Standard_Scope_Athena_SR_Ore_T03.WID_Clyde_Sniper_Standard_Scope_Athena_SR_Ore_T03")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Pistol_AutoHeavyPDW_Athena_R_Ore_T03.WID_Pistol_AutoHeavyPDW_Athena_R_Ore_T03")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Pistol_Auto_Athena_R.WID_Pistol_Auto_Athena_R")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Pistol_Auto_Athena_VR.WID_Pistol_Auto_Athena_VR")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/Game/Athena/Items/Weapons/WID_Pistol_Auto_Athena_SR.WID_Pistol_Auto_Athena_SR")),
+            };
+        }
+        else if (VersionInfo.FortniteVersion >= 31.00 && VersionInfo.FortniteVersion < 32.00)
+        {
+            Snipers =
+            {
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/FlexLegendWeaponGameplay/Gameplay/DualSMGs/WID_FlexLegend_DualSMGs_Athena_R.WID_FlexLegend_DualSMGs_Athena_R")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/FlexLegendWeaponGameplay/Gameplay/DualSMGs/WID_FlexLegend_DualSMGs_Athena_VR.WID_FlexLegend_DualSMGs_Athena_VR")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/FlexLegendWeaponGameplay/Gameplay/DualSMGs/WID_FlexLegend_DualSMGs_Athena_SR.WID_FlexLegend_DualSMGs_Athena_SR")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/PaprikaCoreWeapons/Items/Weapons/PaprikaSMG_DPS/WID_SMG_Paprika_DPS_Athena_R.WID_SMG_Paprika_DPS_Athena_R")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/PaprikaCoreWeapons/Items/Weapons/PaprikaSMG_DPS/WID_SMG_Paprika_DPS_Athena_VR.WID_SMG_Paprika_DPS_Athena_VR")),
+                FLateGameItem(1, FindObject<UFortItemDefinition>(L"/PaprikaCoreWeapons/Items/Weapons/PaprikaSMG_DPS/WID_SMG_Paprika_DPS_Athena_SR.WID_SMG_Paprika_DPS_Athena_SR")),
             };
         }
         else if (VersionInfo.FortniteVersion >= 30.00)
@@ -667,6 +767,15 @@ FLateGameItem LateGame::GetUtility()
         };
 
     };
+
+    if (VersionInfo.FortniteVersion >= 32.00 && LategameConfig::bPullGamemodeLootPool)
+    {
+        static UEAllocatedVector<FLateGameItem> GamemodePool;
+        if (GamemodePool.empty())
+            GamemodePool = LootPoolWeapons({ "WID_SMG_", "WID_Sniper_", "WID_DMR_" });
+        if (!GamemodePool.empty())
+            Snipers = GamemodePool;
+    }
 
     if (LategameConfig::bLateGameCustom)
     {

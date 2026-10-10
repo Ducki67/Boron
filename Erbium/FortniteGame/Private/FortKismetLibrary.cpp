@@ -399,7 +399,7 @@ void UFortKismetLibrary::Hook()
         }
     if (!FFortItemEntry::HasCount())
     {
-        printf("[Boron][CH6Inv] ItemizationCore item layout -> pickup/loot/give kismet functions left native\n");
+        BORON_LOG("[Boron][CH6Inv] ItemizationCore item layout -> pickup/loot/give kismet functions left native\n");
         return;
     }
 
@@ -486,7 +486,7 @@ void UFortKismetLibrary::PostLoadHook()
             SetIsDoorOpen = decltype(SetIsDoorOpen)(Base + SetIsDoorOpenRva);
             Hooking::Hook(Base + OpenActorRva, OpenActorNative, OpenActorNativeOG);
             Hooking::ExecHook(GetDefaultObj()->GetFunction("CloseActor"), CloseActor_, CloseActor_OG);
-            printf("[Boron][Door] native OpenActor hook rva=0x%llX SetIsDoorOpen rva=0x%llX\n", OpenActorRva, SetIsDoorOpenRva);
+            BORON_LOG("[Boron][Door] native OpenActor hook rva=0x%llX SetIsDoorOpen rva=0x%llX\n", OpenActorRva, SetIsDoorOpenRva);
         }
     }
 }

@@ -284,14 +284,14 @@ namespace WeaponUpgrade
         {
             if (CountOf(Inventory, Materials[i]) < Costs[i])
             {
-                printf("[Boron][Bench] %s needs wood=%d metal=%d brick=%d\n", HeldDef->Name.ToString().c_str(), Costs[0], Costs[1], Costs[2]);
+                BORON_LOG("[Boron][Bench] %s needs wood=%d metal=%d brick=%d\n", HeldDef->Name.ToString().c_str(), Costs[0], Costs[1], Costs[2]);
                 return;
             }
         }
         for (uint8 i = 0; i < MaterialCount; i++)
             Take(Inventory, Materials[i], Costs[i]);
         if (GetHeld(PC, After) && After.Def == HeldDef && ReplaceHeld(PC, After, Row->UpgradedWeaponDef))
-            printf("[Boron][Bench] %s -> %s dir=%d charged=%s wood=%d metal=%d brick=%d\n", HeldDef->Name.ToString().c_str(), Row->UpgradedWeaponDef->Name.ToString().c_str(), (int)Direction,
+            BORON_LOG("[Boron][Bench] %s -> %s dir=%d charged=%s wood=%d metal=%d brick=%d\n", HeldDef->Name.ToString().c_str(), Row->UpgradedWeaponDef->Name.ToString().c_str(), (int)Direction,
                    bNativeCharged ? "native" : "boron", Costs[0], Costs[1], Costs[2]);
     }
 }

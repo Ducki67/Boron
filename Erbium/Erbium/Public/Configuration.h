@@ -19,11 +19,11 @@ set bGUI to false (for now this is very needed)
 
 
 
-struct LategameConfig // dont use lategame on s32+ plz, for now cuz barely tested!! :sob:
+struct LategameConfig // on OG Mode latgame will have buggy storms but ill fix that later
 {
     // loot settings
-    static inline auto bLateGameVersionized = true;
-    static inline auto bPullGamemodeLootPool = false; // new | this will pull weapons and items From the gamemode's loot pool Example  Fortnite OG mode on ch6 will give its ch1/classic loot
+    static inline auto bLateGameVersionized = false;
+    static inline auto bPullGamemodeLootPool = true; // new | this will pull weapons and items From the gamemode's loot pool Example  Fortnite OG mode on ch6 will give its ch1/classic loot
     static inline auto bLateGameCustom = false;
     static inline wchar_t CustomSlot1Item[500] = L"/Game/Athena/Items/Weapons/WID_Shotgun_Standard_Athena_SR_Ore_T03.WID_Shotgun_Standard_Athena_SR_Ore_T03";
     static inline int CustomSlot1ItemCount = 1;
@@ -37,7 +37,7 @@ struct LategameConfig // dont use lategame on s32+ plz, for now cuz barely teste
     static inline int CustomSlot5ItemCount = 6;
 
     // zones
-    static inline auto bLateGame = false; // lategame should work fine up to 32.00 atm
+    static inline auto bLateGame = false; // lategame should work fine up to 33.30 atm
     static inline auto LateGameZone = 3;          // starting zone  (recomend setting this to 3 if u suing Reload Solo with Lategame so u will have a cool "Reloaded" LateGame"
     static inline auto bLateGameLongZone = false; // zone does not close for a long time
     static inline auto bLateGameMovingBus = false;
@@ -52,12 +52,16 @@ struct GameRuleConfig
     static inline auto bInfiniteMats = true;
     static inline auto bInfiniteAmmo = true;
 
+
+
     // Respawn settings
     static inline auto bForceRespawns = false;      // build your client with this too!
     static inline int RespawnHightClient = 10000;   // respawn hight value (Client.cpp Line: 173)
     static inline int RespawnTimeClient = 5;        // respawnt time for clients as value (Client.cpp Line: 179)
     static inline int RespawnHightGamemode = 10000; // (FortGamemode.cpp Line: 74)
     static inline int RespawnTimeGamemode = 5;      // (FortGamemode.cpp Line: 80)
+
+
 
     static inline auto bJoinInProgress = false;
     static inline auto bAutoRestart = false;
@@ -117,7 +121,7 @@ struct FConfig
     
    /// high version playlists (s30+)
 
-   static inline wchar_t Playlist[9999] = L"/BRPlaylists/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo"; // 31.xx+ Main BR
+  static inline wchar_t Playlist[9999] = L"/BRPlaylists/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo"; // 31.xx+ Main BR
    // static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_BlastBerrySquad.Playlist_BlastBerrySquad"; // 30.20 and 30.40 Reload Venture map (this can be Squads and Trios only)
    // static inline wchar_t Playlist[9999] = L"/ToadJam/Athena/Playlists/ToadJam/Playlist_ToadJam_Sm.Playlist_ToadJam_Sm"; // Day of Doom LTM (testing, 31.20, 31.30)
    // static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_PunchBerrySolo.Playlist_PunchBerrySolo";  // 32.xx+ Oasis Reload map

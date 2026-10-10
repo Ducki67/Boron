@@ -60,7 +60,7 @@ inline bool IsWeakObjectField(const void* Prop)
         bool bWeak = ClassName->ToString() == "WeakObjectProperty";
         static int Logged = 0;
         if (Logged++ < 8)
-            printf("[Boron][WeakProp] %s class=%s weak=%d\n", ((FName*)((uint8_t*)Prop + Offsets::FField_Name))->ToString().c_str(), ClassName->ToString().c_str(), (int)bWeak);
+            BORON_LOG("[Boron][WeakProp] %s class=%s weak=%d\n", ((FName*)((uint8_t*)Prop + Offsets::FField_Name))->ToString().c_str(), ClassName->ToString().c_str(), (int)bWeak);
         return bWeak;
     }
     return (*(uint64_t*)(__int64(FieldClass) + 0x10) & 0x8000000) != 0;

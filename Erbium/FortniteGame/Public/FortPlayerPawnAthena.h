@@ -183,6 +183,7 @@ public:
     DEFINE_PROP(VehicleInputComponent, UObject*);
 
     DEFINE_FUNC(BeginSkydiving, void);
+    DEFINE_FUNC(BP_ForceOpenParachute, void);
     DEFINE_FUNC(GetHealth, float);
     DEFINE_FUNC(GetShield, float);
     DEFINE_FUNC(SetHealth, void);

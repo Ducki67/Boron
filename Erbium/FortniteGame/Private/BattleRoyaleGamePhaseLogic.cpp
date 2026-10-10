@@ -108,7 +108,7 @@ AFortSafeZoneIndicator* UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Setu
                     static int zn = 0;
 
                     if (Utils::LogBudget(zn, 8, "[Storm] zone index out of range"))
-                        printf("[Boron][Storm] zone %d out of range (have %d) - using map center\n", (int)i, SafeZoneLocations.Num());
+                        BORON_LOG("[Boron][Storm] zone %d out of range (have %d) - using map center\n", (int)i, SafeZoneLocations.Num());
                 }
 
                 Array.Add(*PhaseInfo, FFortSafeZonePhaseInfo::Size());
@@ -265,14 +265,14 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::StartAircraftPhase()
 
     if (VersionInfo.EngineVersion >= 5.4)
     {
-        printf("[Boron][Aircraft] StartAircraftPhase: MapInfo=%p FlightInfos=%d AircraftClass=%p\n",
+        BORON_LOG("[Boron][Aircraft] StartAircraftPhase: MapInfo=%p FlightInfos=%d AircraftClass=%p\n",
                (void*)GameState->MapInfo,
                GameState->MapInfo ? GameState->MapInfo->FlightInfos.Num() : -1,
                GameState->MapInfo ? (void*)GameState->MapInfo->AircraftClass.Get() : nullptr);
 
         if (GameState->HasDefaultParachuteDeployTraceForGroundDistance())
         {
-            printf("[Boron][Aircraft] CH5 parachute deploy trace: %.1f -> 10000\n",
+            BORON_LOG("[Boron][Aircraft] CH5 parachute deploy trace: %.1f -> 10000\n",
                    GameState->DefaultParachuteDeployTraceForGroundDistance);
             GameState->DefaultParachuteDeployTraceForGroundDistance = 10000.f;
         }
@@ -280,7 +280,7 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::StartAircraftPhase()
             printf("[Boron][Aircraft] CH5 parachute deploy trace prop MISSING on this build\n");
     }
 
-    printf("[Boron][Aircraft] dispatch: FlightInfos=%d lategame=%d zones=%d fn=%.2f ue=%.2f\n",
+    BORON_LOG("[Boron][Aircraft] dispatch: FlightInfos=%d lategame=%d zones=%d fn=%.2f ue=%.2f\n",
            GameState->MapInfo->FlightInfos.Num(), (int)LategameConfig::bLateGame,
            SafeZoneLocations.Num(), VersionInfo.FortniteVersion, VersionInfo.EngineVersion);
 
@@ -336,12 +336,19 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::StartAircraftPhase()
 
         if (VersionInfo.FortniteVersion >= 33)
         {
-            printf("[Boron][Aircraft] flight times: dropStart=%.1f dropEnd=%.1f flightEnd=%.1f speed=%.1f\n",
+            BORON_LOG("[Boron][Aircraft] flight times: dropStart=%.1f dropEnd=%.1f flightEnd=%.1f speed=%.1f\n",
                    FlightInfo.TimeTillDropStart, FlightInfo.TimeTillDropEnd, FlightInfo.TimeTillFlightEnd, FlightInfo.FlightSpeed);
-            if (Aircraft->DropEndTime - Aircraft->DropStartTime < 20.f)
+            if (LategameConfig::bLateGame)
+            {
+                Aircraft->DropEndTime = Aircraft->DropStartTime + 10.f;
+                Aircraft->FlightEndTime = Aircraft->DropEndTime + 5.f;
+                BORON_LOG("[Boron][Aircraft] lategame bus at (%.0f,%.0f,%.0f) zoneIdx=%d dropEnd=%.1f\n", (double)FlightInfo.FlightStartLocation.X, (double)FlightInfo.FlightStartLocation.Y,
+                       (double)FlightInfo.FlightStartLocation.Z, LategameConfig::LateGameZone + 2, Aircraft->DropEndTime);
+            }
+            else if (Aircraft->DropEndTime - Aircraft->DropStartTime < 20.f)
             {
                 auto NewEnd = FlightInfo.TimeTillFlightEnd - 5.f > FlightInfo.TimeTillDropStart + 20.f ? (float)Time + FlightInfo.TimeTillFlightEnd - 5.f : Aircraft->DropStartTime + 60.f;
-                printf("[Boron][Aircraft] drop window %.1fs too short -> dropEnd %.1f -> %.1f\n", Aircraft->DropEndTime - Aircraft->DropStartTime, Aircraft->DropEndTime, NewEnd);
+                BORON_LOG("[Boron][Aircraft] drop window %.1fs too short -> dropEnd %.1f -> %.1f\n", Aircraft->DropEndTime - Aircraft->DropStartTime, Aircraft->DropEndTime, NewEnd);
                 Aircraft->DropEndTime = NewEnd;
                 if (Aircraft->FlightEndTime < NewEnd)
                     Aircraft->FlightEndTime = NewEnd + 5.f;
@@ -383,7 +390,7 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::StartAircraftPhase()
         // OnRep_Aircrafts();
 
         if (VersionInfo.EngineVersion >= 5.4)
-            printf("[Boron][Aircraft] spawned bus=%p, Aircrafts_GameState.Num=%d\n", (void*)Aircraft, Aircrafts_GameState.Num());
+            BORON_LOG("[Boron][Aircraft] spawned bus=%p, Aircrafts_GameState.Num=%d\n", (void*)Aircraft, Aircrafts_GameState.Num());
     }
     else if (VersionInfo.EngineVersion >= 5.4)
     {
@@ -391,7 +398,7 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::StartAircraftPhase()
         // InitializeFlightPath). CH5 drop-in fallback: skydive players onto the map from center and go
         // straight to the storm, so the match is playable without a bus and never stalls in the empty
         // Aircraft phase. Pre-5.4 / bus-spawned paths fall through to the normal Aircraft phase below.
-        printf("[Boron][Aircraft] NO bus (FlightInfos empty) -> CH5 drop-in: skydiving players onto the map\n");
+        BORON_LOG("[Boron][Aircraft] NO bus (FlightInfos empty) -> CH5 drop-in: skydiving players onto the map\n");
 
         auto Center = GameState->MapInfo->GetMapCenter();
         auto GameMode = (AFortGameMode*)UWorld::GetWorld()->AuthorityGameMode;
@@ -422,7 +429,7 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::StartAircraftPhase()
             dropped++;
         }
 
-        printf("[Boron][Aircraft] drop-in: %d players skydiving from center %.0f,%.0f\n", dropped, Center.X, Center.Y);
+        BORON_LOG("[Boron][Aircraft] drop-in: %d players skydiving from center %.0f,%.0f\n", dropped, Center.X, Center.Y);
 
         SetGamePhase(EAthenaGamePhase::SafeZones);
         SetGamePhaseStep(EAthenaGamePhaseStep::StormForming);
@@ -616,7 +623,7 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Tick()
 
                             static int StormDiag = 0;
                             if (StormDiag++ < 3)
-                                printf("[Boron][Storm] flags InsideOff=0x%x mask=0x%x AnyStormOff=0x%x mask=0x%x readback inside=%d anystorm=%d\n", AFortPlayerPawnAthena::bIsInsideSafeZone__Offset, AFortPlayerPawnAthena::bIsInsideSafeZone__FieldMask, AFortPlayerPawnAthena::bIsInAnyStorm__Offset, AFortPlayerPawnAthena::bIsInAnyStorm__FieldMask, (int)Pawn->bIsInsideSafeZone, (int)Pawn->bIsInAnyStorm);
+                                BORON_LOG("[Boron][Storm] flags InsideOff=0x%x mask=0x%x AnyStormOff=0x%x mask=0x%x readback inside=%d anystorm=%d\n", AFortPlayerPawnAthena::bIsInsideSafeZone__Offset, AFortPlayerPawnAthena::bIsInsideSafeZone__FieldMask, AFortPlayerPawnAthena::bIsInAnyStorm__Offset, AFortPlayerPawnAthena::bIsInAnyStorm__FieldMask, (int)Pawn->bIsInsideSafeZone, (int)Pawn->bIsInAnyStorm);
 
                             /*auto AbilitySystemComponent = Player->PlayerState->AbilitySystemComponent;
                             if (AbilitySystemComponent)
@@ -666,7 +673,7 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::InitializeSafeZoneLocat
 
     if (!Playlist)
     {
-        printf("[Boron][SafeZone] InitializeSafeZoneLocations: no playlist, skipped\n");
+        BORON_LOG("[Boron][SafeZone] InitializeSafeZoneLocations: no playlist, skipped\n");
         return;
     }
 
@@ -677,7 +684,7 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::InitializeSafeZoneLocat
 
     if (!SafeZoneBlacklist)
     {
-        printf("[Boron][SafeZone] InitializeSafeZoneLocations: no blacklist table, skipped\n");
+        BORON_LOG("[Boron][SafeZone] InitializeSafeZoneLocations: no blacklist table, skipped\n");
         return;
     }
 
@@ -745,7 +752,7 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Hook()
     SetGamePhase_ = FindSetGamePhase();
 
     if (VersionInfo.EngineVersion >= 5.4)
-        printf("[Boron][PhaseLogic] Reset=0x%llX SetGamePhase=0x%llX HandleMatchHasStarted=0x%llX\n",
+        BORON_LOG("[Boron][PhaseLogic] Reset=0x%llX SetGamePhase=0x%llX HandleMatchHasStarted=0x%llX\n",
                (unsigned long long)Reset_, (unsigned long long)SetGamePhase_, (unsigned long long)FindHandleMatchHasStarted());
 
     Hooking::Hook(FindHandleMatchHasStarted(), HandleMatchHasStarted, HandleMatchHasStartedOG);

@@ -187,17 +187,17 @@ void Main()
                 if (VersionInfo.EngineVersion >= 5.4)
                 {
                     auto cls = FilterConfig.ClassName.ToString();
-                    printf("[Boron][Iris] filter[%d] class=%s dyn=%s\n", i, cls.c_str(), FilterConfig.DynamicFilterName.ToString().c_str());
+                    BORON_LOG("[Boron][Iris] filter[%d] class=%s dyn=%s\n", i, cls.c_str(), FilterConfig.DynamicFilterName.ToString().c_str());
 
                     if (strstr(cls.c_str(), "Pickup") || strstr(cls.c_str(), "LootTier") || strstr(cls.c_str(), "SearchableContainer") || FilterConfig.ClassName == FortWeaponName)
                     {
                         FilterConfig.DynamicFilterName = FName(0);
                         clearedExtra++;
-                        printf("[Boron][Iris]   -> CLEARED filter on %s\n", cls.c_str());
+                        BORON_LOG("[Boron][Iris]   -> CLEARED filter on %s\n", cls.c_str());
                     }
                 }
             }
-            printf("[Boron][Iris] filters: configs=%d clearedInventory=%d clearedPickupLike=%d\n", cfgN, clearedInv, clearedExtra);
+            BORON_LOG("[Boron][Iris] filters: configs=%d clearedInventory=%d clearedPickupLike=%d\n", cfgN, clearedInv, clearedExtra);
         }
         // UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"net.Iris.UseIrisReplication 1"), nullptr);
     }
@@ -206,7 +206,7 @@ void Main()
         auto Target = (uint8_t*)((uint64_t)GetModuleHandleW(nullptr) + 0x1F34640);
         DWORD og = 0;
 
-        printf("[Boron][EquipPatch] target=%p bytes=%02X %02X %02X %02X %02X\n",
+        BORON_LOG("[Boron][EquipPatch] target=%p bytes=%02X %02X %02X %02X %02X\n",
                (void*)Target, Target[0], Target[1], Target[2], Target[3], Target[4]);
 
         if (VirtualProtect(Target, 3, PAGE_EXECUTE_READWRITE, &og))
@@ -215,7 +215,7 @@ void Main()
             Target[1] = 0xC0;
             Target[2] = 0xC3;
             VirtualProtect(Target, 3, og, &og);
-            printf("[Boron][EquipPatch] patched rva 0x1F34640 -> xor eax,eax ; ret\n");
+            BORON_LOG("[Boron][EquipPatch] patched rva 0x1F34640 -> xor eax,eax ; ret\n");
         }
         else
             printf("[Boron][EquipPatch] VirtualProtect FAILED err=%lu\n", GetLastError());
@@ -303,7 +303,7 @@ void Main()
             L"s.UseBackgroundLevelStreaming",
         };
 
-        printf("[Boron][Streaming] cvar readback follows\n");
+        BORON_LOG("[Boron][Streaming] cvar readback follows\n");
 
         for (auto Probe : StreamingProbe)
             UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(Probe), nullptr);
@@ -370,7 +370,7 @@ void Main()
         Hooking::Patch<uint8_t>(Base + 0x51217C4, 0xC3);
         Hooking::Patch<uint8_t>(Base + 0x69DD970, 0xC3);
         Hooking::Patch<uint8_t>(Base + 0x52F96EF, 0xEB);
-        printf("[Boron][3330] RequestExit patched\n");
+        BORON_LOG("[Boron][3330] RequestExit patched\n");
     }
 
     auto SpawnTrackingGate = FindSpawnActorTrackingGate();
@@ -378,7 +378,7 @@ void Main()
     {
         auto Base = (uint64_t)GetModuleHandleW(nullptr);
         auto Flag = (uint8_t*)(SpawnTrackingGate + 7 + *(int32_t*)(SpawnTrackingGate + 2));
-        printf("[Boron][SpawnGate] gate=%llX flag=%llX value=%u\n",
+        BORON_LOG("[Boron][SpawnGate] gate=%llX flag=%llX value=%u\n",
                (unsigned long long)(SpawnTrackingGate - Base), (unsigned long long)((uint64_t)Flag - Base), (unsigned)*Flag);
 
         if (*Flag == 1)
@@ -388,7 +388,7 @@ void Main()
             Hooking::Patch<uint8_t>(Jne, 0xE9);
             Hooking::Patch<uint32_t>(Jne + 1, (uint32_t)(Rel + 1));
             Hooking::Patch<uint8_t>(Jne + 5, 0x90);
-            printf("[Boron][SpawnGate] forced skip of uninitialised spawn-tracking block\n");
+            BORON_LOG("[Boron][SpawnGate] forced skip of uninitialised spawn-tracking block\n");
         }
     }
     auto GameSessionPatch = FindGameSessionPatch();
@@ -410,7 +410,7 @@ void Main()
         GIsClientAddr = Memcury::PE::GetModuleBase() + 0x161B4DE9;
         GIsServerAddr = Memcury::PE::GetModuleBase() + 0x161B4D72;
     }
-    printf("[Boron] GIsClient=0x%llX GIsServer=0x%llX (FN %.2f)\n",
+    BORON_LOG("[Boron] GIsClient=0x%llX GIsServer=0x%llX (FN %.2f)\n",
            (unsigned long long)GIsClientAddr, (unsigned long long)GIsServerAddr, VersionInfo.FortniteVersion);
 
     if (GIsClientAddr)
@@ -461,14 +461,14 @@ void Main()
             alignas(16) FString DoorBashURL = L"file:../../../FortniteGame/Plugins/GameFeatures/DoorBashContent/DoorBashContent.uplugin";
             alignas(16) uint8_t Done[0x10] = {};
             ((void (*)(void*, FString*, uint8_t, void*))(Base + GFSChangeState))(GFS, &DoorBashURL, 3, Done);
-            printf("[Boron][DoorBash] activated DoorBashContent GFP\n");
+            BORON_LOG("[Boron][DoorBash] activated DoorBashContent GFP\n");
 
             if (Offsets::FortniteCL == 39768313)
             {
                 alignas(16) FString SimpleEditURL = L"file:../../../FortniteGame/Plugins/GameFeatures/SimpleEdit/SimpleEdit.uplugin";
                 alignas(16) uint8_t SimpleEditDone[0x10] = {};
                 ((void (*)(void*, FString*, uint8_t, void*))(Base + GFSChangeState))(GFS, &SimpleEditURL, 3, SimpleEditDone);
-                printf("[Boron][SimpleEdit] activated SimpleEdit GFP\n");
+                BORON_LOG("[Boron][SimpleEdit] activated SimpleEdit GFP\n");
             }
         }
     }
@@ -496,7 +496,7 @@ void Main()
         alignas(16) FString ByName;
         alignas(16) FString FileURL = L"file:../../../FortniteGame/Plugins/GameFeatures/632de27e-4506-41f8-532f-93ac01dc10ca/632de27e-4506-41f8-532f-93ac01dc10ca.uplugin";
         bool bByName = GFS && ((bool (*)(void*, void*, FString*))(Base + GFSURLByName))(GFS, &GFPName, &ByName);
-        printf("[Boron][Oasis] GFS=%p byName=%d\n", GFS, bByName);
+        BORON_LOG("[Boron][Oasis] GFS=%p byName=%d\n", GFS, bByName);
         if (GFS)
         {
             alignas(16) uint8_t Done[0x10] = {};
@@ -553,13 +553,13 @@ void Main()
     {
         auto WeaponMetaSound = FindCVar<bool>(L"Fort.Rollback.EnableWeaponMetaSoundParameterPack");
         auto KeepSlideMomentum = FindCVar<bool>(L"Fort.CharacterMovement.KeepMovingPlatformMomentumWhenLandingInSlide");
-        printf("[Boron][Init] WeaponMetaSound=%p(%d) KeepSlideMomentum=%p(%d)\n", WeaponMetaSound, WeaponMetaSound ? *WeaponMetaSound : -1, KeepSlideMomentum, KeepSlideMomentum ? *KeepSlideMomentum : -1);
+        BORON_LOG("[Boron][Init] WeaponMetaSound=%p(%d) KeepSlideMomentum=%p(%d)\n", WeaponMetaSound, WeaponMetaSound ? *WeaponMetaSound : -1, KeepSlideMomentum, KeepSlideMomentum ? *KeepSlideMomentum : -1);
         if (WeaponMetaSound)
             *WeaponMetaSound = false;
         if (KeepSlideMomentum)
             *KeepSlideMomentum = false;
         auto RootMotionPreventsClamber = FindCVar<bool>(L"Clambering.RootMotionPreventsStart");
-        printf("[Boron][Init] RootMotionPreventsClamber=%p(%d)\n", RootMotionPreventsClamber, RootMotionPreventsClamber ? *RootMotionPreventsClamber : -1);
+        BORON_LOG("[Boron][Init] RootMotionPreventsClamber=%p(%d)\n", RootMotionPreventsClamber, RootMotionPreventsClamber ? *RootMotionPreventsClamber : -1);
         if (RootMotionPreventsClamber)
             *RootMotionPreventsClamber = false;
     }

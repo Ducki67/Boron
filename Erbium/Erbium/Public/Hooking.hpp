@@ -13,7 +13,7 @@ namespace Hooking
         if (VersionInfo.FortniteVersion >= 32)
         {
             auto File = strrchr(Loc.file_name(), '\\');
-            printf("[Boron][Hook] skipped target %p at %s:%u\n", (void*)Ptr, File ? File + 1 : Loc.file_name(), Loc.line());
+            BORON_LOG("[Boron][Hook] skipped target %p at %s:%u\n", (void*)Ptr, File ? File + 1 : Loc.file_name(), Loc.line());
         }
 
         return true;

@@ -304,11 +304,11 @@ uint64 FindCreateNamedNetDriverLocal()
         Addr = Memcury::Scanner::FindPattern("48 8B C4 48 89 58 ? 48 89 68 ? 48 89 70 ? 44 89 40 ? 57 41 54 41 55 41 56 41 57 48 83 EC ? 48 63 81").Get();
         if (Addr)
         {
-            printf("[Boron][Finder] CreateNamedNetDriver_Local (pattern) = 0x%llX (RVA 0x%llX)\n",
+            BORON_LOG("[Boron][Finder] CreateNamedNetDriver_Local (pattern) = 0x%llX (RVA 0x%llX)\n",
                    (unsigned long long)Addr, (unsigned long long)(Addr - ImageBase));
             return Addr;
         }
-        printf("[Boron][Finder] CreateNamedNetDriver_Local pattern MISS -> trying string anchor\n");
+        BORON_LOG("[Boron][Finder] CreateNamedNetDriver_Local pattern MISS -> trying string anchor\n");
     }
 
     // UE5.1+ string refs can go through an .rdata pointer indirection -> bIsInFunc follows it.
@@ -324,20 +324,20 @@ uint64 FindCreateNamedNetDriverLocal()
     {
         auto r1 = Memcury::Scanner::FindStringRef(c, false, 0, true, false).Get();   // indirection
         auto r2 = r1 ? 0 : Memcury::Scanner::FindStringRef(c, false, 0, false, false).Get(); // direct
-        printf("[Boron][Finder] CNND strref inFunc=0x%llX direct=0x%llX | %ls\n",
+        BORON_LOG("[Boron][Finder] CNND strref inFunc=0x%llX direct=0x%llX | %ls\n",
                (unsigned long long)r1, (unsigned long long)r2, c);
         if (r1 || r2) { refAddr = r1 ? r1 : r2; break; }
     }
 
     if (!refAddr)
     {
-        printf("[Boron][Finder] CreateNamedNetDriver_Local: NO string ref found by any variant\n");
+        BORON_LOG("[Boron][Finder] CreateNamedNetDriver_Local: NO string ref found by any variant\n");
         return Addr = 0;
     }
 
     if (auto ObfOwner = ObfuscatedOwner(refAddr))
     {
-        printf("[Boron][Finder] CreateNamedNetDriver_Local (owner) = 0x%llX (RVA 0x%llX)\n",
+        BORON_LOG("[Boron][Finder] CreateNamedNetDriver_Local (owner) = 0x%llX (RVA 0x%llX)\n",
                (unsigned long long)ObfOwner, (unsigned long long)(ObfOwner - ImageBase));
         return Addr = ObfOwner;
     }
@@ -386,7 +386,7 @@ uint64 FindCreateNamedNetDriverLocal()
             Addr = 0;
     }
 
-    printf("[Boron][Finder] CreateNamedNetDriver_Local: ref=0x%llX jmpBack=0x%llX start=0x%llX\n",
+    BORON_LOG("[Boron][Finder] CreateNamedNetDriver_Local: ref=0x%llX jmpBack=0x%llX start=0x%llX\n",
            (unsigned long long)refAddr, (unsigned long long)jmpBack, (unsigned long long)Addr);
     return Addr;
 }
@@ -3650,7 +3650,7 @@ static uint64 ValidateStringOwner(const char* Name, uint64 Found, uint64 StringR
     auto Owner = OwningFunctionStart(StringRef);
     if (!Found || !Owner || Owner == Found)
         return Found;
-    printf("[Boron][Init] %s rejected %p (string is in %p)\n", Name, (void*)Found, (void*)Owner);
+    BORON_LOG("[Boron][Init] %s rejected %p (string is in %p)\n", Name, (void*)Found, (void*)Owner);
     return 0;
 }
 
@@ -4088,7 +4088,7 @@ uint64 FindNetModeCheck()
 
         if (Found)
         {
-            printf("[Boron][Init] NetModeCheck ambiguous (%p, %p)\n", (void*)Found, (void*)(Ptr + 5));
+            BORON_LOG("[Boron][Init] NetModeCheck ambiguous (%p, %p)\n", (void*)Found, (void*)(Ptr + 5));
             return 0;
         }
 
@@ -4139,7 +4139,7 @@ uint64 FindAttemptDeriveFromURL()
         if (Calls[c] > Calls[Best])
             Best = c;
 
-    printf("[Boron][Init] AttemptDeriveFromURL = %p (%d calls, %d candidates)\n", (void*)Candidates[Best], Calls[Best], (int)Candidates.size());
+    BORON_LOG("[Boron][Init] AttemptDeriveFromURL = %p (%d calls, %d candidates)\n", (void*)Candidates[Best], Calls[Best], (int)Candidates.size());
     return Calls[Best] >= 100 ? Candidates[Best] : 0;
 }
 

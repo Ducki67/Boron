@@ -19,7 +19,7 @@ void ABuildingSMActor::OnDamageServer(ABuildingSMActor* Actor, float Damage, FGa
     static int HarvestDiag = 0;
     const bool bHarvestDiag = VersionInfo.FortniteVersion >= 32 && HarvestDiag++ < 6;
     if (bHarvestDiag)
-        printf("[Boron][Harvest] OnDamageServer actor=%s dmg=%.1f inst=%p causer=%p\n", Actor ? Actor->Name.ToString().c_str() : "null", Damage, (void*)InstigatedBy, (void*)DamageCauser);
+        BORON_LOG("[Boron][Harvest] OnDamageServer actor=%s dmg=%.1f inst=%p causer=%p\n", Actor ? Actor->Name.ToString().c_str() : "null", Damage, (void*)InstigatedBy, (void*)DamageCauser);
 
     /*auto bIsWeakspot = Damage == 100.f && Actor->IsA<ABuildingSMActor>() && DamageCauser->IsA<AFortWeapon>() &&
     ((AFortWeapon*)DamageCauser)->WeaponData->IsA(UFortWeaponMeleeItemDefinition::StaticClass());
@@ -92,7 +92,7 @@ void ABuildingSMActor::OnDamageServer(ABuildingSMActor* Actor, float Damage, FGa
     }
 
     if (bHarvestDiag)
-        printf("[Boron][Harvest] resource=%s count=%d\n", Resource->Name.ToString().c_str(), ResCount);
+        BORON_LOG("[Boron][Harvest] resource=%s count=%d\n", Resource->Name.ToString().c_str(), ResCount);
 
     if (ResCount > 0)
     {
@@ -121,7 +121,7 @@ void ABuildingSMActor::OnDamageServer(ABuildingSMActor* Actor, float Damage, FGa
                 Controller->WorldInventory->bRequiresLocalUpdate = true;
                 Controller->WorldInventory->HandleInventoryLocalUpdate();
             }
-            printf("[Boron][Harvest] CH6 stack=%lld rep=%p\n", Stack ? (long long)*Stack : -1ll, (void*)RepStack);
+            BORON_LOG("[Boron][Harvest] CH6 stack=%lld rep=%p\n", Stack ? (long long)*Stack : -1ll, (void*)RepStack);
         }
         else if (ItemP)
         {
@@ -636,7 +636,7 @@ void ABuildingSMActor::PostLoadHook()
         if (!GetSparseClassData_ && Offsets::FortniteCL == 39768313)
             GetSparseClassData_ = Memcury::PE::GetModuleBase() + 0x2426664;
 
-        printf("[Boron][Init] GetSparseClassData=%p\n", (void*)GetSparseClassData_);
+        BORON_LOG("[Boron][Init] GetSparseClassData=%p\n", (void*)GetSparseClassData_);
     }
     if (VersionInfo.FortniteVersion >= 18)
     {

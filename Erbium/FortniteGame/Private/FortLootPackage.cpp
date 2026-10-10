@@ -133,7 +133,7 @@ void UFortLootPackage::SetupLDSForPackage(TArray<FFortItemEntry*>& LootDrops, SD
     static int LDSDiag = 0;
     bool bLDSDiag = VersionInfo.FortniteVersion >= 32 && LDSDiag++ < 24;
     if (bLDSDiag)
-        printf("[Boron][LDS] pkg=%s cat=%d all=%d groups=%d\n", Package.ToString().c_str(), i, LootPackageMap[Package.ComparisonIndex].Num(), LPGroups.Num());
+        BORON_LOG("[Boron][LDS] pkg=%s cat=%d all=%d groups=%d\n", Package.ToString().c_str(), i, LootPackageMap[Package.ComparisonIndex].Num(), LPGroups.Num());
 
     if (LPGroups.Num() == 0)
         return;
@@ -141,7 +141,7 @@ void UFortLootPackage::SetupLDSForPackage(TArray<FFortItemEntry*>& LootDrops, SD
     auto LootPackage = PickWeighted(LPGroups, [](float Total) { return ((float)rand() / 32767.f) * Total; });
     int PackageCount = LootPackage ? LootPackageCount(LootPackage) : -1;
     if (bLDSDiag)
-        printf("[Boron][LDS]   picked=%p call=%d count=%d item=%p\n", LootPackage, LootPackage ? LootPackage->LootPackageCall.Num() : -1, PackageCount, LootPackage ? (void*)LootPackage->ItemDefinition.Get() : nullptr);
+        BORON_LOG("[Boron][LDS]   picked=%p call=%d count=%d item=%p\n", LootPackage, LootPackage ? LootPackage->LootPackageCall.Num() : -1, PackageCount, LootPackage ? (void*)LootPackage->ItemDefinition.Get() : nullptr);
     if (!LootPackage)
         return;
 
@@ -336,9 +336,9 @@ void UFortLootPackage::ChooseLootForContainer(TArray<FFortItemEntry*>& LootDrops
     static int TierDiag = 0;
     if (VersionInfo.FortniteVersion >= 32 && TierDiag++ < 4)
     {
-        printf("[Boron][LDS] tierRows=%d offW=0x%x offNum=0x%x offTier=0x%x offPkg=0x%x\n", TierDataGroups.Num(), FFortLootTierData::Weight__Offset, FFortLootTierData::NumLootPackageDrops__Offset, FFortLootTierData::LootTier__Offset, FFortLootTierData::LootPackage__Offset);
+        BORON_LOG("[Boron][LDS] tierRows=%d offW=0x%x offNum=0x%x offTier=0x%x offPkg=0x%x\n", TierDataGroups.Num(), FFortLootTierData::Weight__Offset, FFortLootTierData::NumLootPackageDrops__Offset, FFortLootTierData::LootTier__Offset, FFortLootTierData::LootPackage__Offset);
         for (int i = 0; i < TierDataGroups.Num() && i < 4; i++)
-            printf("[Boron][LDS]   row%d w=%.2f num=%.2f tier=%d pkg=%s\n", i, TierDataGroups[i]->Weight, TierDataGroups[i]->NumLootPackageDrops, TierDataGroups[i]->LootTier, TierDataGroups[i]->LootPackage.ToString().c_str());
+            BORON_LOG("[Boron][LDS]   row%d w=%.2f num=%.2f tier=%d pkg=%s\n", i, TierDataGroups[i]->Weight, TierDataGroups[i]->NumLootPackageDrops, TierDataGroups[i]->LootTier, TierDataGroups[i]->LootPackage.ToString().c_str());
     }
 
     auto LootTierData = PickWeighted(TierDataGroups, [](float Total) { return ((float)rand() / 32767.f) * Total; });
@@ -459,7 +459,7 @@ void UFortLootPackage::ChooseLootForContainer(TArray<FFortItemEntry*>& LootDrops
 
     static int CLDiag = 0;
     if (VersionInfo.FortniteVersion >= 32 && CLDiag++ < 8)
-        printf("[Boron][LDS] tierPkg=%s num=%.2f drops=%d cats=%d min0=%d\n", LootTierData->LootPackage.ToString().c_str(), LootTierData->NumLootPackageDrops, DropCount, (int)NumMap.size(), NumMap.size() ? NumMap[0] : -1);
+        BORON_LOG("[Boron][LDS] tierPkg=%s num=%.2f drops=%d cats=%d min0=%d\n", LootTierData->LootPackage.ToString().c_str(), LootTierData->NumLootPackageDrops, DropCount, (int)NumMap.size(), NumMap.size() ? NumMap[0] : -1);
 
     LootDrops.Reserve((int)DropCount);
 
@@ -480,7 +480,7 @@ bool UFortLootPackage::SpawnLootHook(ABuildingContainer* Container)
 {
     static int SpawnLootDiag = 0;
     if (VersionInfo.FortniteVersion >= 32 && SpawnLootDiag++ < 4)
-        printf("[Boron][Chest] SpawnLoot %s searched=%d off=0x%x mask=0x%x\n", Container->Name.ToString().c_str(), (int)Container->bAlreadySearched, ABuildingContainer::bAlreadySearched__Offset, ABuildingContainer::bAlreadySearched__FieldMask);
+        BORON_LOG("[Boron][Chest] SpawnLoot %s searched=%d off=0x%x mask=0x%x\n", Container->Name.ToString().c_str(), (int)Container->bAlreadySearched, ABuildingContainer::bAlreadySearched__Offset, ABuildingContainer::bAlreadySearched__FieldMask);
 
     if (Container->bAlreadySearched)
         return false;
@@ -536,7 +536,7 @@ bool UFortLootPackage::SpawnLootHook(ABuildingContainer* Container)
     UFortLootPackage::ChooseLootForContainer(LootDrops, RealTierGroup, -1, GameMode->GameState->WorldLevel, Container);
 
     if (VersionInfo.FortniteVersion >= 32 && SpawnLootDiag < 12)
-        printf("[Boron][Chest] tier=%s idx=%d groups=%d drops=%d\n", RealTierGroup.ToString().c_str(), RealTierGroup.ComparisonIndex, TierDataMap[RealTierGroup.ComparisonIndex].Num(), LootDrops.Num());
+        BORON_LOG("[Boron][Chest] tier=%s idx=%d groups=%d drops=%d\n", RealTierGroup.ToString().c_str(), RealTierGroup.ComparisonIndex, TierDataMap[RealTierGroup.ComparisonIndex].Num(), LootDrops.Num());
 
     for (auto& LootDrop : LootDrops)
     {

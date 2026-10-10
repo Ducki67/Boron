@@ -96,7 +96,7 @@ namespace WeaponMods
 
         if (!ModClass)
         {
-            printf("[Boron][Mods] FortWeaponModItemDefinition class not present on this build\n");
+            BORON_LOG("[Boron][Mods] FortWeaponModItemDefinition class not present on this build\n");
             return;
         }
 
@@ -108,10 +108,10 @@ namespace WeaponMods
                 Discovered.push_back((const UFortWeaponModItemDefinition*)Obj);
         }
 
-        printf("[Boron][Mods] discovered %d weapon mod definitions\n", (int)Discovered.size());
+        BORON_LOG("[Boron][Mods] discovered %d weapon mod definitions\n", (int)Discovered.size());
 
         for (auto Mod : Discovered)
-            printf("[Boron][Mods]   %s\n", Mod->Name.ToString().c_str());
+            BORON_LOG("[Boron][Mods]   %s\n", Mod->Name.ToString().c_str());
     }
 
     inline int Category(const UFortWeaponModItemDefinition* Mod)
@@ -206,7 +206,7 @@ namespace WeaponMods
         Rediscover();
 
         if ((int)Discovered.size() != Before)
-            printf("[Boron][Mods] rescan on miss: %d -> %d definitions\n", Before, (int)Discovered.size());
+            BORON_LOG("[Boron][Mods] rescan on miss: %d -> %d definitions\n", Before, (int)Discovered.size());
 
         return ResolveIn(Want);
     }
@@ -274,7 +274,7 @@ namespace WeaponMods
         {
             auto Lib = FindClass("FortWeaponModFunctionLibrary") ? UFortWeaponModFunctionLibrary::GetDefaultObj() : nullptr;
             NativeCheck = (Lib && Lib->GetFunction("ModAllowedOnWeaponDefinition")) ? 1 : 0;
-            printf("[Boron][Mods] native ModAllowedOnWeaponDefinition available=%d\n", NativeCheck);
+            BORON_LOG("[Boron][Mods] native ModAllowedOnWeaponDefinition available=%d\n", NativeCheck);
         }
 
         if (NativeCheck == 1 && WeaponDef)
@@ -283,7 +283,7 @@ namespace WeaponMods
             static int rejected = 0;
 
             if (!bAllowed && rejected++ < 10)
-                printf("[Boron][Mods] game rejects %s on %s\n", Mod->Name.ToString().c_str(), WeaponName.c_str());
+                BORON_LOG("[Boron][Mods] game rejects %s on %s\n", Mod->Name.ToString().c_str(), WeaponName.c_str());
 
             return bAllowed;
         }
@@ -317,7 +317,7 @@ namespace WeaponMods
             auto Cls = FindClass("FortWeaponModFunctionLibrary");
             auto Obj = Cls ? UFortWeaponModFunctionLibrary::GetDefaultObj() : nullptr;
             Cached = (Obj && Obj->GetFunction("TryAddWeaponMod")) ? 1 : 0;
-            printf("[Boron][Mods] native TryAddWeaponMod available=%d\n", Cached);
+            BORON_LOG("[Boron][Mods] native TryAddWeaponMod available=%d\n", Cached);
         }
 
         return Cached == 1;
@@ -497,7 +497,7 @@ namespace WeaponMods
 
         Previous.Free();
 
-        printf("[Boron][Mods] apply %s (%s) to %s -> %d slot(s) native=%d\n", Mod->Name.ToString().c_str(), CategoryName(Category(Mod)), WeaponName.c_str(), Written, (int)bNative);
+        BORON_LOG("[Boron][Mods] apply %s (%s) to %s -> %d slot(s) native=%d\n", Mod->Name.ToString().c_str(), CategoryName(Category(Mod)), WeaponName.c_str(), Written, (int)bNative);
 
         return bNative || Written > 0;
     }
@@ -521,7 +521,7 @@ namespace WeaponMods
         NotifyRep(Weapon, Previous);
         Previous.Free();
 
-        printf("[Boron][Mods] cleared mods on %s\n", Weapon->HasWeaponData() && Weapon->WeaponData ? Weapon->WeaponData->Name.ToString().c_str() : "weapon");
+        BORON_LOG("[Boron][Mods] cleared mods on %s\n", Weapon->HasWeaponData() && Weapon->WeaponData ? Weapon->WeaponData->Name.ToString().c_str() : "weapon");
     }
 
     inline void SeedDefaultsFromDef(AFortWeapon* Weapon)
@@ -560,7 +560,7 @@ namespace WeaponMods
         static int Logged = 0;
 
         if (Logged++ < 20)
-            printf("[Boron][Mods] CH6 default mods for %s: %d\n", Def->Name.ToString().c_str(), Seeded);
+            BORON_LOG("[Boron][Mods] CH6 default mods for %s: %d\n", Def->Name.ToString().c_str(), Seeded);
     }
 
     inline void Reapply(AFortWeapon* Weapon)
@@ -580,7 +580,7 @@ namespace WeaponMods
             static int skipped = 0;
 
             if (skipped++ < 20)
-                printf("[Boron][Mods] reapply skipped on equip of %s - mods already on weapon\n", Weapon->HasWeaponData() && Weapon->WeaponData ? Weapon->WeaponData->Name.ToString().c_str() : "weapon");
+                BORON_LOG("[Boron][Mods] reapply skipped on equip of %s - mods already on weapon\n", Weapon->HasWeaponData() && Weapon->WeaponData ? Weapon->WeaponData->Name.ToString().c_str() : "weapon");
 
             return;
         }
@@ -601,7 +601,7 @@ namespace WeaponMods
 
         Previous.Free();
 
-        printf("[Boron][Mods] reapplied %d mod(s) on equip of %s native=%d\n", Written, Weapon->HasWeaponData() && Weapon->WeaponData ? Weapon->WeaponData->Name.ToString().c_str() : "weapon", Native);
+        BORON_LOG("[Boron][Mods] reapplied %d mod(s) on equip of %s native=%d\n", Written, Weapon->HasWeaponData() && Weapon->WeaponData ? Weapon->WeaponData->Name.ToString().c_str() : "weapon", Native);
     }
 
     inline bool HasPickupNative()
@@ -613,7 +613,7 @@ namespace WeaponMods
             auto Cls = FindClass("FortWeaponModFunctionLibrary");
             auto Obj = Cls ? UFortWeaponModFunctionLibrary::GetDefaultObj() : nullptr;
             Cached = (Obj && Obj->GetFunction("ApplyWeaponModToPickup")) ? 1 : 0;
-            printf("[Boron][Mods] native ApplyWeaponModToPickup available=%d\n", Cached);
+            BORON_LOG("[Boron][Mods] native ApplyWeaponModToPickup available=%d\n", Cached);
         }
 
         return Cached == 1;
@@ -807,7 +807,7 @@ namespace WeaponMods
                 static int wn = 0;
 
                 if (Utils::LogBudget(wn, 12, "[Mods] entry write"))
-                    printf("[Boron][Mods] %s <- %s entryWrite=%d\n", WeaponName.c_str(), Mod->Name.ToString().c_str(), Wrote);
+                    BORON_LOG("[Boron][Mods] %s <- %s entryWrite=%d\n", WeaponName.c_str(), Mod->Name.ToString().c_str(), Wrote);
 
                 Applied++;
             }
@@ -816,7 +816,7 @@ namespace WeaponMods
         static int pn = 0;
 
         if (Applied > 0 && Utils::LogBudget(pn, 20, "[Mods] pickup roll"))
-            printf("[Boron][Mods] pickup %s rarity=%d rolled %d/%d mod(s)\n", WeaponName.c_str(), Rarity, Applied, Budget);
+            BORON_LOG("[Boron][Mods] pickup %s rarity=%d rolled %d/%d mod(s)\n", WeaponName.c_str(), Rarity, Applied, Budget);
 
         return Applied;
     }
@@ -902,7 +902,7 @@ namespace WeaponMods
             static int cn = 0;
 
             if (Utils::LogBudget(cn, 20, "[Mods] keep on drop"))
-                printf("[Boron][Mods] %s kept %d mod(s) on drop (store)\n", Def->Name.ToString().c_str(), FromStore);
+                BORON_LOG("[Boron][Mods] %s kept %d mod(s) on drop (store)\n", Def->Name.ToString().c_str(), FromStore);
 
             return;
         }
@@ -917,7 +917,7 @@ namespace WeaponMods
             static int cn2 = 0;
 
             if (Utils::LogBudget(cn2, 20, "[Mods] keep on drop entry"))
-                printf("[Boron][Mods] %s kept %d/%d mod(s) on drop (entry)\n", Def->Name.ToString().c_str(), Reapplied, Existing);
+                BORON_LOG("[Boron][Mods] %s kept %d/%d mod(s) on drop (entry)\n", Def->Name.ToString().c_str(), Reapplied, Existing);
 
             return;
         }

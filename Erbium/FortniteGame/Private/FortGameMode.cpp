@@ -78,7 +78,7 @@ static UFortPlaylistAthena* FindLoadedPlaylist()
             break;
         }
     }
-    printf("[Boron][Playlist] FindLoadedPlaylist: %d loaded, want '%ls' -> %p\n", found, nameW.c_str(), (void*)Result);
+    BORON_LOG("[Boron][Playlist] FindLoadedPlaylist: %d loaded, want '%ls' -> %p\n", found, nameW.c_str(), (void*)Result);
     Playlists.Free();
     return Result;
 }
@@ -100,7 +100,7 @@ void SetupPlaylist(AFortGameMode* GameMode, AFortGameStateAthena* GameState)
         Playlist = FindLoadedPlaylist();
     }
 
-    printf("[Boron][Playlist] SetupPlaylist -> Playlist=%p obj=%s id=%d source=%s want='%ls'\n",
+    BORON_LOG("[Boron][Playlist] SetupPlaylist -> Playlist=%p obj=%s id=%d source=%s want='%ls'\n",
            (void*)Playlist,
            Playlist ? Playlist->Name.ToString().c_str() : "none",
            (Playlist && Playlist->HasPlaylistId()) ? Playlist->PlaylistId : -1,
@@ -424,7 +424,7 @@ void AFortGameMode::ReadyToStartMatch_(UObject* Context, FFrame& Stack, bool* Re
         if (!rtsmEnterLogged)
         {
             rtsmEnterLogged = true;
-            printf("[Boron][RTSM] ENTER: Context=%p FrontendMode=%p IsFrontend=%d\n",
+            BORON_LOG("[Boron][RTSM] ENTER: Context=%p FrontendMode=%p IsFrontend=%d\n",
                    (void*)Context,
                    (void*)FrontendMode,
                    (Context && FrontendMode) ? (int)Context->IsA(FrontendMode) : -1);
@@ -459,7 +459,7 @@ void AFortGameMode::ReadyToStartMatch_(UObject* Context, FFrame& Stack, bool* Re
     if (VersionInfo.EngineVersion >= 5.4)
     {
         if (!setup)
-            printf("[Boron][RTSM] first setup call: hasWarmupCount=%d warmupCount=%d\n",
+            BORON_LOG("[Boron][RTSM] first setup call: hasWarmupCount=%d warmupCount=%d\n",
                    (int)GameMode->HasWarmupRequiredPlayerCount(),
                    GameMode->HasWarmupRequiredPlayerCount() ? GameMode->WarmupRequiredPlayerCount : -1);
         shouldSetup = !setup;
@@ -476,7 +476,7 @@ void AFortGameMode::ReadyToStartMatch_(UObject* Context, FFrame& Stack, bool* Re
             if (!deferLogged)
             {
                 deferLogged = true;
-                printf("[Boron][RTSM] FN %.2f: no NetDriver yet - waiting for FinishWorldInitialization to start listening\n", VersionInfo.FortniteVersion);
+                BORON_LOG("[Boron][RTSM] FN %.2f: no NetDriver yet - waiting for FinishWorldInitialization to start listening\n", VersionInfo.FortniteVersion);
             }
 
             *Ret = false;
@@ -487,7 +487,7 @@ void AFortGameMode::ReadyToStartMatch_(UObject* Context, FFrame& Stack, bool* Re
 
         auto World = UWorld::GetWorld();
         if (VersionInfo.EngineVersion >= 5.4 && World->NetDriver)
-            printf("[Boron][RTSM] NetDriver already exists (FWI listen path) -- skipping listen setup\n");
+            BORON_LOG("[Boron][RTSM] NetDriver already exists (FWI listen path) -- skipping listen setup\n");
         else
         {
             auto Engine = UEngine::GetEngine();
@@ -568,7 +568,7 @@ void AFortGameMode::ReadyToStartMatch_(UObject* Context, FFrame& Stack, bool* Re
                 FString Err;
                 if (InitListen(NetDriver, World, URL, false, Err))
                 {
-                    printf("[Boron] InitListen OK -- GameNetDriver listening on port %d\n", FConfig::Port);
+                    BORON_LOG("[Boron] InitListen OK -- GameNetDriver listening on port %d\n", FConfig::Port);
                     SetWorld(NetDriver, World);
                 }
                 else
@@ -1206,7 +1206,7 @@ void AFortGameMode::SpawnDefaultPawnFor(UObject* Context, FFrame& Stack, AActor*
     if (VersionInfo.EngineVersion >= 5.4)
     {
         static bool once = false;
-        if (!once) { once = true; printf("[Boron][ExecProbe] SpawnDefaultPawnFor FIRED\n"); }
+        if (!once) { once = true; BORON_LOG("[Boron][ExecProbe] SpawnDefaultPawnFor FIRED\n"); }
     }
 
     if (!NewPlayer || !StartSpot)
@@ -1408,7 +1408,7 @@ AActor* AFortGameMode::SpawnDefaultPawnFor_Native(AFortGameMode* GameMode, AFort
     if (!once)
     {
         once = true;
-        printf("[Boron][ExecProbe] SpawnDefaultPawnFor_Native FIRED (address hook)\n");
+        BORON_LOG("[Boron][ExecProbe] SpawnDefaultPawnFor_Native FIRED (address hook)\n");
     }
 
     if (!GameMode || !NewPlayer)
@@ -1443,7 +1443,7 @@ AActor* AFortGameMode::SpawnDefaultPawnFor_Native(AFortGameMode* GameMode, AFort
         if (!NewPlayer->Pawn)
             NewPlayer->Pawn = Pawn;
 
-        printf("[Boron][Cosmetics] pre-registered pawn at spawn: MyFortPawn=%p Pawn=%p\n",
+        BORON_LOG("[Boron][Cosmetics] pre-registered pawn at spawn: MyFortPawn=%p Pawn=%p\n",
                (void*)NewPlayer->MyFortPawn, (void*)NewPlayer->Pawn);
 
         static auto CosmeticCompClass = FindClass("FortControllerComponent_CosmeticLoadout");
@@ -1461,7 +1461,7 @@ AActor* AFortGameMode::SpawnDefaultPawnFor_Native(AFortGameMode* GameMode, AFort
             if (!UFortKismetLibrary::UpdatePlayerCustomCharacterPartsVisualization__Ptr && ACC)
                 ((void (*)(AActor*, AActor*, int))ACC)(NewPlayer->PlayerState, Pawn, 0);
         }
-        printf("[Boron][Cosmetics] re-applied loadout at spawn comp=%p\n", (void*)CosmeticComp);
+        BORON_LOG("[Boron][Cosmetics] re-applied loadout at spawn comp=%p\n", (void*)CosmeticComp);
     }
 
     int AircraftNum = -1;
@@ -1481,7 +1481,7 @@ AActor* AFortGameMode::SpawnDefaultPawnFor_Native(AFortGameMode* GameMode, AFort
         }
     }
 
-    printf("[Boron][Pawn] SpawnDefaultPawnFor_Native -> Pawn=%p StartSpot=%p native=%s aircraftNum=%d aircraft0=%p\n",
+    BORON_LOG("[Boron][Pawn] SpawnDefaultPawnFor_Native -> Pawn=%p StartSpot=%p native=%s aircraftNum=%d aircraft0=%p\n",
            (void*)Pawn, (void*)StartSpot, SpawnDefaultPawnFor_NativeOG ? "yes" : "no", AircraftNum, Aircraft0);
 
     return Pawn;
@@ -1677,7 +1677,7 @@ void AFortGameMode::HandleStartingNewPlayer_(UObject* Context, FFrame& Stack)
 void AFortGameMode::HandleStartingNewPlayer_Native(AFortGameMode* GameMode, AFortPlayerControllerAthena* NewPlayer)
 {
     static bool once = false;
-    if (!once) { once = true; printf("[Boron][ExecProbe] HandleStartingNewPlayer_Native FIRED (address hook)\n"); }
+    if (!once) { once = true; BORON_LOG("[Boron][ExecProbe] HandleStartingNewPlayer_Native FIRED (address hook)\n"); }
 
     if (!GameMode || !NewPlayer)
     {
@@ -2141,7 +2141,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
     }
 
     if (VersionInfo.EngineVersion >= 5.4)
-        printf("[Boron][Perf] FinishWorldInitializationOG took=%llums\n", (unsigned long long)(GetTickCount64() - FwiStart));
+        BORON_LOG("[Boron][Perf] FinishWorldInitializationOG took=%llums\n", (unsigned long long)(GetTickCount64() - FwiStart));
 
     if (VersionInfo.EngineVersion >= 5.4 && WorldManager)
     {
@@ -2156,7 +2156,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
         if (WM->HasSaveFrequency_Seconds())
             WM->SaveFrequency_Seconds = 0;
 
-        printf("[Boron][Perf] FortWorldManager=%p saving %d->%d freq %u->%u (BR has nothing to save)\n", (void*)WM, (int)bWasSaving,
+        BORON_LOG("[Boron][Perf] FortWorldManager=%p saving %d->%d freq %u->%u (BR has nothing to save)\n", (void*)WM, (int)bWasSaving,
                WM->HasbSavingEnabled() ? (int)WM->bSavingEnabled : -1, OldFreq,
                WM->HasSaveFrequency_Seconds() ? WM->SaveFrequency_Seconds : 0);
     }
@@ -2195,7 +2195,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
         for (auto Command : StreamingBudgetLate)
             UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(Command), nullptr);
 
-        printf("[Boron][Streaming] re-applied %d cvars at FinishWorldInitialization (world=%p)\n",
+        BORON_LOG("[Boron][Streaming] re-applied %d cvars at FinishWorldInitialization (world=%p)\n",
                (int)(sizeof(StreamingBudgetLate) / sizeof(StreamingBudgetLate[0])), (void*)UWorld::GetWorld());
     }
 
@@ -2220,7 +2220,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
             auto GetWorldContextFn = FindGetWorldContext();
             auto CreateNamedLocalFn = FindCreateNamedNetDriverLocal();
 
-            printf("[Boron][FWI-Listen] World=%p Engine=%p GetWorldCtx=0x%llX CreateNamedNetDriver_Local=0x%llX\n",
+            BORON_LOG("[Boron][FWI-Listen] World=%p Engine=%p GetWorldCtx=0x%llX CreateNamedNetDriver_Local=0x%llX\n",
                    (void*)CurWorld, (void*)Engine,
                    (unsigned long long)GetWorldContextFn, (unsigned long long)CreateNamedLocalFn);
 
@@ -2233,7 +2233,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
             else
             {
                 void* WorldCtx = ((void* (*)(UEngine*, UWorld*))GetWorldContextFn)(Engine, CurWorld);
-                printf("[Boron][FWI-Listen] WorldCtx=%p\n", WorldCtx);
+                BORON_LOG("[Boron][FWI-Listen] WorldCtx=%p\n", WorldCtx);
 
                 UNetDriver* NetDriver = nullptr;
                 if ((uintptr_t)WorldCtx < 0x10000 || (uintptr_t)WorldCtx >= 0x7FFFFFFFFFFFull)
@@ -2251,14 +2251,14 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
                         for (int i = AndNum - 1; i >= 0 && !NetDriver; i--)
                             NetDriver = *(UNetDriver**)(AndData + (size_t)i * 0x10);
 
-                    printf("[Boron][FWI-Listen] CreateNamedNetDriver_Local -> ActiveNetDrivers.Num=%d NetDriver=%p\n", AndNum, (void*)NetDriver);
+                    BORON_LOG("[Boron][FWI-Listen] CreateNamedNetDriver_Local -> ActiveNetDrivers.Num=%d NetDriver=%p\n", AndNum, (void*)NetDriver);
                 }
 
                 CurWorld->NetDriver = NetDriver;
 
                 if (!NetDriver)
                 {
-                    printf("[Boron][FWI-Listen] no NetDriver produced (WorldCtx=%p)\n", WorldCtx);
+                    BORON_LOG("[Boron][FWI-Listen] no NetDriver produced (WorldCtx=%p)\n", WorldCtx);
                     listenDoneWorld = nullptr;
                 }
                 else
@@ -2267,7 +2267,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
                     {
                         int WantTick = FConfig::MaxTickRate > 0 ? (int)FConfig::MaxTickRate : 30;
 
-                        printf("[Boron][Net] NetServerMaxTickRate %d -> %d (FConfig::MaxTickRate)\n",
+                        BORON_LOG("[Boron][Net] NetServerMaxTickRate %d -> %d (FConfig::MaxTickRate)\n",
                                NetDriver->NetServerMaxTickRate, WantTick);
 
                         NetDriver->NetServerMaxTickRate = WantTick;
@@ -2291,7 +2291,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
 
                     auto InitListenFn = FindInitListen();
                     auto SetWorldFn = FindSetWorld();
-                    printf("[Boron][FWI-Listen] InitListen=0x%llX SetWorld=0x%llX\n",
+                    BORON_LOG("[Boron][FWI-Listen] InitListen=0x%llX SetWorld=0x%llX\n",
                            (unsigned long long)InitListenFn, (unsigned long long)SetWorldFn);
 
                     if (!InitListenFn || !SetWorldFn)
@@ -2305,7 +2305,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
                         FString Err;
                         if (InitListen(NetDriver, CurWorld, URL, false, Err))
                         {
-                            printf("[Boron][FWI-Listen] InitListen OK -- GameNetDriver listening on port %d\n", FConfig::Port);
+                            BORON_LOG("[Boron][FWI-Listen] InitListen OK -- GameNetDriver listening on port %d\n", FConfig::Port);
                             SetWorld(NetDriver, CurWorld);
 
                             GUI::gsStatus = Joinable;
@@ -2333,7 +2333,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
         {
             playlistDoneWorld = PlaylistWorld;
 
-            printf("[Boron][Playlist] CH5 FWI: calling SetupPlaylist (GameState=%p World=%p)\n", (void*)GameState, (void*)PlaylistWorld);
+            BORON_LOG("[Boron][Playlist] CH5 FWI: calling SetupPlaylist (GameState=%p World=%p)\n", (void*)GameState, (void*)PlaylistWorld);
             SetupPlaylist(GameMode, GameState);
 
             auto PawnClass = FindObject<UClass>(L"/Game/Athena/PlayerPawn_Athena.PlayerPawn_Athena_C");
@@ -2343,7 +2343,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
             if (GameMode->HasbWorldIsReady())
                 GameMode->bWorldIsReady = true;
 
-            printf("[Boron][Playlist] CH5 FWI: DefaultPawnClass=%p bWorldIsReady=1 warmup-count deferred until first client\n", (void*)PawnClass);
+            BORON_LOG("[Boron][Playlist] CH5 FWI: DefaultPawnClass=%p bWorldIsReady=1 warmup-count deferred until first client\n", (void*)PawnClass);
 
             GUI::gsStatus = Joinable;
             sprintf_s(GUI::windowTitle,
@@ -2356,7 +2356,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
             // empty on CH5). No-op until FindInitializeFlightPath() returns a verified 31.41 address, in
             // which case StartAircraftPhase spawns the bus instead of using the drop-in fallback.
             auto InitFlightPathFn = FindInitializeFlightPath();
-            printf("[Boron][Aircraft] CH5 FWI: InitializeFlightPath finder=0x%llX MapInfo=%p\n", (unsigned long long)InitFlightPathFn, (void*)(GameState->HasMapInfo() ? GameState->MapInfo : nullptr));
+            BORON_LOG("[Boron][Aircraft] CH5 FWI: InitializeFlightPath finder=0x%llX MapInfo=%p\n", (unsigned long long)InitFlightPathFn, (void*)(GameState->HasMapInfo() ? GameState->MapInfo : nullptr));
             if (InitFlightPathFn && GameState->HasMapInfo() && GameState->MapInfo)
             {
                 auto GamePhaseLogic = UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Get(GameState);
@@ -2365,7 +2365,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
                     ((void (*)(AFortAthenaMapInfo*, AFortGameStateAthena*, UFortGameStateComponent_BattleRoyaleGamePhaseLogic*, bool, double, float, float))InitFlightPathFn)(
                         GameState->MapInfo, GameState, GamePhaseLogic, false, 0.0, 0.f, 360.f);
                     GamePhaseLogic->InitializeSafeZoneLocations();
-                    printf("[Boron][Aircraft] CH5 FWI: InitializeFlightPath + InitializeSafeZoneLocations done -> FlightInfos.Num=%d zones=%d\n",
+                    BORON_LOG("[Boron][Aircraft] CH5 FWI: InitializeFlightPath + InitializeSafeZoneLocations done -> FlightInfos.Num=%d zones=%d\n",
                            GameState->MapInfo->FlightInfos.Num(),
                            UFortGameStateComponent_BattleRoyaleGamePhaseLogic::SafeZoneLocations.Num());
                 }
@@ -2517,7 +2517,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
                 if (Data.LootTierData.Get() || Data.LootPackageData.Get())
                     ActiveLootGFDs++;
             }
-        printf("[Boron][LootGFD] state machines=%zu activeState=%d activeLootGFDs=%d\n", GFDStates.size(), (int)ActiveState, ActiveLootGFDs);
+        BORON_LOG("[Boron][LootGFD] state machines=%zu activeState=%d activeLootGFDs=%d\n", GFDStates.size(), (int)ActiveState, ActiveLootGFDs);
     }
 
     static const char* CurrentSeasonPlugins[] = {
@@ -2552,7 +2552,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
                 std::wstring Url(List[i].Data && List[i].Num() ? List[i].Data : L"");
                 if (Url.find(L"LootCurrentSeason") != std::wstring::npos)
                 {
-                    printf("[Boron][LootGFD] playlist %s[%d] = %ls\n", ListName, i, Url.c_str());
+                    BORON_LOG("[Boron][LootGFD] playlist %s[%d] = %ls\n", ListName, i, Url.c_str());
                     bCurrentSeasonLoot = true;
                 }
             }
@@ -2588,7 +2588,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
                     bool bApplied = State == ActiveState || bSeason;
                     if (!bApplied)
                         continue;
-                    printf("[Boron][LootGFD] %s state=%d season=%d tier=%s\n", Plugin.c_str(), State, (int)bSeason, LTDFeatureData ? LTDFeatureData->Name.ToString().c_str() : "-");
+                    BORON_LOG("[Boron][LootGFD] %s state=%d season=%d tier=%s\n", Plugin.c_str(), State, (int)bSeason, LTDFeatureData ? LTDFeatureData->Name.ToString().c_str() : "-");
                 }
 
                 if (LTDFeatureData)
@@ -2684,7 +2684,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
         if (!FloorLoot01C)
             FloorLoot01C = FindClass("Tiered_Athena_FloorLoot_01_C");
 
-        printf("[Boron][Perf] floor-loot BP probe (no-load) took=%llums Warmup=%p Floor01=%p\n",
+        BORON_LOG("[Boron][Perf] floor-loot BP probe (no-load) took=%llums Warmup=%p Floor01=%p\n",
                GetTickCount64() - ProbeStart, (void*)FloorLootWarmupC, (void*)FloorLoot01C);
     }
     else
@@ -2694,7 +2694,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
     }
 
     if (VersionInfo.EngineVersion >= 5.4)
-        printf("[Boron][Loot] tables: TierGroups=%zu LootPackages=%zu | FloorLoot BP: Warmup=%p Floor01=%p (null BP => path wrong for 31.41)\n",
+        BORON_LOG("[Boron][Loot] tables: TierGroups=%zu LootPackages=%zu | FloorLoot BP: Warmup=%p Floor01=%p (null BP => path wrong for 31.41)\n",
                TierDataMap.size(), LootPackageMap.size(), (void*)FloorLootWarmupC, (void*)FloorLoot01C);
 
     auto SpawnStart = GetTickCount64();
@@ -2703,25 +2703,25 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
     UFortLootPackage::SpawnFloorLootForContainer(FloorLoot01C);
 
     if (VersionInfo.EngineVersion >= 5.4)
-        printf("[Boron][Perf] SpawnFloorLootForContainer x2 took=%llums\n", GetTickCount64() - SpawnStart);
+        BORON_LOG("[Boron][Perf] SpawnFloorLootForContainer x2 took=%llums\n", GetTickCount64() - SpawnStart);
 
     if (VersionInfo.EngineVersion >= 5.4)
     {
         bCH5FloorLootTickEnabled = true;
-        printf("[Boron][Loot] CH5 periodic floor-loot rescan armed (Floor01C=%p at init)\n", (void*)FloorLoot01C);
+        BORON_LOG("[Boron][Loot] CH5 periodic floor-loot rescan armed (Floor01C=%p at init)\n", (void*)FloorLoot01C);
 
         if (GameMode->GameState && GameMode->GameState->HasAllPlayerBuildableClassesIndexLookup())
             for (auto& [BClass, BHandle] : GameMode->GameState->AllPlayerBuildableClassesIndexLookup)
                 AFortGameStateAthena::BuildingClassMap[BHandle] = BClass;
 
-        printf("[Boron][Build] FWI BuildingClassMap=%zu entries\n", AFortGameStateAthena::BuildingClassMap.size());
+        BORON_LOG("[Boron][Build] FWI BuildingClassMap=%zu entries\n", AFortGameStateAthena::BuildingClassMap.size());
     }
 
     if (VersionInfo.EngineVersion >= 5.4)
     {
         TArray<AFortPickupAthena*> Pickups;
         Utils::GetAll<AFortPickupAthena>(Pickups);
-        printf("[Boron][Loot] after SpawnFloorLoot: %d pickups now in world\n", Pickups.Num());
+        BORON_LOG("[Boron][Loot] after SpawnFloorLoot: %d pickups now in world\n", Pickups.Num());
         Pickups.Free();
     }
 
@@ -2733,7 +2733,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
     for (auto& Spawner : ConsumableSpawners)
         UFortLootPackage::SpawnConsumableActor(Spawner);
 
-    printf("[Boron][Perf] consumable spawn loop: spawners=%d took=%llums\n",
+    BORON_LOG("[Boron][Perf] consumable spawn loop: spawners=%d took=%llums\n",
            ConsumableSpawners.Num(), (unsigned long long)(GetTickCount64() - ConsumableStart));
 
     ConsumableSpawners.Free();
@@ -2787,7 +2787,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
             }
         }
 
-        printf("[Boron][Perf] vehicle spawn loop: spawners=%d spawned=%d took=%llums\n",
+        BORON_LOG("[Boron][Perf] vehicle spawn loop: spawners=%d spawned=%d took=%llums\n",
                Spawners.Num(), VehiclesSpawned, (unsigned long long)(GetTickCount64() - VehicleStart));
         Spawners.Free();
     }
@@ -2928,7 +2928,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
     }
 
     if (VersionInfo.EngineVersion >= 5.4)
-        printf("[Boron][Perf] FinishWorldInitialization TOTAL took=%llums\n", (unsigned long long)(GetTickCount64() - FwiStart));
+        BORON_LOG("[Boron][Perf] FinishWorldInitialization TOTAL took=%llums\n", (unsigned long long)(GetTickCount64() - FwiStart));
     // Hooking::ExecHook((UFunction*)FindObject<UFunction>(L"/Game/Athena/Items/Consumables/Parents/GA_Athena_MedConsumable_Parent.GA_Athena_MedConsumable_Parent_C:Triggered_4C02BFB04B18D9E79F84848FFE6D2C32"),
     // AFortPlayerPawnAthena::Athena_MedConsumable_Triggered, AFortPlayerPawnAthena::Athena_MedConsumable_TriggeredOG);
 }
@@ -2969,11 +2969,11 @@ void AFortGameMode::TickCH5FloorLoot()
         if (Floor01C)
         {
             LootClasses.push_back(Floor01C);
-            printf("[Boron][Loot] wave %d: resolved Tiered_Athena_FloorLoot_01_C=%p\n", wave, (void*)Floor01C);
+            BORON_LOG("[Boron][Loot] wave %d: resolved Tiered_Athena_FloorLoot_01_C=%p\n", wave, (void*)Floor01C);
         }
         else
         {
-            printf("[Boron][Loot] Tiered_Athena_FloorLoot_01_C not present on FN %.2f - not retrying (was a blocking load every wave)\n", VersionInfo.FortniteVersion);
+            BORON_LOG("[Boron][Loot] Tiered_Athena_FloorLoot_01_C not present on FN %.2f - not retrying (was a blocking load every wave)\n", VersionInfo.FortniteVersion);
         }
     }
 
@@ -2995,7 +2995,7 @@ void AFortGameMode::TickCH5FloorLoot()
             {
                 if ((strstr(nm.c_str(), "ItemSpawn") || strstr(nm.c_str(), "LootSpawn") || strstr(nm.c_str(), "GameModePickup") || strstr(nm.c_str(), "Forager")) &&
                     DiagSeen.insert(std::string(nm.c_str())).second)
-                    printf("[Boron][Loot] loot-ish class loaded: %s\n", nm.c_str());
+                    BORON_LOG("[Boron][Loot] loot-ish class loaded: %s\n", nm.c_str());
 
                 continue;
             }
@@ -3003,7 +3003,7 @@ void AFortGameMode::TickCH5FloorLoot()
             if (std::find(LootClasses.begin(), LootClasses.end(), (const UClass*)Obj) != LootClasses.end())
                 continue;
 
-            printf("[Boron][Loot] wave %d: new floor-loot class %s (%p)\n", wave, nm.c_str(), (void*)Obj);
+            BORON_LOG("[Boron][Loot] wave %d: new floor-loot class %s (%p)\n", wave, nm.c_str(), (void*)Obj);
             LootClasses.push_back((const UClass*)Obj);
         }
 
@@ -3014,7 +3014,7 @@ void AFortGameMode::TickCH5FloorLoot()
         if (CSpawners.Num() != lastCs)
         {
             lastCs = CSpawners.Num();
-            printf("[Boron][Loot] BGAConsumableSpawner count=%d\n", lastCs);
+            BORON_LOG("[Boron][Loot] BGAConsumableSpawner count=%d\n", lastCs);
         }
         CSpawners.Free();
     }
@@ -3041,7 +3041,7 @@ void AFortGameMode::TickCH5FloorLoot()
                 if (strstr(cn.c_str(), "FloorLoot") && !strstr(cn.c_str(), "Warmup") &&
                     std::find(LootClasses.begin(), LootClasses.end(), (const UClass*)C->Class) == LootClasses.end())
                 {
-                    printf("[Boron][Loot] wave %d: new floor-loot class %s (%p)\n", wave, cn.c_str(), (void*)C->Class);
+                    BORON_LOG("[Boron][Loot] wave %d: new floor-loot class %s (%p)\n", wave, cn.c_str(), (void*)C->Class);
                     LootClasses.push_back((const UClass*)C->Class);
                 }
             }
@@ -3055,7 +3055,7 @@ void AFortGameMode::TickCH5FloorLoot()
             if (auto WarmupCDO = (const ABuildingContainer*)DefaultObjImpl("Tiered_Athena_FloorLoot_Warmup_C"))
             {
                 FloorTG = WarmupCDO->SearchLootTierGroup;
-                printf("[Boron][Loot] synthetic tier group=%s idx=%d\n", FloorTG.ToString().c_str(), FloorTG.ComparisonIndex);
+                BORON_LOG("[Boron][Loot] synthetic tier group=%s idx=%d\n", FloorTG.ToString().c_str(), FloorTG.ComparisonIndex);
             }
             else
                 printf("[Boron][Loot] synthetic tier group: warmup CDO not found\n");
@@ -3064,7 +3064,7 @@ void AFortGameMode::TickCH5FloorLoot()
         static std::unordered_set<unsigned long long> SynthDone;
         int synth = 0;
 
-        bool bSynthCapped = (int)SynthDone.size() >= 600;
+        bool bSynthCapped = (int)SynthDone.size() >= (VersionInfo.FortniteVersion >= 33 ? 6000 : 600);
 
         if (bSynthCapped)
         {
@@ -3073,11 +3073,67 @@ void AFortGameMode::TickCH5FloorLoot()
             if (!warned)
             {
                 warned = true;
-                printf("[Boron][Loot] synthetic floor loot CAPPED at %zu anchors\n", SynthDone.size());
+                BORON_LOG("[Boron][Loot] synthetic floor loot CAPPED at %zu anchors\n", SynthDone.size());
             }
         }
 
-        if (FloorTG.ComparisonIndex && !bSynthCapped)
+        static const UClass* MapFloorClass = VersionInfo.FortniteVersion >= 33 ? FindClass("BuildingFloor") : nullptr;
+        if (FloorTG.ComparisonIndex && !bSynthCapped && MapFloorClass)
+        {
+            TArray<ABuildingSMActor*> Floors;
+            Utils::GetAll<ABuildingSMActor>(MapFloorClass, Floors);
+            std::vector<FVector> ChestLocs;
+            for (auto& C : AllContainers)
+                if (C && AnchorClasses.count((const void*)C->Class))
+                    ChestLocs.push_back(C->K2_GetActorLocation());
+            int floorsSeen = 0, nearChest = 0;
+            for (auto& F : Floors)
+            {
+                if (synth >= 500)
+                    break;
+                if (!F || F->bPlayerPlaced || F->bDestroyed)
+                    continue;
+                floorsSeen++;
+
+                FVector Origin{}, Extent{};
+                F->GetActorBounds(false, &Origin, &Extent, false);
+                if (Extent.X < 100.f || Extent.Y < 100.f)
+                    continue;
+
+                auto qx = (unsigned long long)(long long)llround(Origin.X / 1500.) & 0x1FFFFF;
+                auto qy = (unsigned long long)(long long)llround(Origin.Y / 1500.) & 0x1FFFFF;
+                auto qz = (unsigned long long)(long long)llround(Origin.Z / 400.) & 0x1FFFFF;
+                if (!SynthDone.insert((1ull << 63) | (qx << 42) | (qy << 21) | qz).second)
+                    continue;
+                if (((qx * 73856093ull) ^ (qy * 19349663ull) ^ (qz * 83492791ull)) % 5 < 2)
+                    continue;
+                bool bNearChest = false;
+                for (auto& CL : ChestLocs)
+                    if (fabs(CL.Z - Origin.Z) < 300.f && (CL.X - Origin.X) * (CL.X - Origin.X) + (CL.Y - Origin.Y) * (CL.Y - Origin.Y) < 700.f * 700.f)
+                    {
+                        bNearChest = true;
+                        break;
+                    }
+                if (bNearChest)
+                {
+                    nearChest++;
+                    continue;
+                }
+
+                Origin.X += (float)((rand() % 200) - 100);
+                Origin.Y += (float)((rand() % 200) - 100);
+                Origin.Z += Extent.Z + 40.f;
+
+                auto TG = FloorTG;
+                UFortLootPackage::SpawnLoot(TG, Origin);
+                synth++;
+            }
+            static int floorLogs = 0;
+            if (floorLogs++ < 5)
+                BORON_LOG("[Boron][Loot] map-floor anchors: floors=%d usable=%d spawned=%d nearChest=%d chests=%zu total=%zu\n", Floors.Num(), floorsSeen, synth, nearChest, ChestLocs.size(), SynthDone.size());
+            Floors.Free();
+        }
+        else if (FloorTG.ComparisonIndex && !bSynthCapped)
             for (auto& C : AllContainers)
             {
                 if (synth >= 150)
@@ -3144,7 +3200,7 @@ void AFortGameMode::TickCH5FloorLoot()
             auto MeltMutatorClass = FindClass("FortAthenaMutator_Melt");
             auto AbilitySetClass = FindClass("FortAbilitySet");
 
-            printf("[Boron][Melt] mutatorClass=%p goldenLavaClass=%p\n", (void*)MeltMutatorClass, (void*)GoldenLavaClass);
+            BORON_LOG("[Boron][Melt] mutatorClass=%p goldenLavaClass=%p\n", (void*)MeltMutatorClass, (void*)GoldenLavaClass);
 
             if (AbilitySetClass)
                 for (int i = 0; i < TUObjectArray::Num(); i++)
@@ -3163,7 +3219,7 @@ void AFortGameMode::TickCH5FloorLoot()
                     auto Pkg = Obj->Outer;
                     auto Outer2 = Pkg ? Pkg->Outer : nullptr;
 
-                    printf("[Boron][Melt] set %s outer=%s outer2=%s\n", nm.c_str(),
+                    BORON_LOG("[Boron][Melt] set %s outer=%s outer2=%s\n", nm.c_str(),
                            Pkg ? Pkg->Name.ToString().c_str() : "none",
                            Outer2 ? Outer2->Name.ToString().c_str() : "none");
                 }
@@ -3181,12 +3237,12 @@ void AFortGameMode::TickCH5FloorLoot()
                     live++;
             }
 
-            printf("[Boron][Melt] wave %d live GoldenLava actors=%d\n", wave, live);
+            BORON_LOG("[Boron][Melt] wave %d live GoldenLava actors=%d\n", wave, live);
         }
     }
 
     if (auto Took = GetTickCount64() - WaveStart; Took >= 5)
-        printf("[Boron][Perf] floor-loot wave %d took=%llums\n", wave, (unsigned long long)Took);
+        BORON_LOG("[Boron][Perf] floor-loot wave %d took=%llums\n", wave, (unsigned long long)Took);
 }
 
 void AFortGameMode::TickCH5PickupDummies()
@@ -3228,14 +3284,14 @@ void AFortGameMode::TickCH5PickupDummies()
 
     static int logged = 0;
     if (fixed && logged++ < 25)
-        printf("[Boron][Pickup] dummy fixup: %d dummies created, sample dummy now=%p\n",
+        BORON_LOG("[Boron][Pickup] dummy fixup: %d dummies created, sample dummy now=%p\n",
                fixed, firstFixed ? (void*)firstFixed->PrimaryPickupDummyItem : nullptr);
 
     interval = fixed ? 300 : (interval < 2400 ? interval * 2 : 2400);
 
     static int perfLogged = 0;
     if (perfLogged++ < 10)
-        printf("[Boron][Perf] dummy tick: scanned=%d fixed=%d took=%llums\n",
+        BORON_LOG("[Boron][Perf] dummy tick: scanned=%d fixed=%d took=%llums\n",
                Pickups.Num(), fixed, (unsigned long long)(GetTickCount64() - DummyStart));
 
     Pickups.Free();
@@ -3254,7 +3310,7 @@ void AFortGameMode::Hook()
     auto FwiAddr = FindFinishWorldInitialization();
 
     if (VersionInfo.EngineVersion >= 5.4)
-        printf("[Boron][Finder] FinishWorldInitialization = 0x%llX (RVA 0x%llX)\n", (unsigned long long)FwiAddr, (unsigned long long)(FwiAddr ? FwiAddr - ImageBase : 0));
+        BORON_LOG("[Boron][Finder] FinishWorldInitialization = 0x%llX (RVA 0x%llX)\n", (unsigned long long)FwiAddr, (unsigned long long)(FwiAddr ? FwiAddr - ImageBase : 0));
 
     Hooking::Hook(FwiAddr, FinishWorldInitialization, FinishWorldInitializationOG);
     // if (VersionInfo.EngineVersion == 4.16)
@@ -3268,7 +3324,7 @@ void AFortGameMode::PostLoadHook()
     NotifyGameMemberAdded_ = FindNotifyGameMemberAdded();
 
     if (VersionInfo.EngineVersion >= 5.4)
-        printf("[Boron][Cosmetics] ApplyCharacterCustomization=0x%llX NotifyGameMemberAdded=0x%llX\n",
+        BORON_LOG("[Boron][Cosmetics] ApplyCharacterCustomization=0x%llX NotifyGameMemberAdded=0x%llX\n",
                (unsigned long long)ApplyCharacterCustomization, (unsigned long long)NotifyGameMemberAdded_);
 
     auto spdf = GetDefaultObj()->GetFunction("SpawnDefaultPawnFor");
@@ -3278,7 +3334,7 @@ void AFortGameMode::PostLoadHook()
     {
         auto AthenaCDO = AFortGameModeAthena::GetDefaultObj();
         auto SpawnPawnAddr = (AthenaCDO && SpawnDefaultPawnForIdx != (uint32_t)-1) ? (uintptr_t)AthenaCDO->Vft[SpawnDefaultPawnForIdx] : 0;
-        printf("[Boron][Pawn] SpawnDefaultPawnFor: idx=%u athenaVftAddr=0x%llX (exec bypassed on 5.4+, using address hook)\n",
+        BORON_LOG("[Boron][Pawn] SpawnDefaultPawnFor: idx=%u athenaVftAddr=0x%llX (exec bypassed on 5.4+, using address hook)\n",
                SpawnDefaultPawnForIdx, (unsigned long long)SpawnPawnAddr);
         if (SpawnPawnAddr)
             Hooking::Hook(SpawnPawnAddr, SpawnDefaultPawnFor_Native, SpawnDefaultPawnFor_NativeOG);
@@ -3292,7 +3348,7 @@ void AFortGameMode::PostLoadHook()
         auto AthenaCDO = AFortGameModeAthena::GetDefaultObj();
         auto hsnpIdx = hsnp->GetVTableIndex();
         auto HsnpAddr = (AthenaCDO && hsnpIdx != (uint32_t)-1) ? (uintptr_t)AthenaCDO->Vft[hsnpIdx] : 0;
-        printf("[Boron][Pawn] HandleStartingNewPlayer: idx=%u athenaVftAddr=0x%llX (address hook)\n",
+        BORON_LOG("[Boron][Pawn] HandleStartingNewPlayer: idx=%u athenaVftAddr=0x%llX (address hook)\n",
                hsnpIdx, (unsigned long long)HsnpAddr);
         if (HsnpAddr)
             Hooking::Hook(HsnpAddr, HandleStartingNewPlayer_Native, HandleStartingNewPlayer_NativeOG);

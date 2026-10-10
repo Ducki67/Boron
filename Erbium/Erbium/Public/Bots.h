@@ -268,12 +268,12 @@ namespace BossAI
 
             static int silog = 0;
             if (silog++ < 40)
-                printf("[Boron][Bots] startup item bot=%p [%s] x%d\n", (void*)Bot, Def->Name.ToString().c_str(), cnt);
+                BORON_LOG("[Boron][Bots] startup item bot=%p [%s] x%d\n", (void*)Bot, Def->Name.ToString().c_str(), cnt);
         }
 
         static int slog = 0;
         if (slog++ < 12)
-            printf("[Boron][Bots] startup loadout bot=%p items=%d equipped=%d\n", (void*)Bot, given, (int)equipped);
+            BORON_LOG("[Boron][Bots] startup loadout bot=%p items=%d equipped=%d\n", (void*)Bot, given, (int)equipped);
 
         return given > 0;
     }
@@ -552,7 +552,7 @@ namespace BossAI
         {
             static int cn = 0;
             if (cn++ < 8)
-                printf("[Boron][Bots] cosmetics bot=%p no character\n", (void*)Bot);
+                BORON_LOG("[Boron][Bots] cosmetics bot=%p no character\n", (void*)Bot);
             return;
         }
 
@@ -867,7 +867,7 @@ namespace BossAI
 
         }
 
-        printf("[Boron][Bots] spawn %s: %d/%d paths at (%.0f,%.0f,%.0f)\n", Name.c_str(), spawned, (int)Matches.size(), FirstX, FirstY, FirstZ);
+        BORON_LOG("[Boron][Bots] spawn %s: %d/%d paths at (%.0f,%.0f,%.0f)\n", Name.c_str(), spawned, (int)Matches.size(), FirstX, FirstY, FirstZ);
     }
 
     inline void RequestAISpawn()
@@ -897,7 +897,7 @@ namespace BossAI
                     phase = (int)GetFromOffset<uint8>(GameState, PhaseOffset);
             }
 
-            printf("[Boron][Bots] S14 prereqs: world=%p gm=%p botmgr=%p aidirector=%p nav=%p aisystem=%p gamephase=%d\n",
+            BORON_LOG("[Boron][Bots] S14 prereqs: world=%p gm=%p botmgr=%p aidirector=%p nav=%p aisystem=%p gamephase=%d\n",
                    (void*)World, (void*)GameMode, (void*)(GameMode ? GameMode->ServerBotManager : nullptr),
                    (void*)(GameMode ? GameMode->AIDirector : nullptr), Nav, AISys, phase);
         }
@@ -1360,7 +1360,7 @@ namespace BossAI
                 {
                     static int logged = 0;
                     if (logged++ < 16)
-                        printf("[Boron][Bots] bot=%p inv=%p tries=%d nativeWeapon=%s\n", (void*)Bot, (void*)State.inv, State.weaponTries,
+                        BORON_LOG("[Boron][Bots] bot=%p inv=%p tries=%d nativeWeapon=%s\n", (void*)Bot, (void*)State.inv, State.weaponTries,
                                bNativeRanged && CurDef ? CurDef->Name.ToString().c_str() : "pool/none");
                 }
             }
@@ -1545,7 +1545,7 @@ namespace BossAI
                 if (!bLoggedLOS)
                 {
                     bLoggedLOS = true;
-                    printf("[Boron][Bots] LineOfSightTo=%p\n", (void*)LOSFn);
+                    BORON_LOG("[Boron][Bots] LineOfSightTo=%p\n", (void*)LOSFn);
                 }
 
                 if (LOSFn)
@@ -1612,7 +1612,7 @@ namespace BossAI
                     AFortInventory::SpawnPickup(it->second.lastLoc, Drop, 1, 0);
                     dropped++;
                     if (logThis)
-                        printf("[Boron][Bots]   drop equipped [%s]\n", Drop->Name.ToString().c_str());
+                        BORON_LOG("[Boron][Bots]   drop equipped [%s]\n", Drop->Name.ToString().c_str());
 
                     if (it->second.lastWeaponDef->Cast<UFortWeaponRangedItemDefinition>())
                     {
@@ -1636,7 +1636,7 @@ namespace BossAI
                     AFortInventory::SpawnPickup(it->second.lastLoc, Drop, it->second.dropCounts[d] > 0 ? it->second.dropCounts[d] : 1, 0);
                     dropped++;
                     if (logThis)
-                        printf("[Boron][Bots]   drop item [%s]\n", Drop->Name.ToString().c_str());
+                        BORON_LOG("[Boron][Bots]   drop item [%s]\n", Drop->Name.ToString().c_str());
 
                     if (Drop->Cast<UFortWeaponRangedItemDefinition>())
                     {
@@ -1648,13 +1648,13 @@ namespace BossAI
                             AFortInventory::SpawnPickup(it->second.lastLoc, (UFortItemDefinition*)ExtraAmmo, AmmoCount, 0);
                             dropped++;
                             if (logThis)
-                                printf("[Boron][Bots]   drop ammo [%s] x%d\n", ((UFortItemDefinition*)ExtraAmmo)->Name.ToString().c_str(), AmmoCount);
+                                BORON_LOG("[Boron][Bots]   drop ammo [%s] x%d\n", ((UFortItemDefinition*)ExtraAmmo)->Name.ToString().c_str(), AmmoCount);
                         }
                     }
                 }
 
                 if (logThis)
-                    printf("[Boron][Bots] death drop: %d items at (%.0f,%.0f,%.0f)\n", dropped,
+                    BORON_LOG("[Boron][Bots] death drop: %d items at (%.0f,%.0f,%.0f)\n", dropped,
                            it->second.lastLoc.X, it->second.lastLoc.Y, it->second.lastLoc.Z);
 
                 it->second.dropped = true;

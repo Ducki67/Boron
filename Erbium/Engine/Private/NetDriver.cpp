@@ -709,7 +709,7 @@ void SendClientMoveAdjustments(UNetDriver* Driver)
                 {
                     lastIA = ia;
                     if (iaChanges++ < 40)
-                        printf("[Boron][Interact] InteractActor -> %p (%s)\n", (void*)ia, ia && ia->Class ? ia->Class->Name.ToString().c_str() : "null");
+                        BORON_LOG("[Boron][Interact] InteractActor -> %p (%s)\n", (void*)ia, ia && ia->Class ? ia->Class->Name.ToString().c_str() : "null");
                 }
             }
         }
@@ -730,7 +730,7 @@ void SendClientMoveAdjustments(UNetDriver* Driver)
                 if (C->ViewTarget)
                     withVT++;
             }
-            printf("[Boron][Net] moveAck: SCA=0x%llX conns=%d withPC=%d withVT=%d firstPC=%p firstVT=%p\n",
+            BORON_LOG("[Boron][Net] moveAck: SCA=0x%llX conns=%d withPC=%d withVT=%d firstPC=%p firstVT=%p\n",
                    (unsigned long long)SendClientAdjustment, Driver->ClientConnections.Num(), withPC, withVT,
                    (void*)(first ? first->PlayerController : nullptr), (void*)(first ? first->ViewTarget : nullptr));
 
@@ -756,7 +756,7 @@ void SendClientMoveAdjustments(UNetDriver* Driver)
                     if (GetMaxStamFn)
                         Pawn->ProcessEvent(GetMaxStamFn, &maxStam);
 
-                    printf("[Boron][Net] pawnState: AckPawn=%p Pawn=%p MyFortPawn=%p Role=%d RemoteRole=%d Owner=%p loc=(%.1f,%.1f,%.1f) vel=(%.1f,%.1f,%.1f) invEntries=%d stamina=%.1f/%.1f\n",
+                    BORON_LOG("[Boron][Net] pawnState: AckPawn=%p Pawn=%p MyFortPawn=%p Role=%d RemoteRole=%d Owner=%p loc=(%.1f,%.1f,%.1f) vel=(%.1f,%.1f,%.1f) invEntries=%d stamina=%.1f/%.1f\n",
                            (void*)PC->AcknowledgedPawn, (void*)PC->Pawn, (void*)PC->MyFortPawn,
                            (int)Pawn->Role, (int)Pawn->RemoteRole, (void*)Pawn->Owner,
                            Loc.X, Loc.Y, Loc.Z, Vel.X, Vel.Y, Vel.Z, invEntries, stam, maxStam);
@@ -774,18 +774,18 @@ void SendClientMoveAdjustments(UNetDriver* Driver)
                         AActor* ia = iaOff >= 0 ? GetFromOffset<TWeakObjectPtr<AActor>>(InteractComp, iaOff).Get() : nullptr;
                         UObject* ci = ciOff >= 0 ? GetFromOffset<UObject*>(InteractComp, ciOff) : nullptr;
 
-                        printf("[Boron][Interact] comp=%p iaOff=0x%X ciOff=0x%X InteractActor=%p (%s) ctxInfo=%p\n",
+                        BORON_LOG("[Boron][Interact] comp=%p iaOff=0x%X ciOff=0x%X InteractActor=%p (%s) ctxInfo=%p\n",
                                (void*)InteractComp, iaOff, ciOff, (void*)ia,
                                ia ? ia->Name.ToString().c_str() : "null", (void*)ci);
                     }
                     else
                     {
-                        printf("[Boron][Interact] comp=null (cls=%p)\n", (void*)InteractCompCls);
+                        BORON_LOG("[Boron][Interact] comp=null (cls=%p)\n", (void*)InteractCompCls);
                     }
                 }
                 else
                 {
-                    printf("[Boron][Net] pawnState: AckPawn=%p Pawn=%p MyFortPawn=%p (no pawn)\n",
+                    BORON_LOG("[Boron][Net] pawnState: AckPawn=%p Pawn=%p MyFortPawn=%p (no pawn)\n",
                            (void*)PC->AcknowledgedPawn, (void*)PC->Pawn, (void*)PC->MyFortPawn);
                 }
             }
@@ -852,7 +852,7 @@ void UNetDriver::TickFlush__Iris(UNetDriver* Driver, float DeltaSeconds)
                 GameMode->WarmupRequiredPlayerCount = 1;
 
                 auto GamePhaseLogic = UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Get(World);
-                printf("[Boron][ForceStart] PlayerController present, MatchState=WaitingToStart -> forcing match start (GamePhaseLogic=%p)\n", (void*)GamePhaseLogic);
+                BORON_LOG("[Boron][ForceStart] PlayerController present, MatchState=WaitingToStart -> forcing match start (GamePhaseLogic=%p)\n", (void*)GamePhaseLogic);
 
                 GameMode->MatchState = FName(L"InProgress");
 
@@ -867,7 +867,7 @@ void UNetDriver::TickFlush__Iris(UNetDriver* Driver, float DeltaSeconds)
 
                     GamePhaseLogic->SetGamePhase(EAthenaGamePhase::Warmup);
                     GamePhaseLogic->SetGamePhaseStep(EAthenaGamePhaseStep::Warmup);
-                    printf("[Boron][ForceStart] GamePhase -> Warmup, warmup countdown armed\n");
+                    BORON_LOG("[Boron][ForceStart] GamePhase -> Warmup, warmup countdown armed\n");
                 }
             }
         }
@@ -893,7 +893,7 @@ void UNetDriver::TickFlush__Iris(UNetDriver* Driver, float DeltaSeconds)
                     GamePhaseLogic->WarmupCountdownStartTime = Time;
                     GamePhaseLogic->WarmupCountdownEndTime = Time + WarmupDuration;
                     GamePhaseLogic->WarmupEarlyCountdownDuration = WarmupDuration - 10.f;
-                    printf("[Boron][ForceStart] first pawn spawned -> warmup re-armed (%.0fs)\n", WarmupDuration);
+                    BORON_LOG("[Boron][ForceStart] first pawn spawned -> warmup re-armed (%.0fs)\n", WarmupDuration);
                 }
             }
         }
@@ -917,7 +917,7 @@ void UNetDriver::TickFlush__Iris(UNetDriver* Driver, float DeltaSeconds)
             if (!rsLogged)
             {
                 rsLogged = true;
-                printf("[Boron][Net] ReplicationSystem: +8=%p +0x10=%p (UE5.5/Remix uses +0x10)\n", (void*)RS8, (void*)RS10);
+                BORON_LOG("[Boron][Net] ReplicationSystem: +8=%p +0x10=%p (UE5.5/Remix uses +0x10)\n", (void*)RS8, (void*)RS10);
             }
         }
 
@@ -1021,7 +1021,7 @@ void SetNetDormancy(AActor* Actor, int NewDormancy)
             if (!dormLogged)
             {
                 dormLogged = true;
-                printf("[Boron][Dormancy] CH5: forcing FortPickupAthena to stay awake (engine asked for dormancy=%d)\n", NewDormancy);
+                BORON_LOG("[Boron][Dormancy] CH5: forcing FortPickupAthena to stay awake (engine asked for dormancy=%d)\n", NewDormancy);
             }
             NewDormancy = 1; // DORM_Awake
         }
@@ -1031,7 +1031,7 @@ void SetNetDormancy(AActor* Actor, int NewDormancy)
             if (!buildDormLogged)
             {
                 buildDormLogged = true;
-                printf("[Boron][Dormancy] CH5: forcing BuildingSMActor to stay awake (engine asked for dormancy=%d)\n", NewDormancy);
+                BORON_LOG("[Boron][Dormancy] CH5: forcing BuildingSMActor to stay awake (engine asked for dormancy=%d)\n", NewDormancy);
             }
             NewDormancy = 1; // DORM_Awake
         }
@@ -1180,7 +1180,7 @@ void UNetDriver::PostLoadHook()
     {
         if (VersionInfo.EngineVersion >= 5.3 && FConfig::bEnableIris)
         {
-            printf("[Boron][Iris] SendClientAdjustment=0x%llX UpdateIrisReplicationViews=0x%llX PreSendUpdate=0x%llX TickFlush=0x%llX\n",
+            BORON_LOG("[Boron][Iris] SendClientAdjustment=0x%llX UpdateIrisReplicationViews=0x%llX PreSendUpdate=0x%llX TickFlush=0x%llX\n",
                    (unsigned long long)FindSendClientAdjustment(), (unsigned long long)FindUpdateIrisReplicationViews(),
                    (unsigned long long)FindPreSendUpdate(), (unsigned long long)FindTickFlush());
             Hooking::Hook(FindTickFlush(), TickFlush__Iris, TickFlushOG);
@@ -1188,7 +1188,7 @@ void UNetDriver::PostLoadHook()
             // PostLoadHook  ig?
             {
                 auto SetDormFn = AActor::GetDefaultObj()->GetFunction("SetNetDormancy");
-                printf("[Boron][Dormancy] CH5: installing SetNetDormancy hook (fn=%p flushDormancy=0x%llX)\n",
+                BORON_LOG("[Boron][Dormancy] CH5: installing SetNetDormancy hook (fn=%p flushDormancy=0x%llX)\n",
                        (void*)SetDormFn, (unsigned long long)FindFlushDormancy());
                 if (SetDormFn)
                     Hooking::Hook(__int64(SetDormFn->GetImpl()), SetNetDormancy, SetNetDormancyOG);

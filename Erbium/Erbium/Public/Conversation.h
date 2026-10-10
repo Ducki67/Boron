@@ -683,7 +683,7 @@ namespace NPCConversation
         auto& Rows = At<FRawArray>(S.NPCComp, O.SupportedSales);
         if (Slot < 0 || Slot >= Rows.Num)
         {
-            printf("[Boron][Conv] sale %s slot %d out of range rows=%d\n", TagString(S.NPCTag).c_str(), SellSlot, Rows.Num);
+            BORON_LOG("[Boron][Conv] sale %s slot %d out of range rows=%d\n", TagString(S.NPCTag).c_str(), SellSlot, Rows.Num);
             return nullptr;
         }
         auto& Slots = Sales()[S.NPCComp];
@@ -750,7 +750,7 @@ namespace NPCConversation
                 Unit.Text = UKismetTextLibrary::Conv_StringToText(FString(std::wstring(Label.begin(), Label.end()).c_str()));
                 Items += std::string(Def->Name.ToString().c_str()) + "x" + std::to_string(Unit.Entry->Count) + (Unit.AmmoDef ? "+ammo" : "") + "=" + std::to_string(Unit.Price) + " ";
             }
-            printf("[Boron][Conv] sale %s slot %d tier=%s stock=%d -> %s\n", TagString(S.NPCTag).c_str(), SellSlot, Tier.ToString().c_str(), (int)Sale.Units.size(),
+            BORON_LOG("[Boron][Conv] sale %s slot %d tier=%s stock=%d -> %s\n", TagString(S.NPCTag).c_str(), SellSlot, Tier.ToString().c_str(), (int)Sale.Units.size(),
                    Items.empty() ? "nothing" : Items.c_str());
         }
         return Sale.Units.empty() ? nullptr : &Sale;
@@ -801,14 +801,14 @@ namespace NPCConversation
         auto Currency = At<const UFortItemDefinition*>(Node, Offs().ServiceCurrency);
         if (Currency && !TakeItems(S.PC, Currency, Offer.Price))
         {
-            printf("[Boron][Conv] cannot afford upgrade %d (has %d)\n", Offer.Price, CountOf(S.PC, Currency));
+            BORON_LOG("[Boron][Conv] cannot afford upgrade %d (has %d)\n", Offer.Price, CountOf(S.PC, Currency));
             return;
         }
         FUpgradeOffer Current;
         if (!UpgradeOffer(S, Node, Current) || Current.Held.Def != Offer.Held.Def)
             return;
         if (WeaponUpgrade::ReplaceHeld(S.PC, Current.Held, Current.Target))
-            printf("[Boron][Conv] upgrade %s -> %s price=%d\n", Offer.Held.Def->Name.ToString().c_str(), Offer.Target->Name.ToString().c_str(), Offer.Price);
+            BORON_LOG("[Boron][Conv] upgrade %s -> %s price=%d\n", Offer.Held.Def->Name.ToString().c_str(), Offer.Target->Name.ToString().c_str(), Offer.Price);
     }
 
     inline bool HasSupportedService(FState& S, uint64 Tag)
@@ -1224,14 +1224,14 @@ namespace NPCConversation
         auto Currency = At<const UFortItemDefinition*>(SellNode, Offs().ServiceCurrency);
         if (Currency && !TakeItems(S.PC, Currency, Unit.Price))
         {
-            printf("[Boron][Conv] cannot afford %d (has %d)\n", Unit.Price, CountOf(S.PC, Currency));
+            BORON_LOG("[Boron][Conv] cannot afford %d (has %d)\n", Unit.Price, CountOf(S.PC, Currency));
             return;
         }
         S.PC->WorldInventory->GiveItem(*Unit.Entry);
         if (Unit.AmmoDef && Unit.AmmoCount > 0)
             S.PC->WorldInventory->GiveItem(Unit.AmmoDef, Unit.AmmoCount);
         Sale->Next++;
-        printf("[Boron][Conv] sold %s price=%d left=%d\n", Unit.Entry->ItemDefinition->Name.ToString().c_str(), Unit.Price, (int)(Sale->Units.size() - Sale->Next));
+        BORON_LOG("[Boron][Conv] sold %s price=%d left=%d\n", Unit.Entry->ItemDefinition->Name.ToString().c_str(), Unit.Price, (int)(Sale->Units.size() - Sale->Next));
     }
 
     inline std::vector<uint8> ExecuteTask(UObject* Task, FState& S)
@@ -1272,7 +1272,7 @@ namespace NPCConversation
             else
                 Result[0] = ResultAdvance;
         }
-        printf("[Boron][Conv] node %s result=%d\n", Task->Class->Name.ToString().c_str(), Result[0]);
+        BORON_LOG("[Boron][Conv] node %s result=%d\n", Task->Class->Name.ToString().c_str(), Result[0]);
         return Result;
     }
 
@@ -1465,7 +1465,7 @@ namespace NPCConversation
         AssignParticipant(S, Target, TargetTag);
         AssignParticipant(S, Instigator, InstigatorTag);
         auto Legal = DetermineBranches(S, EntryDestinations(EntryTag), FailedButVisible);
-        printf("[Boron][Conv] start entry=%s starts=%d player=%p npc=%p\n", TagString(EntryTag).c_str(), (int)Legal.size(), (void*)S.PlayerComp, (void*)S.NPCComp);
+        BORON_LOG("[Boron][Conv] start entry=%s starts=%d player=%p npc=%p\n", TagString(EntryTag).c_str(), (int)Legal.size(), (void*)S.PlayerComp, (void*)S.NPCComp);
         if (Legal.empty())
         {
             S.bEnded = true;
@@ -1491,7 +1491,7 @@ namespace NPCConversation
             return Comp;
         static auto BPClass = FindObject<UClass>(L"/FortniteConversation/Conversation/FortPlayerConversationComponent.FortPlayerConversationComponent_C");
         Comp = AddComponent(PC, BPClass ? (const UClass*)BPClass : Types().PlayerComp, false);
-        printf("[Boron][Conv] added player conversation component %p\n", (void*)Comp);
+        BORON_LOG("[Boron][Conv] added player conversation component %p\n", (void*)Comp);
         return Comp;
     }
 
@@ -1609,7 +1609,7 @@ namespace NPCConversation
         }
         if (!IsA(Comp, T.NPCComp))
         {
-            printf("[Boron][Conv] npc %s has no conversation component\n", CompClass->Name.ToString().c_str());
+            BORON_LOG("[Boron][Conv] npc %s has no conversation component\n", CompClass->Name.ToString().c_str());
             return;
         }
         At<AActor*>(Comp, O.PawnOwner) = Pawn;
@@ -1628,7 +1628,7 @@ namespace NPCConversation
             auto Character = At<UObject*>(Comp, O.CharacterData);
             auto SalesTable = At<UDataTable*>(Comp, O.SalesTable);
             auto ServicesTable = At<UDataTable*>(Comp, O.ServicesTable);
-            printf("[Boron][Conv] npc %s sales=%s rows=%d services=%s tags=%d\n", Character ? TagString(At<uint64>(Character, O.CharacterTag)).c_str() : "nochar",
+            BORON_LOG("[Boron][Conv] npc %s sales=%s rows=%d services=%s tags=%d\n", Character ? TagString(At<uint64>(Character, O.CharacterTag)).c_str() : "nochar",
                    SalesTable ? SalesTable->Name.ToString().c_str() : "null", At<FRawArray>(Comp, O.SupportedSales).Num,
                    ServicesTable ? ServicesTable->Name.ToString().c_str() : "null", At<FRawArray>(Comp, O.SupportedServices).Num);
         }
@@ -1691,7 +1691,7 @@ namespace NPCConversation
                 }
             }
         }
-        printf("[Boron][Conv] npc loot tables found=%d merged tiers=%d packages=%d\n", Found, Tiers, Packages);
+        BORON_LOG("[Boron][Conv] npc loot tables found=%d merged tiers=%d packages=%d\n", Found, Tiers, Packages);
     }
 
     inline std::string SoftPath(const uint8* SoftPtr)
@@ -1790,7 +1790,7 @@ namespace NPCConversation
             }
         }
         fclose(File);
-        printf("[Boron][Conv] npc data dumped to Boron_NPCData.txt\n");
+        BORON_LOG("[Boron][Conv] npc data dumped to Boron_NPCData.txt\n");
     }
 
     inline int32 CountParams(UFunction* Fn)
@@ -1985,7 +1985,7 @@ namespace NPCConversation
             auto Size = StructSize(Expected.Name);
             if (Size != Expected.Size)
             {
-                printf("[Boron][Conv] struct %s size %d (expected %d), NPC conversations disabled\n", Expected.Name, Size, Expected.Size);
+                BORON_LOG("[Boron][Conv] struct %s size %d (expected %d), NPC conversations disabled\n", Expected.Name, Size, Expected.Size);
                 return;
             }
         }
@@ -2046,7 +2046,7 @@ namespace NPCConversation
             O.HasServiceTag = OffsetOf(T.HasService, "ServiceTag", bOk);
         if (!bOk)
         {
-            printf("[Boron][Conv] NPC conversations disabled\n");
+            BORON_LOG("[Boron][Conv] NPC conversations disabled\n");
             return;
         }
 
@@ -2095,6 +2095,6 @@ namespace NPCConversation
         DumpNPCData();
         T.bEnabled = true;
         auto& Reg = Registry();
-        printf("[Boron][Conv] ready databases=%d nodes=%d entries=%d\n", (int)Reg.Databases.size(), (int)Reg.Nodes.size(), (int)Reg.Entries.size());
+        BORON_LOG("[Boron][Conv] ready databases=%d nodes=%d entries=%d\n", (int)Reg.Databases.size(), (int)Reg.Nodes.size(), (int)Reg.Entries.size());
     }
 }

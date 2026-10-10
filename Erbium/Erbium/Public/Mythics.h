@@ -87,7 +87,7 @@ namespace Mythics
         {
             static int a = 0;
             if (a++ < 120)
-                printf("[Boron][Ability] activated class=%s\n", Name.c_str());
+                BORON_LOG("[Boron][Ability] activated class=%s\n", Name.c_str());
 
             if (Name.find("BottomlessChugJug") != std::string::npos)
             {
@@ -95,10 +95,10 @@ namespace Mythics
                 {
                     struct { uint8 Broadcast; uint8 Force; } P{ 1, 1 };
                     SafePE(Ability, CD, &P);
-                    printf("[Boron][ChugJug] cooldown committed inst=%p\n", (void*)Ability);
+                    BORON_LOG("[Boron][ChugJug] cooldown committed inst=%p\n", (void*)Ability);
                 }
                 else
-                    printf("[Boron][ChugJug] no K2_CommitAbilityCooldown on %s\n", Name.c_str());
+                    BORON_LOG("[Boron][ChugJug] no K2_CommitAbilityCooldown on %s\n", Name.c_str());
             }
             return;
         }
@@ -125,7 +125,7 @@ namespace Mythics
 
         static int n = 0;
         if (n++ < 16)
-            printf("[Boron][Unibeam] activated inst=%p class=%s trace=%p\n", (void*)Ability, Name.c_str(), (void*)TF);
+            BORON_LOG("[Boron][Unibeam] activated inst=%p class=%s trace=%p\n", (void*)Ability, Name.c_str(), (void*)TF);
     }
 
     inline void Tick(float Dt)
@@ -180,7 +180,7 @@ namespace Mythics
 
                 static int e = 0;
                 if (e++ < 16)
-                    printf("[Boron][Unibeam] end inst=%p elapsed=%.2f pulses=%d removeGE=%p slowOff=%d\n",
+                    BORON_LOG("[Boron][Unibeam] end inst=%p elapsed=%.2f pulses=%d removeGE=%p slowOff=%d\n",
                            (void*)Inst, D.elapsed, D.pulses, (void*)RemoveGEFn(), SlowOff());
 
                 it = Active().erase(it);
@@ -204,7 +204,7 @@ namespace Mythics
                     D.pulses++;
                     static int t = 0;
                     if (t++ < 24)
-                        printf("[Boron][Unibeam] trace inst=%p elapsed=%.2f pulse=%d\n", (void*)Inst, D.elapsed, D.pulses);
+                        BORON_LOG("[Boron][Unibeam] trace inst=%p elapsed=%.2f pulse=%d\n", (void*)Inst, D.elapsed, D.pulses);
                 }
             }
 

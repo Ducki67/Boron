@@ -33,9 +33,9 @@ static void LogGiveCaller(void* Ret)
     DWORD disp32 = 0;
 
     if (SymGetLineFromAddr64(prc, (ULONG64)Ret, &disp32, &line))
-        printf("[Boron][GiveTrace] caller=%s [%s:%lu]\n", name, line.FileName, line.LineNumber);
+        BORON_LOG("[Boron][GiveTrace] caller=%s [%s:%lu]\n", name, line.FileName, line.LineNumber);
     else
-        printf("[Boron][GiveTrace] caller=%s (no line info) addr=%p\n", name, Ret);
+        BORON_LOG("[Boron][GiveTrace] caller=%s (no line info) addr=%p\n", name, Ret);
 }
 
 static int32* CH6LoadedAmmo(FFortItemEntry* Entry)
@@ -95,7 +95,7 @@ UFortWorldItem* AFortInventory::GiveItem(const UFortItemDefinition* Def, int Cou
 
         static int ch6Logs = 0;
         if (ch6Logs++ < 12)
-            printf("[Boron][CH6Inv] gave %s x%d item=%p repEntries=%d instances=%d entrySize=0x%x\n", Def->Name.ToString().c_str(), Count, (void*)CH6Item, Inventory.ReplicatedEntries.Num(),
+            BORON_LOG("[Boron][CH6Inv] gave %s x%d item=%p repEntries=%d instances=%d entrySize=0x%x\n", Def->Name.ToString().c_str(), Count, (void*)CH6Item, Inventory.ReplicatedEntries.Num(),
                    Inventory.ItemInstances.Num(), (int)FFortItemEntry::Size());
         return CH6Item;
     }
@@ -125,7 +125,7 @@ UFortWorldItem* AFortInventory::GiveItem(const UFortItemDefinition* Def, int Cou
                     static int mn = 0;
 
                     if (mn++ < 40)
-                        printf("[Boron][Mods] %s spawned with %d mod slot(s) via=%s\n", Def->Name.ToString().c_str(), Slots.Num(), g_GiveTag);
+                        BORON_LOG("[Boron][Mods] %s spawned with %d mod slot(s) via=%s\n", Def->Name.ToString().c_str(), Slots.Num(), g_GiveTag);
                 }
             }
         }
@@ -266,7 +266,7 @@ UFortWorldItem* AFortInventory::GiveItem(FFortItemEntry& entry, int Count, bool 
         static int gn = 0;
 
         if (Stored > 0 && Utils::LogBudget(gn, 20, "[Mods] keep on pickup"))
-            printf("[Boron][Mods] %s stored %d mod(s), %d shown on entry (rep=%p)\n", entry.ItemDefinition ? entry.ItemDefinition->Name.ToString().c_str() : "?", Stored, Shown, (void*)RepEntry);
+            BORON_LOG("[Boron][Mods] %s stored %d mod(s), %d shown on entry (rep=%p)\n", entry.ItemDefinition ? entry.ItemDefinition->Name.ToString().c_str() : "?", Stored, Shown, (void*)RepEntry);
     }
 
     return Item;
@@ -418,7 +418,7 @@ void AFortInventory::Remove(FGuid Guid)
         static int dsn = 0;
 
         if (Utils::LogBudget(dsn, 20, "[Inv] Remove desync"))
-            printf("[Boron][Inv] Remove DESYNC entryIdx=%d instanceIdx=%d entries=%d instances=%d def=%s\n",
+            BORON_LOG("[Boron][Inv] Remove DESYNC entryIdx=%d instanceIdx=%d entries=%d instances=%d def=%s\n",
                    ItemEntryIdx, ItemInstanceIdx, Inventory.ReplicatedEntries.Num(), Inventory.ItemInstances.Num(),
                    EntryDef ? EntryDef->Name.ToString().c_str() : "<entry missing>");
     }
@@ -613,7 +613,7 @@ void* CH6AddComponent(FFortItemEntry* Entry, const char* StructName, UObject** C
     List.Add(FRawInstancedStruct{ *Cache, Memory });
     static int Logged = 0;
     if (Logged++ < 10)
-        printf("[Boron][CH6Inv] added %s to entry %p (components=%d)\n", StructName, (void*)Entry, List.Num());
+        BORON_LOG("[Boron][CH6Inv] added %s to entry %p (components=%d)\n", StructName, (void*)Entry, List.Num());
     return Memory;
 }
 
@@ -685,7 +685,7 @@ static AFortPickupAthena* SpawnPickupCH6(FVector Loc, const UFortItemDefinition*
         Ret->PrimaryPickupItemEntry.LoadedAmmo = *SourceLoaded;
     static int ch6Pickups = 0;
     if (ch6Pickups++ < 20)
-        printf("[Boron][CH6Pickup] %s x%d -> %p manual=%d stack=%lld\n", ItemDefinition->Name.ToString().c_str(), Count, (void*)Ret, bManual, Ret && CH6StackSize(&Ret->PrimaryPickupItemEntry) ? (long long)*CH6StackSize(&Ret->PrimaryPickupItemEntry) : -1ll);
+        BORON_LOG("[Boron][CH6Pickup] %s x%d -> %p manual=%d stack=%lld\n", ItemDefinition->Name.ToString().c_str(), Count, (void*)Ret, bManual, Ret && CH6StackSize(&Ret->PrimaryPickupItemEntry) ? (long long)*CH6StackSize(&Ret->PrimaryPickupItemEntry) : -1ll);
     return Ret;
 }
 
@@ -1031,7 +1031,7 @@ static bool SetLoadedAmmoCH5(UFortWorldItem* Item, int LoadedAmmo)
     }
     static int Logged = 0;
     if (Logged++ < 15)
-        printf("[Boron][Ammo] SetLoadedAmmo item=%p ammo=%d rep=%p\n", (void*)Item, LoadedAmmo, (void*)RepEntry);
+        BORON_LOG("[Boron][Ammo] SetLoadedAmmo item=%p ammo=%d rep=%p\n", (void*)Item, LoadedAmmo, (void*)RepEntry);
     return true;
 }
 
@@ -1105,7 +1105,7 @@ static void GivePickupTo(AFortPickupAthena* Pickup, UObject* OwnerInterface, boo
     }
 
     if (Utils::LogBudget(n, 25, "[Pickup] GivePickupTo"))
-        printf("[Boron][Pickup] GivePickupTo #%d pickup=%p PC=%p def=%p count=%d entries %d -> %d\n",
+        BORON_LOG("[Boron][Pickup] GivePickupTo #%d pickup=%p PC=%p def=%p count=%d entries %d -> %d\n",
                n, (void*)Pickup, (void*)PC,
                (void*)(Pickup ? Pickup->PrimaryPickupItemEntry.ItemDefinition : nullptr),
                Pickup ? Pickup->PrimaryPickupItemEntry.Count : -1, before, after);
@@ -1120,14 +1120,14 @@ void AFortInventory::PostLoadHook()
     ClearAbility_ = FindClearAbility();
 
     if (VersionInfo.EngineVersion >= 5.4)
-        printf("[Boron][Pickup] SetPickupItems=0x%llX RemoveInventoryItem=0x%llX\n",
+        BORON_LOG("[Boron][Pickup] SetPickupItems=0x%llX RemoveInventoryItem=0x%llX\n",
                (unsigned long long)SetPickupItems, (unsigned long long)FindRemoveInventoryItem());
 
     if (VersionInfo.EngineVersion >= 5.4)
     {
         auto GivePickupToFn = AFortPickupAthena::GetDefaultObj()->GetFunction("GivePickupTo");
 
-        printf("[Boron][Pickup] GivePickupTo UFunction=%p vtIdx=%d\n", (void*)GivePickupToFn,
+        BORON_LOG("[Boron][Pickup] GivePickupTo UFunction=%p vtIdx=%d\n", (void*)GivePickupToFn,
                GivePickupToFn ? (int)GivePickupToFn->GetVTableIndex() : -1);
 
         if (GivePickupToFn)

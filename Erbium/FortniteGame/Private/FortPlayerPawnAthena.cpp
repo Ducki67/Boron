@@ -98,7 +98,7 @@ static void FinishPickup(AFortPickupAthena* Pickup, AFortPlayerPawnAthena* Pawn,
     static int fly = 0;
 
     if (Utils::LogBudget(fly, 14, "[Pickup] fly anim"))
-        printf("[Boron][Pickup] fly anim=%d path=%s flyTime=%.2f incoming=%d\n", (int)bFlew, Path,
+        BORON_LOG("[Boron][Pickup] fly anim=%d path=%s flyTime=%.2f incoming=%d\n", (int)bFlew, Path,
                Pickup->PickupLocationData.HasPickupTarget() ? Pickup->PickupLocationData.FlyTime : -1.f,
                Pawn->HasIncomingPickups() ? Pawn->IncomingPickups.Num() : -1);
 }
@@ -151,7 +151,7 @@ static void ServerHandlePickupProbe(UObject* Context, FFrame& Stack)
     {
         static int dup = 0;
         if (dup++ < 5)
-            printf("[Boron][Pickup] ServerHandlePickup suppressed - ServerHandlePickupInfo already handles pickups on FN %.2f\n", VersionInfo.FortniteVersion);
+            BORON_LOG("[Boron][Pickup] ServerHandlePickup suppressed - ServerHandlePickupInfo already handles pickups on FN %.2f\n", VersionInfo.FortniteVersion);
         return;
     }
 
@@ -179,7 +179,7 @@ static void ServerHandlePickupProbe(UObject* Context, FFrame& Stack)
             FinishPickup(Pickup, Pawn, bFlew, "walkover");
             static int ch6n = 0;
             if (ch6n++ < 25)
-                printf("[Boron][Pickup] CH6 walkover def=%s incoming=%d have=%lld max=%d entries %d -> %d\n", Def->Name.ToString().c_str(), PickupStack ? (int)*PickupStack : 1, (long long)Have, (int)MaxStack, before, after);
+                BORON_LOG("[Boron][Pickup] CH6 walkover def=%s incoming=%d have=%lld max=%d entries %d -> %d\n", Def->Name.ToString().c_str(), PickupStack ? (int)*PickupStack : 1, (long long)Have, (int)MaxStack, before, after);
             return;
         }
 
@@ -216,7 +216,7 @@ static void ServerHandlePickupProbe(UObject* Context, FFrame& Stack)
             static int kept = 0;
 
             if (kept++ < 25)
-                printf("[Boron][Pickup] ServerHandlePickup KEPT #%d pickup=%p def=%p inventory full, not destroying\n",
+                BORON_LOG("[Boron][Pickup] ServerHandlePickup KEPT #%d pickup=%p def=%p inventory full, not destroying\n",
                        kept, (void*)Pickup, (void*)Def);
         }
     }
@@ -224,7 +224,7 @@ static void ServerHandlePickupProbe(UObject* Context, FFrame& Stack)
     static int n = 0;
 
     if (n++ < 25)
-        printf("[Boron][Pickup] ServerHandlePickup #%d pickup=%p PC=%p def=%p count=%d entries %d -> %d\n",
+        BORON_LOG("[Boron][Pickup] ServerHandlePickup #%d pickup=%p PC=%p def=%p count=%d entries %d -> %d\n",
                n, (void*)Pickup, (void*)PC,
                (void*)(Pickup ? Pickup->PrimaryPickupItemEntry.ItemDefinition : nullptr),
                Pickup && FFortItemEntry::HasCount() ? Pickup->PrimaryPickupItemEntry.Count : -1, before, after);
@@ -246,7 +246,7 @@ void AFortPlayerPawnAthena::ServerHandlePickup_(UObject* Context, FFrame& Stack)
     if (VersionInfo.EngineVersion >= 5.4)
     {
         static bool once = false;
-        if (!once) { once = true; printf("[Boron][RpcProbe] ServerHandlePickup exec FIRED\n"); }
+        if (!once) { once = true; BORON_LOG("[Boron][RpcProbe] ServerHandlePickup exec FIRED\n"); }
     }
     if (!Pawn || !Pickup || Pickup->bPickedUp)
         return;
@@ -318,7 +318,7 @@ void AFortPlayerPawnAthena::ServerHandlePickupInfo(UObject* Context, FFrame& Sta
         // pickup shit
         static int pn = 0;
         if (pn++ < 25)
-            printf("[Boron][Pickup] RPC #%d pickup=%p bPickedUp=%d def=%p count=%d PC=%p inv=%p\n",
+            BORON_LOG("[Boron][Pickup] RPC #%d pickup=%p bPickedUp=%d def=%p count=%d PC=%p inv=%p\n",
                    pn, (void*)Pickup, (int)Pickup->bPickedUp,
                    (void*)Pickup->PrimaryPickupItemEntry.ItemDefinition, FFortItemEntry::HasCount() ? Pickup->PrimaryPickupItemEntry.Count : -1,
                    (void*)PC, (void*)(PC ? PC->WorldInventory : nullptr));
@@ -358,7 +358,7 @@ void AFortPlayerPawnAthena::ServerHandlePickupInfo(UObject* Context, FFrame& Sta
 
             if (FFortItemEntry::HasCount() && dumpN++ < 4)
             {
-                printf("[Boron][Inv] ---- dump #%d entries=%d ----\n", dumpN, Inv->Inventory.ReplicatedEntries.Num());
+                BORON_LOG("[Boron][Inv] ---- dump #%d entries=%d ----\n", dumpN, Inv->Inventory.ReplicatedEntries.Num());
 
                 for (int i = 0; i < Inv->Inventory.ReplicatedEntries.Num(); i++)
                 {
@@ -366,17 +366,17 @@ void AFortPlayerPawnAthena::ServerHandlePickupInfo(UObject* Context, FFrame& Sta
 
                     if (!E.ItemDefinition)
                     {
-                        printf("[Boron][Inv]  [%02d] <NULL DEF> count=%d\n", i, E.Count);
+                        BORON_LOG("[Boron][Inv]  [%02d] <NULL DEF> count=%d\n", i, E.Count);
                         continue;
                     }
 
-                    printf("[Boron][Inv]  [%02d] %s type=%d prim=%d count=%d max=%d\n",
+                    BORON_LOG("[Boron][Inv]  [%02d] %s type=%d prim=%d count=%d max=%d\n",
                            i, E.ItemDefinition->Name.ToString().c_str(), (int)E.ItemDefinition->ItemType,
                            (int)AFortInventory::IsPrimaryQuickbar(E.ItemDefinition), E.Count,
                            E.ItemDefinition->GetMaxStackSize());
                 }
 
-                printf("[Boron][Inv] enum harvest=%d resource=%d ammo=%d trap=%d build=%d edit=%d ingr=%d\n",
+                BORON_LOG("[Boron][Inv] enum harvest=%d resource=%d ammo=%d trap=%d build=%d edit=%d ingr=%d\n",
                        (int)EFortItemType::GetWeaponHarvest(), (int)EFortItemType::GetWorldResource(),
                        (int)EFortItemType::GetAmmo(), (int)EFortItemType::GetTrap(),
                        (int)EFortItemType::GetBuildingPiece(), (int)EFortItemType::GetEditTool(),
@@ -446,10 +446,10 @@ void AFortPlayerPawnAthena::ServerHandlePickupInfo(UObject* Context, FFrame& Sta
                                 if (P.ItemDefinition && AFortInventory::IsPrimaryQuickbar(P.ItemDefinition))
                                     Prims += std::string(P.ItemDefinition->Name.ToString().c_str()) + "(t" + std::to_string((int)P.ItemDefinition->ItemType) + ") ";
                             }
-                            printf("[Boron][Pickup] primaries: %s\n", Prims.c_str());
+                            BORON_LOG("[Boron][Pickup] primaries: %s\n", Prims.c_str());
                         }
                         if (bSwapLog)
-                            printf("[Boron][Pickup] full-inv swap: dropping %s heldByPawn=%d requested=%d entries=%d instances=%d\n",
+                            BORON_LOG("[Boron][Pickup] full-inv swap: dropping %s heldByPawn=%d requested=%d entries=%d instances=%d\n",
                                    DropEntry->ItemDefinition->Name.ToString().c_str(), (int)bDroppingHeld, (int)bUseRequestedSwap,
                                    Inv->Inventory.ReplicatedEntries.Num(), Inv->Inventory.ItemInstances.Num());
 
@@ -463,7 +463,7 @@ void AFortPlayerPawnAthena::ServerHandlePickupInfo(UObject* Context, FFrame& Sta
 
             static int gn = 0;
             if (gn++ < 25)
-                printf("[Boron][Pickup] give #%d def=%s max=%d want=%d left=%d prim=%d primCount=%d cap=%d swapped=%d blocked=%d entries=%d\n",
+                BORON_LOG("[Boron][Pickup] give #%d def=%s max=%d want=%d left=%d prim=%d primCount=%d cap=%d swapped=%d blocked=%d entries=%d\n",
                        gn, Def->Name.ToString().c_str(), MaxStack, FFortItemEntry::HasCount() ? Entry.Count : -1, Remaining, (int)bPrimary, PrimaryCount,
                        5, (int)bSwapped, (int)bBlocked,
                        Inv->Inventory.ReplicatedEntries.Num());
@@ -749,10 +749,10 @@ void AFortPlayerPawnAthena::OnCapsuleBeginOverlap_(UObject* Context, FFrame& Sta
 
             FName etn{};
             etn.ComparisonIndex = et.Tag;
-            printf("[Boron][Pickup] canInteract=%d ovr=%d hasText=%d hasErr=%d errTag=%s\n",
+            BORON_LOG("[Boron][Pickup] canInteract=%d ovr=%d hasText=%d hasErr=%d errTag=%s\n",
                    (int)ci.Ret, (int)ci.bOverride, (int)it.Ret, (int)et.Ret,
                    et.Tag ? etn.ToString().c_str() : "none");
-            printf("[Boron][Pickup] overlap #%d pickup=%p pawn=%p def=%p flagsByte=0x%02X stoppedSim=%d(has=%d) suppressWidget=%d useWidget=%d blockedAuto=%d dummyItem=%p moveComp=%p capsule=%p aimRadius=%.1f\n",
+            BORON_LOG("[Boron][Pickup] overlap #%d pickup=%p pawn=%p def=%p flagsByte=0x%02X stoppedSim=%d(has=%d) suppressWidget=%d useWidget=%d blockedAuto=%d dummyItem=%p moveComp=%p capsule=%p aimRadius=%.1f\n",
                    ovl, (void*)OtherActor, (void*)Pawn,
                    (void*)P->PrimaryPickupItemEntry.ItemDefinition,
                    flagsByte,
@@ -796,7 +796,7 @@ void AFortPlayerPawnAthena::OnCapsuleBeginOverlap_(UObject* Context, FFrame& Sta
 
         static int wp = 0;
         if (wp++ < 15)
-            printf("[Boron][Pickup] CH5 weapon overlap primaryCount=%d pickup=%p\n", primaryCount, (void*)Pickup);
+            BORON_LOG("[Boron][Pickup] CH5 weapon overlap primaryCount=%d pickup=%p\n", primaryCount, (void*)Pickup);
 
         if (primaryCount < 5)
         {
@@ -1071,7 +1071,7 @@ void UClamberingComponent::ServerStartClambering(UObject* Context, FFrame& Stack
     auto Comp = (UClamberingComponent*)Context;
 
     if (n++ < 12)
-        printf("[Boron][Clamber] ServerStartClambering comp=%p localState=%d repState=%d\n", (void*)Comp,
+        BORON_LOG("[Boron][Clamber] ServerStartClambering comp=%p localState=%d repState=%d\n", (void*)Comp,
                Comp->HasLocalClamberingState() ? (int)Comp->LocalClamberingState : -1,
                Comp->HasReplicatedClamberingState() ? (int)Comp->ReplicatedClamberingState : -1);
 
@@ -1086,7 +1086,7 @@ void UClamberingComponent::ServerStartClambering(UObject* Context, FFrame& Stack
         static int w = 0;
 
         if (w++ < 8)
-            printf("[Boron][Clamber] hand-called OnRep_SynchedActionWarpPointInfo pawn=%p\n", (void*)WarpPawn);
+            BORON_LOG("[Boron][Clamber] hand-called OnRep_SynchedActionWarpPointInfo pawn=%p\n", (void*)WarpPawn);
     }
 }
 
@@ -1167,7 +1167,7 @@ void UClamberingComponent::PostLoadHook()
 
     if (!Default)
     {
-        printf("[Boron][Clamber] ClamberingComponent class not present on this build\n");
+        BORON_LOG("[Boron][Clamber] ClamberingComponent class not present on this build\n");
         return;
     }
 
@@ -1229,7 +1229,7 @@ void AFortPlayerPawnAthena::LaunchCharacterExec(UObject* Context, FFrame& Stack)
 
     static int ln = 0;
     if (ln++ < 10)
-        printf("[Boron][Launch] LaunchCharacter (exec) pawn=%p -> server corrections on\n", (void*)Pawn);
+        BORON_LOG("[Boron][Launch] LaunchCharacter (exec) pawn=%p -> server corrections on\n", (void*)Pawn);
 }
 
 void AFortPlayerPawnAthena::LaunchCharacter(AFortPlayerPawnAthena* Pawn, void* LaunchVelocity, bool bXYOverride, bool bZOverride)
@@ -1251,7 +1251,7 @@ void AFortPlayerPawnAthena::LaunchCharacter(AFortPlayerPawnAthena* Pawn, void* L
 
         static int ln = 0;
         if (ln++ < 10)
-            printf("[Boron][Launch] LaunchCharacter pawn=%p -> server corrections on\n", (void*)Pawn);
+            BORON_LOG("[Boron][Launch] LaunchCharacter pawn=%p -> server corrections on\n", (void*)Pawn);
     }
 
     LaunchCharacterOG(Pawn, LaunchVelocity, bXYOverride, bZOverride);
@@ -1283,7 +1283,7 @@ void AFortPlayerPawnAthena::TickLaunchCorrections()
             SetServerCorrections(Launched.Pawn, true);
             static int rn = 0;
             if (rn++ < 10)
-                printf("[Boron][Launch] restored client-auth pawn=%p landed=%d elapsed=%llums mode=%d\n", (void*)Launched.Pawn, (int)bLanded, Elapsed,
+                BORON_LOG("[Boron][Launch] restored client-auth pawn=%p landed=%d elapsed=%llums mode=%d\n", (void*)Launched.Pawn, (int)bLanded, Elapsed,
                        MoveComp && MoveComp->HasMovementMode() ? (int)MoveComp->MovementMode : -1);
             LaunchedPawns.erase(LaunchedPawns.begin() + i);
             continue;
@@ -1301,7 +1301,7 @@ void AFortPlayerPawnAthena::PostLoadHook()
     auto ServerHandlePickupInfoFn = GetDefaultObj()->GetFunction("ServerHandlePickupInfo");
 
     if (VersionInfo.EngineVersion >= 5.4)
-        printf("[Boron][Pickup] hook install: PickupInfo=%p Pickup=%p WithSwap=%p Overlap=%p\n",
+        BORON_LOG("[Boron][Pickup] hook install: PickupInfo=%p Pickup=%p WithSwap=%p Overlap=%p\n",
                (void*)ServerHandlePickupInfoFn,
                (void*)GetDefaultObj()->GetFunction("ServerHandlePickup"),
                (void*)GetDefaultObj()->GetFunction("ServerHandlePickupWithRequestedSwap"),
@@ -1338,7 +1338,7 @@ void AFortPlayerPawnAthena::PostLoadHook()
     if (VersionInfo.EngineVersion >= 5.4)
     {
         auto LaunchCharacterExecFn = GetDefaultObj()->GetFunction("LaunchCharacter");
-        printf("[Boron][Launch] LaunchCharacter exec hook fn=%p\n", (void*)LaunchCharacterExecFn);
+        BORON_LOG("[Boron][Launch] LaunchCharacter exec hook fn=%p\n", (void*)LaunchCharacterExecFn);
         if (LaunchCharacterExecFn)
             Hooking::ExecHook(LaunchCharacterExecFn, LaunchCharacterExec, LaunchCharacterExecOG);
     }
@@ -1347,7 +1347,7 @@ void AFortPlayerPawnAthena::PostLoadHook()
     {
         auto LaunchCharacterFn = GetDefaultObj()->GetFunction("LaunchCharacter");
         auto LaunchIdx = LaunchCharacterFn ? (int)LaunchCharacterFn->GetVTableIndex() : -1;
-        printf("[Boron][Launch] LaunchCharacter fn=%p vtIdx=%d\n", (void*)LaunchCharacterFn, LaunchIdx);
+        BORON_LOG("[Boron][Launch] LaunchCharacter fn=%p vtIdx=%d\n", (void*)LaunchCharacterFn, LaunchIdx);
 
         if (LaunchIdx > 0)
             Hooking::Hook<AFortPlayerPawnAthena>(LaunchIdx, LaunchCharacter, LaunchCharacterOG);
@@ -1404,7 +1404,7 @@ static void SendDamageCue(AFortWeaponRanged* Weapon, AActor* HitActor, FHitResul
         bAvailable = FAthenaBatchedDamageGameplayCues_Shared::StaticStruct() && FAthenaBatchedDamageGameplayCues_NonShared::StaticStruct()
                      && Shooter && Shooter->GetFunction("NetMulticast_Athena_BatchedDamageCues");
 
-        printf("[Boron][Cue] shared=%p nonShared=%p fn=%p sharedSize=%d nonSharedSize=%d available=%d\n",
+        BORON_LOG("[Boron][Cue] shared=%p nonShared=%p fn=%p sharedSize=%d nonSharedSize=%d available=%d\n",
                (void*)FAthenaBatchedDamageGameplayCues_Shared::StaticStruct(), (void*)FAthenaBatchedDamageGameplayCues_NonShared::StaticStruct(),
                (void*)(Shooter ? Shooter->GetFunction("NetMulticast_Athena_BatchedDamageCues") : nullptr),
                FAthenaBatchedDamageGameplayCues_Shared::StaticStruct() ? FAthenaBatchedDamageGameplayCues_Shared::Size() : -1,
@@ -1477,7 +1477,7 @@ static void ApplyRangedHit(AFortWeaponRanged* Weapon, FHitResult& Hit, const cha
         static int nn = 0;
 
         if (Utils::LogBudget(nn, 15, "[Damage] NO ACTOR"))
-            printf("[Boron][Damage] path=%s weapon=%s NO ACTOR (handle+component both null, hasComp=%d)\n",
+            BORON_LOG("[Boron][Damage] path=%s weapon=%s NO ACTOR (handle+component both null, hasComp=%d)\n",
                    Path, WeaponName.c_str(), (int)FHitResult::HasComponent());
 
         return;
@@ -1495,7 +1495,7 @@ static void ApplyRangedHit(AFortWeaponRanged* Weapon, FHitResult& Hit, const cha
         if (std::find(Seen.begin(), Seen.end(), Key) == Seen.end())
         {
             Seen.push_back(Key);
-            printf("[Boron][Damage] FIRST path=%s weapon=%s actor=%s src=%s dmg=%.1f env=%.1f\n",
+            BORON_LOG("[Boron][Damage] FIRST path=%s weapon=%s actor=%s src=%s dmg=%.1f env=%.1f\n",
                    Path, WeaponName.c_str(), ActorName.c_str(), Source, Stats->DmgPB, Stats->EnvDmgPB);
         }
     }
@@ -1531,7 +1531,7 @@ static void ApplyRangedHit(AFortWeaponRanged* Weapon, FHitResult& Hit, const cha
             static int wn = 0;
 
             if (wn++ < 8)
-                printf("[Boron][Damage] phase=%d step=%d (off %d/%d) pregame=%d\n", Phase, Step, PhaseOff, StepOff, (int)bPregame);
+                BORON_LOG("[Boron][Damage] phase=%d step=%d (off %d/%d) pregame=%d\n", Phase, Step, PhaseOff, StepOff, (int)bPregame);
         }
 
         auto Target = (AFortPlayerPawnAthena*)HitActor;
@@ -1591,7 +1591,7 @@ static void ApplyRangedHit(AFortWeaponRanged* Weapon, FHitResult& Hit, const cha
         SendDamageCue(Weapon, HitActor, Hit, Damage, bFatal, bCrit, Shield > 0.f, Shield > 0.f && Target->GetShield() <= 0.f, false);
 
         if (bLog)
-            printf("[Boron][Damage] pawn path=%s cls=%s bone=%s crit=%d dmg=%.1f hp %.0f->%.0f sh %.0f->%.0f fatal=%d\n",
+            BORON_LOG("[Boron][Damage] pawn path=%s cls=%s bone=%s crit=%d dmg=%.1f hp %.0f->%.0f sh %.0f->%.0f fatal=%d\n",
                    Path, ActorName.c_str(), Bone.c_str(), (int)bCrit, Damage,
                    Health, Target->GetHealth(), Shield, Target->GetShield(), (int)bFatal);
 
@@ -1652,7 +1652,7 @@ static void ApplyRangedHit(AFortWeaponRanged* Weapon, FHitResult& Hit, const cha
         static int kn = 0;
 
         if (kn++ < 12)
-            printf("[Boron][Damage] fatal via=%s target=%p killerPC=%p killerASC=%p targetASC=%p hpAfter=%.0f dbno=%d\n",
+            BORON_LOG("[Boron][Damage] fatal via=%s target=%p killerPC=%p killerASC=%p targetASC=%p hpAfter=%.0f dbno=%d\n",
                    Path2, (void*)Target, (void*)KillerController, (void*)KillerASC, (void*)TargetASC,
                    Target->GetHealth(), (int)Target->IsDBNO());
 
@@ -1676,7 +1676,7 @@ static void ApplyRangedHit(AFortWeaponRanged* Weapon, FHitResult& Hit, const cha
         SendDamageCue(Weapon, HitActor, Hit, Damage, Left <= 0.f, false, false, false, true);
 
         if (bLog)
-            printf("[Boron][Damage] building path=%s dmg=%.1f left=%.0f dorm=%d\n",
+            BORON_LOG("[Boron][Damage] building path=%s dmg=%.1f left=%.0f dorm=%d\n",
                    Path, Damage, Left, (int)Building->GetNetDormancy());
 
         if (Left <= 0.f)
@@ -1686,7 +1686,7 @@ static void ApplyRangedHit(AFortWeaponRanged* Weapon, FHitResult& Hit, const cha
     }
 
     if (on++ < 20)
-        printf("[Boron][Damage] UNHANDLED path=%s cls=%s\n", Path, ActorName.c_str());
+        BORON_LOG("[Boron][Damage] UNHANDLED path=%s cls=%s\n", Path, ActorName.c_str());
 }
 
 void AFortWeaponRanged::ServerNotifyPawnHit_(UObject* Context, FFrame& Stack)
@@ -1697,7 +1697,7 @@ void AFortWeaponRanged::ServerNotifyPawnHit_(UObject* Context, FFrame& Stack)
     {
         auto Fn = Stack.GetCurrentNativeFunction();
         hitOff = Fn ? (int)Fn->GetOffset("Hit") : -1;
-        printf("[Boron][Damage] weapon ServerNotifyPawnHit first call, Hit offset=0x%X\n", hitOff);
+        BORON_LOG("[Boron][Damage] weapon ServerNotifyPawnHit first call, Hit offset=0x%X\n", hitOff);
     }
 
     Stack.IncrementCode();
@@ -1716,7 +1716,7 @@ void AFortWeaponRanged::ServerNotifyProjectilePawnHit(UObject* Context, FFrame& 
     {
         auto Fn = Stack.GetCurrentNativeFunction();
         hitOff = Fn ? (int)Fn->GetOffset("Hit") : -1;
-        printf("[Boron][Damage] projectile ServerNotifyPawnHit first call, Hit offset=0x%X\n", hitOff);
+        BORON_LOG("[Boron][Damage] projectile ServerNotifyPawnHit first call, Hit offset=0x%X\n", hitOff);
     }
 
     Stack.IncrementCode();
@@ -1734,7 +1734,7 @@ void AFortWeaponRanged::ServerNotifyProjectilePawnHit(UObject* Context, FFrame& 
         static int pw = 0;
 
         if (pw++ < 10)
-            printf("[Boron][Damage] projectile owner not a weapon: proj=%s owner=%s\n",
+            BORON_LOG("[Boron][Damage] projectile owner not a weapon: proj=%s owner=%s\n",
                    Projectile->Class ? Projectile->Class->Name.ToString().c_str() : "null",
                    Owner && Owner->Class ? Owner->Class->Name.ToString().c_str() : "null");
 
@@ -1755,7 +1755,7 @@ void AFortWeaponRanged::Hook()
     auto ProjectileDefault = ProjectileClass ? ProjectileClass->GetDefaultObj() : nullptr;
     auto ProjectileFn = ProjectileDefault ? ProjectileDefault->GetFunction("ServerNotifyPawnHit") : nullptr;
 
-    printf("[Boron][Damage] hooks: weapon=%p projectileCls=%p projectileFn=%p\n",
+    BORON_LOG("[Boron][Damage] hooks: weapon=%p projectileCls=%p projectileFn=%p\n",
            (void*)Fn, (void*)ProjectileClass, (void*)ProjectileFn);
 
     if (Fn)

@@ -119,7 +119,7 @@ void PatchAllNetModes(uintptr_t AttemptDeriveFromURL)
         auto WorldClass = UWorld::StaticClass();
         auto NetDriverOff = WorldClass ? WorldClass->GetOffset("NetDriver") : uint32(-1);
         auto DemoOff = WorldClass ? WorldClass->GetOffset("DemoNetDriver") : uint32(-1);
-        printf("[Boron][Init] PatchAllNetModes NetDriver=0x%x DemoNetDriver=0x%x\n", NetDriverOff, DemoOff);
+        BORON_LOG("[Boron][Init] PatchAllNetModes NetDriver=0x%x DemoNetDriver=0x%x\n", NetDriverOff, DemoOff);
         if (NetDriverOff >= 0x80 || DemoOff == uint32(-1))
             return;
         NetDriverOffset = (uint8)NetDriverOff;
@@ -273,7 +273,7 @@ void PatchAllNetModes(uintptr_t AttemptDeriveFromURL)
     }
 
     if (bBoundToOwner)
-        printf("[Boron][Init] PatchAllNetModes patched %d\n", Patched);
+        BORON_LOG("[Boron][Init] PatchAllNetModes patched %d\n", Patched);
 }
 
 bool RetFalse()
@@ -662,7 +662,7 @@ static void PatchInlinedNetModes(uintptr_t AttemptDeriveFromURL)
 {
     auto WorldClass = UWorld::StaticClass();
     auto NetDriverOffset = WorldClass ? WorldClass->GetOffset("NetDriver") : uint32(-1);
-    printf("[Boron][Init] PatchInlinedNetModes NetDriver=0x%x\n", NetDriverOffset);
+    BORON_LOG("[Boron][Init] PatchInlinedNetModes NetDriver=0x%x\n", NetDriverOffset);
     if (!AttemptDeriveFromURL || NetDriverOffset >= 0x80)
         return;
 
@@ -803,7 +803,7 @@ static void PatchInlinedNetModes(uintptr_t AttemptDeriveFromURL)
         CloseHandle(Thread);
     }
 
-    printf("[Boron][Init] PatchInlinedNetModes patched %d/%d (frozen=%d busy=%d)\n", Patched, Calls, (int)Frozen.size(), Busy);
+    BORON_LOG("[Boron][Init] PatchInlinedNetModes patched %d/%d (frozen=%d busy=%d)\n", Patched, Calls, (int)Frozen.size(), Busy);
 }
 
 void Misc::Hook()

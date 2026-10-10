@@ -7,6 +7,8 @@
 #ifndef PCH_H
 #define PCH_H
 
+// #define BORON_LOG(...) ((void)0)  /6 define this for most boron logs
+
 // add headers that you want to pre-compile here
 #include "framework.h"
 #include "../SDK/Includes.h"

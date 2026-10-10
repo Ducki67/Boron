@@ -130,7 +130,7 @@ inline void DumpIfNeeded()
     if (bPlaylists)
         DumpPlaylists();
 
-    printf("[Boron][Dumper] items=%s playlists=%s took=%llums\n", bItems ? "dumped" : "already dumped", bPlaylists ? "dumped" : "already dumped", GetTickCount64() - Start);
+    BORON_LOG("[Boron][Dumper] items=%s playlists=%s took=%llums\n", bItems ? "dumped" : "already dumped", bPlaylists ? "dumped" : "already dumped", GetTickCount64() - Start);
 }
 
 // here goes sum insaine shit later :))
