@@ -1,5 +1,6 @@
 #pragma once
 #include "../../pch.h"
+#include "Log.h"
 #include "Finders.h"
 #include "Hooking.hpp"
 
