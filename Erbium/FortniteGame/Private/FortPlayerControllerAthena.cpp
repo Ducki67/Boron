@@ -87,6 +87,74 @@ static bool GuardedApplyCosmetics(void* Fn, AActor* PlayerState, AActor* Pawn)
     return ok;
 }
 
+static void EnsureQuickEditSettings(UObject* Component)
+{
+    if (*(float*)(__int64(Component) + 0xE4) != 0.f)
+        return;
+    auto GameState = (AFortGameStateAthena*)UWorld::GetWorld()->GameState;
+    auto Playlist = GameState ? GameState->CurrentPlaylistInfo.BasePlaylist : nullptr;
+    auto Fn = Component->GetFunction("HandlePlaylistDataReady");
+    if (!Playlist || !Fn)
+        return;
+    struct
+    {
+        AFortGameStateAthena* GameState;
+        const UFortPlaylistAthena* Playlist;
+        FGameplayTagContainer Tags;
+    } Params{ GameState, Playlist, Playlist->GameplayTagContainer };
+    Component->ProcessEvent(Fn, &Params);
+    BORON_LOG_ON("[Boron][SimpleEdit] HandlePlaylistDataReady -> cached CanEnable=%.2f\n", *(float*)(__int64(Component) + 0xE4));
+}
+
+static void (*QuickEditServerSetEnabledOG)(UObject*, bool) = nullptr;
+static void QuickEditServerSetEnabled(UObject* Component, bool bInEnabled)
+{
+    EnsureQuickEditSettings(Component);
+    auto Before = *(uint8*)(__int64(Component) + 0x360);
+    QuickEditServerSetEnabledOG(Component, bInEnabled);
+    auto After = *(uint8*)(__int64(Component) + 0x360);
+    auto Cached = *(float*)(__int64(Component) + 0xE4);
+    auto CVar = *(int32*)(Memcury::PE::GetModuleBase() + 0x15F95988);
+    bool bWant = Cached != 0.f && (CVar < 0 ? bInEnabled : CVar > 0);
+    if (After != (uint8)bWant)
+    {
+        *(uint8*)(__int64(Component) + 0x360) = bWant;
+        if (auto OnRep = Component->GetFunction("OnRep_Enabled"))
+            Component->ProcessEvent(OnRep, nullptr);
+    }
+    BORON_LOG_ON("[Boron][SimpleEdit] ServerSetEnabled(%d) bEnabled %d -> %d -> %d cachedCanEnable=%.2f cvar=%d\n", (int)bInEnabled, (int)Before, (int)After, (int)*(uint8*)(__int64(Component) + 0x360), Cached, CVar);
+}
+
+static void ProbeQuickEdit(AFortPlayerControllerAthena* PlayerController)
+{
+    static auto QuickEditClass = FindClass("FortControllerComponent_QuickEdit");
+    if (!QuickEditClass)
+        return;
+    auto Component = (UObject*)PlayerController->GetComponentByClass(QuickEditClass);
+    if (!Component)
+    {
+        BORON_LOG_ON("[Boron][SimpleEdit] no QuickEdit component on PC %p\n", PlayerController);
+        return;
+    }
+    auto Base = Memcury::PE::GetModuleBase();
+    if (!QuickEditServerSetEnabledOG)
+    {
+        auto Slot = (void**)Component->Vft + 0x580 / 8;
+        QuickEditServerSetEnabledOG = (void (*)(UObject*, bool))*Slot;
+        DWORD Old;
+        VirtualProtect(Slot, 8, PAGE_EXECUTE_READWRITE, &Old);
+        *Slot = (void*)QuickEditServerSetEnabled;
+        VirtualProtect(Slot, 8, Old, &Old);
+    }
+    EnsureQuickEditSettings(Component);
+    auto CanEnableTable = *(UObject**)(__int64(Component) + 0x110 + 8);
+    auto CanEnableRow = *(FName*)(__int64(Component) + 0x110 + 0x10);
+    BORON_LOG_ON("[Boron][SimpleEdit] comp=%p cls=%s bEnabled=%d CanEnable=%.2f table=%s row=%s impl=0x%llx\n",
+        Component, Component->Class->Name.ToString().c_str(), (int)*(uint8*)(__int64(Component) + 0x360),
+        *(float*)(__int64(Component) + 0x110), CanEnableTable ? CanEnableTable->Name.ToString().c_str() : "null",
+        CanEnableRow.ToString().c_str(), (unsigned long long)(__int64(QuickEditServerSetEnabledOG) - __int64(Base)));
+}
+
 static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* PlayerController, AActor* Pawn)
 {
     if (!Pawn || !PlayerController->WorldInventory)
@@ -95,6 +163,9 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
             BORON_LOG("[Boron][Pawn] ServerAcknowledgePossession_Impl skipped (Pawn=%p WorldInventory=%p)\n", (void*)Pawn, (void*)(PlayerController ? PlayerController->WorldInventory : nullptr));
         return;
     }
+
+    if (Offsets::FortniteCL == 39768313)
+        ProbeQuickEdit(PlayerController);
 
     auto FortPawn = (AFortPlayerPawnAthena*)Pawn;
 
@@ -1692,7 +1763,7 @@ void AFortPlayerControllerAthena::ServerEditBuildingActor(UObject* Context, FFra
     auto PlayerController = (AFortPlayerControllerAthena*)Context;
     if (!ReplaceBuildingActor_ && VersionInfo.FortniteVersion >= 33)
     {
-        if (!PlayerController || !Building || !NewClass || !Building->IsA<ABuildingSMActor>() || Building->EditingPlayer != PlayerController->PlayerState || Building->bDestroyed)
+        if (!PlayerController || !Building || !NewClass || !Building->IsA<ABuildingSMActor>() || (Building->EditingPlayer && Building->EditingPlayer != PlayerController->PlayerState) || Building->bDestroyed)
         {
             static int rn = 0;
             if (rn++ < 40)

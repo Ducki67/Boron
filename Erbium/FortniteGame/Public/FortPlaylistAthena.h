@@ -55,6 +55,22 @@ public:
     DEFINE_PROP(PersistentAbilitySets, TArray<FFortAbilitySetDeliveryInfo>);
 };
 
+class UAthenaAISettings : public UObject
+{
+public:
+    UCLASS_COMMON_MEMBERS(UAthenaAISettings);
+
+    DEFINE_PROP(AIServices, TArray<UClass*>);
+};
+
+class UFortGameFeatureAction_OverrideGameModeAISettings : public UObject
+{
+public:
+    UCLASS_COMMON_MEMBERS(UFortGameFeatureAction_OverrideGameModeAISettings);
+
+    DEFINE_PROP(AISettings, TSoftObjectPtr<UAthenaAISettings>);
+};
+
 class UFortPlaylistAthena : public UObject
 {
 public:
@@ -90,4 +106,5 @@ public:
     DEFINE_PROP(JoinInProgressMatchType, FText);
     DEFINE_PROP(SafeZoneLocationBlacklist, TSoftObjectPtr<UCurveTable>);
     DEFINE_PROP(LastSafeZoneIndex, int32);
+    DEFINE_PROP(AISettings, TSoftObjectPtr<UAthenaAISettings>);
 };

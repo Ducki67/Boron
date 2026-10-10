@@ -83,6 +83,22 @@ static UFortPlaylistAthena* FindLoadedPlaylist()
     return Result;
 }
 
+static int DropNullAIServices(UAthenaAISettings* AISettings)
+{
+    if (!AISettings || !AISettings->HasAIServices())
+        return 0;
+    auto& Services = AISettings->AIServices;
+    int32 Kept = 0;
+    for (int32 i = 0; i < Services.NumElements; i++)
+        if (Services.Data[i])
+            Services.Data[Kept++] = Services.Data[i];
+    int Dropped = Services.NumElements - Kept;
+    if (Dropped)
+        BORON_LOG("[Boron][AI] %s: AIServices %d -> %d\n", AISettings->Name.ToString().c_str(), Services.NumElements, Kept);
+    Services.NumElements = Kept;
+    return Dropped;
+}
+
 void SetupPlaylist(AFortGameMode* GameMode, AFortGameStateAthena* GameState)
 {
     const char* PlaylistSource = "config";
@@ -109,6 +125,25 @@ void SetupPlaylist(AFortGameMode* GameMode, AFortGameStateAthena* GameState)
 
     if (Playlist)
     {
+        if (VersionInfo.FortniteVersion >= 30.20)
+        {
+            int Swept = 0;
+            if (Playlist->HasAISettings())
+                Swept += DropNullAIServices((UAthenaAISettings*)Playlist->AISettings.Get());
+            auto SettingsClass = UAthenaAISettings::StaticClass();
+            auto OverrideClass = UFortGameFeatureAction_OverrideGameModeAISettings::StaticClass();
+            for (int i = 0; i < TUObjectArray::Num(); i++)
+            {
+                auto Object = (UObject*)TUObjectArray::GetObjectByIndex(i);
+                if (!Object || !Object->Class || Object->IsDefaultObject())
+                    continue;
+                if (SettingsClass && Object->IsA(SettingsClass))
+                    Swept += DropNullAIServices((UAthenaAISettings*)Object);
+                else if (OverrideClass && Object->IsA(OverrideClass) && ((UFortGameFeatureAction_OverrideGameModeAISettings*)Object)->HasAISettings())
+                    Swept += DropNullAIServices((UAthenaAISettings*)((UFortGameFeatureAction_OverrideGameModeAISettings*)Object)->AISettings.Get());
+            }
+            BORON_LOG("[Boron][AI] null AIServices dropped=%d settingsCls=%p overrideCls=%p\n", Swept, SettingsClass, OverrideClass);
+        }
         if (GameRuleConfig::bForceRespawns)
         {
             if (Playlist->HasbRespawnInAir())
