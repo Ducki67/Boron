@@ -123,6 +123,15 @@ AFortSafeZoneIndicator* UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Setu
             SafeZoneIndicator->SafeZoneFinishShrinkTime = SafeZoneIndicator->SafeZoneStartShrinkTime + Array[0].ShrinkTime;
 
             SafeZoneIndicator->CurrentPhase = 0;
+            {
+                auto MapCenter = GameState->MapInfo->GetMapCenter();
+                BORON_LOG("[Boron][Storm] phases=%d locations=%d mapCenter=(%.0f,%.0f,%.0f)\n", Array.Num(), SafeZoneLocations.Num(), (double)MapCenter.X, (double)MapCenter.Y, (double)MapCenter.Z);
+                for (int z = 0; z < Array.Num() && z < 4; z++)
+                {
+                    auto& Ph = Array.Get(z, FFortSafeZonePhaseInfo::Size());
+                    BORON_LOG("[Boron][Storm]   phase %d center=(%.0f,%.0f,%.0f) radius=%.0f wait=%.0f shrink=%.0f dmg=%.3f\n", z, (double)Ph.Center.X, (double)Ph.Center.Y, (double)Ph.Center.Z, (double)Ph.Radius, (double)Ph.WaitTime, (double)Ph.ShrinkTime, (double)Ph.DamageInfo.Damage);
+                }
+            }
             SafeZoneIndicator->OnRep_CurrentPhase();
         }
 
@@ -448,6 +457,21 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Tick()
     static auto GamePhaseOffset = this->GetOffset("GamePhase");
     auto& _GamePhase = *(EAthenaGamePhase*)(__int64(this) + GamePhaseOffset);
 
+    if (_GamePhase == EAthenaGamePhase::Aircraft || (_GamePhase == EAthenaGamePhase::SafeZones && !SafeZoneIndicator))
+    {
+        for (auto& UncastedPlayer : ((AFortGameMode*)UWorld::GetWorld()->AuthorityGameMode)->AlivePlayers)
+        {
+            auto Pawn = (AFortPlayerPawnAthena*)((AFortPlayerControllerAthena*)UncastedPlayer)->MyFortPawn;
+            if (!Pawn || (Pawn->bIsInsideSafeZone && !Pawn->bIsInAnyStorm))
+                continue;
+
+            Pawn->bIsInAnyStorm = false;
+            Pawn->OnRep_IsInAnyStorm();
+            Pawn->bIsInsideSafeZone = true;
+            Pawn->OnRep_IsInsideSafeZone();
+        }
+    }
+
     static bool finishedFlight = false;
     if (!bSkipAircraft)
     {
@@ -616,6 +640,16 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Tick()
                         if (Pawn->bIsInsideSafeZone != bInZone || Pawn->bIsInAnyStorm != !bInZone)
                         {
                             printf("Pawn %s new storm status: %s\n", Pawn->Name.ToString().c_str(), bInZone ? "true" : "false");
+                            {
+                                auto PawnLoc = Player->MyFortPawn->K2_GetActorLocation();
+                                int Cur = SafeZoneIndicator->CurrentPhase;
+                                if (SafeZoneIndicator->SafeZonePhases.IsValidIndex(Cur))
+                                {
+                                    auto& Ph = SafeZoneIndicator->SafeZonePhases.Get(Cur, FFortSafeZonePhaseInfo::Size());
+                                    double Dx = (double)PawnLoc.X - (double)Ph.Center.X, Dy = (double)PawnLoc.Y - (double)Ph.Center.Y;
+                                    BORON_LOG("[Boron][Storm] pawn=(%.0f,%.0f,%.0f) phase=%d center=(%.0f,%.0f) radius=%.0f dist2d=%.0f inZone=%d\n", (double)PawnLoc.X, (double)PawnLoc.Y, (double)PawnLoc.Z, Cur, (double)Ph.Center.X, (double)Ph.Center.Y, (double)Ph.Radius, sqrt(Dx * Dx + Dy * Dy), (int)bInZone);
+                                }
+                            }
                             Pawn->bIsInAnyStorm = !bInZone;
                             Pawn->OnRep_IsInAnyStorm();
                             Pawn->bIsInsideSafeZone = bInZone;

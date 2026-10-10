@@ -103,7 +103,7 @@ static void EnsureQuickEditSettings(UObject* Component)
         FGameplayTagContainer Tags;
     } Params{ GameState, Playlist, Playlist->GameplayTagContainer };
     Component->ProcessEvent(Fn, &Params);
-    BORON_LOG_ON("[Boron][SimpleEdit] HandlePlaylistDataReady -> cached CanEnable=%.2f\n", *(float*)(__int64(Component) + 0xE4));
+    BORON_LOG("[Boron][SimpleEdit] HandlePlaylistDataReady -> cached CanEnable=%.2f\n", *(float*)(__int64(Component) + 0xE4));
 }
 
 static void (*QuickEditServerSetEnabledOG)(UObject*, bool) = nullptr;
@@ -122,7 +122,7 @@ static void QuickEditServerSetEnabled(UObject* Component, bool bInEnabled)
         if (auto OnRep = Component->GetFunction("OnRep_Enabled"))
             Component->ProcessEvent(OnRep, nullptr);
     }
-    BORON_LOG_ON("[Boron][SimpleEdit] ServerSetEnabled(%d) bEnabled %d -> %d -> %d cachedCanEnable=%.2f cvar=%d\n", (int)bInEnabled, (int)Before, (int)After, (int)*(uint8*)(__int64(Component) + 0x360), Cached, CVar);
+    BORON_LOG("[Boron][SimpleEdit] t=%.1f comp=%p ServerSetEnabled(%d) bEnabled %d -> %d -> %d cachedCanEnable=%.2f cvar=%d\n", (float)UGameplayStatics::GetTimeSeconds(UWorld::GetWorld()), Component, (int)bInEnabled, (int)Before, (int)After, (int)*(uint8*)(__int64(Component) + 0x360), Cached, CVar);
 }
 
 static void ProbeQuickEdit(AFortPlayerControllerAthena* PlayerController)
@@ -133,7 +133,7 @@ static void ProbeQuickEdit(AFortPlayerControllerAthena* PlayerController)
     auto Component = (UObject*)PlayerController->GetComponentByClass(QuickEditClass);
     if (!Component)
     {
-        BORON_LOG_ON("[Boron][SimpleEdit] no QuickEdit component on PC %p\n", PlayerController);
+        BORON_LOG("[Boron][SimpleEdit] no QuickEdit component on PC %p\n", PlayerController);
         return;
     }
     auto Base = Memcury::PE::GetModuleBase();
@@ -149,8 +149,8 @@ static void ProbeQuickEdit(AFortPlayerControllerAthena* PlayerController)
     EnsureQuickEditSettings(Component);
     auto CanEnableTable = *(UObject**)(__int64(Component) + 0x110 + 8);
     auto CanEnableRow = *(FName*)(__int64(Component) + 0x110 + 0x10);
-    BORON_LOG_ON("[Boron][SimpleEdit] comp=%p cls=%s bEnabled=%d CanEnable=%.2f table=%s row=%s impl=0x%llx\n",
-        Component, Component->Class->Name.ToString().c_str(), (int)*(uint8*)(__int64(Component) + 0x360),
+    BORON_LOG("[Boron][SimpleEdit] t=%.1f comp=%p cls=%s bEnabled=%d CanEnable=%.2f table=%s row=%s impl=0x%llx\n",
+        (float)UGameplayStatics::GetTimeSeconds(UWorld::GetWorld()), Component, Component->Class->Name.ToString().c_str(), (int)*(uint8*)(__int64(Component) + 0x360),
         *(float*)(__int64(Component) + 0x110), CanEnableTable ? CanEnableTable->Name.ToString().c_str() : "null",
         CanEnableRow.ToString().c_str(), (unsigned long long)(__int64(QuickEditServerSetEnabledOG) - __int64(Base)));
 }
@@ -1780,11 +1780,20 @@ void AFortPlayerControllerAthena::ServerEditBuildingActor(UObject* Context, FFra
         auto Rot = Building->K2_GetActorRotation();
         FVector Origin = Loc, Extent{};
         Building->GetActorBounds(false, &Origin, &Extent, false);
+        const double OldX = Loc.X, OldY = Loc.Y, OldZ = Loc.Z, OldYaw = Rot.Yaw;
+        Origin.X = round(Origin.X / 256.0) * 256.0;
+        Origin.Y = round(Origin.Y / 256.0) * 256.0;
         const double Ang = (90.0 * RotationIterations) * 3.14159265358979323846 / 180.0;
         const double Dx = Loc.X - Origin.X, Dy = Loc.Y - Origin.Y;
         Loc.X = Origin.X + Dx * cos(Ang) - Dy * sin(Ang);
         Loc.Y = Origin.Y + Dx * sin(Ang) + Dy * cos(Ang);
-        Rot.Yaw += 90.f * RotationIterations;
+        Rot.Yaw = fmod(Rot.Yaw + 90.0 * RotationIterations, 360.0);
+        if (Rot.Yaw > 180.0)
+            Rot.Yaw = Rot.Yaw - 360.0;
+        else if (Rot.Yaw <= -180.0)
+            Rot.Yaw = Rot.Yaw + 360.0;
+        Loc.X = round(Loc.X);
+        Loc.Y = round(Loc.Y);
         const float OldHealthPct = Building->GetHealthPercent();
         const bool bOldBuilding = Building->IsUnderConstruction();
         const bool bRebuild = bOldBuilding || OldHealthPct >= 0.99f;
@@ -1813,8 +1822,11 @@ void AFortPlayerControllerAthena::ServerEditBuildingActor(UObject* Context, FFra
             NewBuild->TeamIndex = Building->Team;
 
         static int en = 0;
-        if (en++ < 10)
-            BORON_LOG("[Boron][Edit] %s -> %s rotIt=%d mirrored=%d new=%p hp%%=%.2f -> %.2f building=%d->%d\n", Building->Class->Name.ToString().c_str(), NewClass->Name.ToString().c_str(), (int)RotationIterations, (int)bMirrored, (void*)NewBuild, OldHealthPct, NewBuild->GetHealthPercent(), (int)bOldBuilding, (int)NewBuild->IsUnderConstruction());
+        if (en++ < 60)
+        {
+            auto NewLoc = NewBuild->K2_GetActorLocation();
+            BORON_LOG("[Boron][Edit] %s -> %s rotIt=%d mirrored=%d hp%%=%.2f -> %.2f loc=(%.0f,%.0f,%.0f) yaw=%.0f origin=(%.0f,%.0f,%.0f) extent=(%.0f,%.0f,%.0f) newLoc=(%.0f,%.0f,%.0f) newYaw=%.0f\n", Building->Class->Name.ToString().c_str(), NewClass->Name.ToString().c_str(), (int)RotationIterations, (int)bMirrored, OldHealthPct, NewBuild->GetHealthPercent(), OldX, OldY, OldZ, OldYaw, (double)Origin.X, (double)Origin.Y, (double)Origin.Z, (double)Extent.X, (double)Extent.Y, (double)Extent.Z, (double)NewLoc.X, (double)NewLoc.Y, (double)NewLoc.Z, (double)Rot.Yaw);
+        }
         Building->SilentDie(true);
         return;
     }
@@ -2291,6 +2303,13 @@ void AFortPlayerControllerAthena::ClientOnPawnDied(AFortPlayerControllerAthena* 
             PlayerState->OnRep_DeathInfo();
         }
 
+        {
+            static int kn = 0;
+            if (kn++ < 30)
+                BORON_LOG("[Boron][Elim] victim=%p victimBot=%d killerPS=%p killerPawn=%p killerCtrl=%p counted=%d\n", (void*)PlayerController, PlayerState && PlayerState->HasbIsABot() ? (int)PlayerState->bIsABot : -1,
+                             (void*)KillerPlayerState, (void*)KillerPawn, KillerPawn ? (void*)KillerPawn->Controller : nullptr,
+                             (int)(KillerPlayerState && KillerPawn && KillerPawn->Controller && KillerPawn->Controller != PlayerController));
+        }
         if (KillerPlayerState && KillerPawn && KillerPawn->Controller && KillerPawn->Controller != PlayerController)
         {
             if (KillerPlayerState->HasKillScore())
