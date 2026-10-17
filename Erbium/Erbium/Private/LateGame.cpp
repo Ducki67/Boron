@@ -29,7 +29,7 @@ static UEAllocatedVector<FLateGameItem> LootPoolWeapons(std::initializer_list<co
     {
         for (auto Package : Packages)
         {
-            if (!Package || Package->Weight <= 0.f || !Package->LootPackageID.ToString().starts_with("WorldList.AthenaLoot.Weapon."))
+            if (!Package || Package->Weight <= 0.f || Package->LootPackageID.ToString().find("Weapon") == std::string::npos)
                 continue;
             auto Def = Package->ItemDefinition.Get();
             if (!Def)
@@ -258,7 +258,7 @@ FLateGameItem LateGame::GetShotgun()
         };
     };
 
-    if (VersionInfo.FortniteVersion >= 32.00 && LategameConfig::bPullGamemodeLootPool)
+    if (LategameConfig::bPullGamemodeLootPool)
     {
         static UEAllocatedVector<FLateGameItem> GamemodePool;
         if (GamemodePool.empty())
@@ -523,7 +523,7 @@ FLateGameItem LateGame::GetAssaultRifle()
         };
     };
 
-    if (VersionInfo.FortniteVersion >= 32.00 && LategameConfig::bPullGamemodeLootPool)
+    if (LategameConfig::bPullGamemodeLootPool)
     {
         static UEAllocatedVector<FLateGameItem> GamemodePool;
         if (GamemodePool.empty())
@@ -768,7 +768,7 @@ FLateGameItem LateGame::GetUtility()
 
     };
 
-    if (VersionInfo.FortniteVersion >= 32.00 && LategameConfig::bPullGamemodeLootPool)
+    if (LategameConfig::bPullGamemodeLootPool)
     {
         static UEAllocatedVector<FLateGameItem> GamemodePool;
         if (GamemodePool.empty())

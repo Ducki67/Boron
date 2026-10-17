@@ -145,21 +145,31 @@ void Main()
         }*/
     }
 
-    if (Offsets::FortniteCL == 37770125 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_PunchBerry"))
+    uint64_t GFSGet = 0, GFSURLByName = 0, GFSChangeState = 0;
+    if (Offsets::FortniteCL == 37770125)
+        GFSGet = 0x2bacc18, GFSURLByName = 0x189f954, GFSChangeState = 0x189b27c;
+    else if (Offsets::FortniteCL == 38202817)
+        GFSGet = 0x2cc699c, GFSURLByName = 0x1947598, GFSChangeState = 0x23f5f80;
+
+    if (GFSGet && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_PunchBerry"))
+    std::thread([GFSGet, GFSURLByName, GFSChangeState]()
     {
+        while (!UWorld::GetWorld())
+            Sleep(500);
+        Sleep(3000);
         auto Base = Memcury::PE::GetModuleBase();
-        auto GFS = ((void* (*)())(Base + 0x2bacc18))();
+        auto GFS = ((void* (*)())(Base + GFSGet))();
         struct alignas(16) { const wchar_t* Ptr; int32_t Len; } GFPName{ L"632de27e-4506-41f8-532f-93ac01dc10ca", 36 };
         alignas(16) FString ByName;
         alignas(16) FString FileURL = L"file:../../../FortniteGame/Plugins/GameFeatures/632de27e-4506-41f8-532f-93ac01dc10ca/632de27e-4506-41f8-532f-93ac01dc10ca.uplugin";
-        bool bByName = GFS && ((bool (*)(void*, void*, FString*))(Base + 0x189f954))(GFS, &GFPName, &ByName);
+        bool bByName = GFS && ((bool (*)(void*, void*, FString*))(Base + GFSURLByName))(GFS, &GFPName, &ByName);
         printf("[BoronClient][Oasis] GFS=%p byName=%d\n", GFS, bByName);
         if (GFS)
         {
             alignas(16) uint8_t Done[0x10] = {};
-            ((void (*)(void*, FString*, uint8_t, void*))(Base + 0x189b27c))(GFS, bByName ? &ByName : &FileURL, 3, Done);
+            ((void (*)(void*, FString*, uint8_t, void*))(Base + GFSChangeState))(GFS, bByName ? &ByName : &FileURL, 3, Done);
         }
-    }
+    }).detach();
 
     Client::Init();
 

@@ -75,7 +75,7 @@ void ABuildingSMActor::OnDamageServer(ABuildingSMActor* Actor, float Damage, FGa
             ResCount = (int)round(RC);
         }
     }
-    else
+    else if (GetSparseClassData_)
     {
         auto ClassData = Actor->GetClassData();
         FCurveTableRowHandle& BuildingResourceAmountOverride = ClassData->BuildingResourceAmountOverride;
@@ -633,6 +633,9 @@ void ABuildingSMActor::PostLoadHook()
         if (!GetSparseClassData_ && VersionInfo.FortniteVersion >= 32)
             GetSparseClassData_ = Memcury::Scanner::FindPattern("48 83 C4 ? 48 8B 81 ? ? ? ? ? 85 C0 74 ? ? 83 EC ? C3 0F B6 D2 85 D2").Get();
 
+        if (!GetSparseClassData_ && Offsets::FortniteCL == 38202817)
+            GetSparseClassData_ = Memcury::PE::GetModuleBase() + 0x1BBBDC8;
+
         if (!GetSparseClassData_ && Offsets::FortniteCL == 39768313)
             GetSparseClassData_ = Memcury::PE::GetModuleBase() + 0x2426664;
 
@@ -650,6 +653,10 @@ void ABuildingSMActor::PostLoadHook()
     if (VersionInfo.FortniteVersion >= 32 && OnDamageServerAddr)
         if (auto Owner = FindOwningFunction(OnDamageServerAddr))
             OnDamageServerAddr = Owner;
+    if (Offsets::FortniteCL == 37770125)
+        OnDamageServerAddr = Memcury::PE::GetModuleBase() + 0x92CC9FC;
+    else if (Offsets::FortniteCL == 38202817)
+        OnDamageServerAddr = Memcury::PE::GetModuleBase() + 0x94C7EE0;
 
     Hooking::Hook(OnDamageServerAddr, OnDamageServer, OnDamageServerOG);
 

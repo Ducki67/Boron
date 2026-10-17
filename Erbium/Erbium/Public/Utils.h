@@ -50,6 +50,21 @@ public:
     }
 };
 
+inline const void* WeakObjectFieldClass()
+{
+    static const void* WeakClass = nullptr;
+    static bool bDone = false;
+    if (!bDone)
+    {
+        bDone = true;
+        auto ActorClass = FindClass("Actor");
+        auto Prop = ActorClass ? ActorClass->GetProperty("ParentComponent") : nullptr;
+        WeakClass = Prop ? ReadFieldClass(Prop) : nullptr;
+        BORON_LOG("[Boron][WeakProp] weak field class=%p\n", WeakClass);
+    }
+    return WeakClass;
+}
+
 inline bool IsWeakObjectField(const void* Prop)
 {
     auto FieldClass = ReadFieldClass(Prop);
@@ -57,7 +72,15 @@ inline bool IsWeakObjectField(const void* Prop)
         return false;
     if (Offsets::bEncryptedObjectArray)
     {
-        auto ClassName = (FName*)((uint8_t*)FieldClass + (Offsets::FortniteCL == 39768313 ? 0x38 : 0));
+        if (Offsets::FortniteCL != 39768313)
+        {
+            bool bWeak = WeakObjectFieldClass() && FieldClass == WeakObjectFieldClass();
+            static int Logged = 0;
+            if (Logged++ < 8)
+                BORON_LOG("[Boron][WeakProp] %s weak=%d\n", ((FName*)((uint8_t*)Prop + Offsets::FField_Name))->ToString().c_str(), (int)bWeak);
+            return bWeak;
+        }
+        auto ClassName = (FName*)((uint8_t*)FieldClass + 0x38);
         bool bWeak = ClassName->ToString() == "WeakObjectProperty";
         static int Logged = 0;
         if (Logged++ < 8)

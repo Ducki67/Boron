@@ -1,4 +1,5 @@
 #pragma once
+#include <functional>
 
 enum EGSStatus
 {
@@ -15,6 +16,9 @@ public:
     static inline bool bServerSetupRequested = false;
     static inline wchar_t PlaylistBuffer[512] = L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo";
     static void Init();
+    static std::string GetPlayerName(void* PlayerController);
+    static void RunOnGameThread(std::function<void()> Fn);
+    static void GameThreadTick();
 };
 
 inline unsigned char font[] = {

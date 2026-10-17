@@ -2,6 +2,7 @@
 #include "../Public/BattleRoyaleGamePhaseLogic.h"
 #include "../../Erbium/Public/Configuration.h"
 #include "../../Erbium/Public/GUI.h"
+#include "../../Erbium/Public/ZonePlanner.h"
 
 uint64_t SetGamePhase_ = 0;
 void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::SetGamePhase(EAthenaGamePhase GamePhase)
@@ -289,6 +290,8 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::StartAircraftPhase()
             printf("[Boron][Aircraft] CH5 parachute deploy trace prop MISSING on this build\n");
     }
 
+    ZonePlanner::Apply(SafeZoneLocations);
+
     BORON_LOG("[Boron][Aircraft] dispatch: FlightInfos=%d lategame=%d zones=%d fn=%.2f ue=%.2f\n",
            GameState->MapInfo->FlightInfos.Num(), (int)LategameConfig::bLateGame,
            SafeZoneLocations.Num(), VersionInfo.FortniteVersion, VersionInfo.EngineVersion);
@@ -461,6 +464,7 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Tick()
     {
         for (auto& UncastedPlayer : ((AFortGameMode*)UWorld::GetWorld()->AuthorityGameMode)->AlivePlayers)
         {
+            AFortPlayerControllerAthena::GrantOwedVictoryCrown((AFortPlayerControllerAthena*)UncastedPlayer);
             auto Pawn = (AFortPlayerPawnAthena*)((AFortPlayerControllerAthena*)UncastedPlayer)->MyFortPawn;
             if (!Pawn || (Pawn->bIsInsideSafeZone && !Pawn->bIsInAnyStorm))
                 continue;
@@ -775,6 +779,8 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::InitializeSafeZoneLocat
 
         SafeZoneLocations[i] = Location;
     }
+
+    ZonePlanner::Apply(SafeZoneLocations);
 }
 
 void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Hook()

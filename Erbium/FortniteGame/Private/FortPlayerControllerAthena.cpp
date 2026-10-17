@@ -3,6 +3,7 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <fstream>
 
 
 #include "../Public/FortPlayerControllerAthena.h"
@@ -26,6 +27,31 @@
 #include "../Public/FortWeaponMods.h"
 
 //#include "../Public/FortPlayerPawnAthena.h"
+
+static void GiveLateGameShield(AFortPlayerPawnAthena* Pawn)
+{
+    if (!Pawn)
+        return;
+    static auto SetShieldFn = Pawn->GetFunction("SetShield");
+    if (SetShieldFn)
+    {
+        Pawn->SetShield(100.f);
+        return;
+    }
+    auto HealthSet = Pawn->HasHealthSet() ? Pawn->HealthSet : nullptr;
+    if (!HealthSet || !HealthSet->HasCurrentShield())
+        return;
+    auto& Shield = HealthSet->CurrentShield;
+    float Max = Shield.Maximum > 0 ? Shield.Maximum : 100.f;
+    auto Raw = (uint8_t*)&Shield;
+    *(float*)(Raw + 8) = Max;
+    *(float*)(Raw + 12) = Max;
+    HealthSet->OnRep_CurrentShield();
+    *(float*)(Raw + 8) = Max;
+    *(float*)(Raw + 12) = Max;
+    BORON_LOG("[Boron][LateGame] shield set via HealthSet: base=%.0f cur=%.0f max=%.0f hasBase=%d hasCur=%d\n", (double)*(float*)(Raw + 8), (double)*(float*)(Raw + 12), (double)Shield.Maximum,
+              (int)FFortGameplayAttributeData::HasBaseValue(), (int)FFortGameplayAttributeData::HasCurrentValue());
+}
 
 void AFortPlayerControllerAthena::GetPlayerViewPoint(AFortPlayerControllerAthena* PlayerController, FVector& Loc, FRotator& Rot)
 {
@@ -125,6 +151,165 @@ static void QuickEditServerSetEnabled(UObject* Component, bool bInEnabled)
     BORON_LOG("[Boron][SimpleEdit] t=%.1f comp=%p ServerSetEnabled(%d) bEnabled %d -> %d -> %d cachedCanEnable=%.2f cvar=%d\n", (float)UGameplayStatics::GetTimeSeconds(UWorld::GetWorld()), Component, (int)bInEnabled, (int)Before, (int)After, (int)*(uint8*)(__int64(Component) + 0x360), Cached, CVar);
 }
 
+static std::string CrownHoldersPath()
+{
+    HMODULE Module = nullptr;
+    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, (LPCWSTR)&CrownHoldersPath, &Module);
+    char Path[MAX_PATH]{};
+    GetModuleFileNameA(Module, Path, MAX_PATH);
+    std::string Dir = Path;
+    return Dir.substr(0, Dir.find_last_of("\\/") + 1) + "CrownHolders.txt";
+}
+
+static std::vector<std::string>& CrownHolders()
+{
+    static std::vector<std::string> Holders;
+    static bool bLoaded = false;
+    if (!bLoaded)
+    {
+        bLoaded = true;
+        std::ifstream In(CrownHoldersPath());
+        std::string Line;
+        while (std::getline(In, Line))
+            if (!Line.empty())
+                Holders.push_back(Line);
+    }
+    return Holders;
+}
+
+static void SaveCrownHolders()
+{
+    std::ofstream Out(CrownHoldersPath(), std::ios::trunc);
+    for (auto& Name : CrownHolders())
+        Out << Name << "\n";
+}
+
+static UObject* GetVictoryCrownComponent(AFortPlayerControllerAthena* PlayerController)
+{
+    static auto CrownComponentClass = FindClass("FortControllerComponent_VictoryCrowns");
+    return CrownComponentClass && PlayerController ? (UObject*)PlayerController->GetComponentByClass(CrownComponentClass) : nullptr;
+}
+
+static bool HasVictoryCrown(AFortPlayerControllerAthena* PlayerController)
+{
+    auto Component = GetVictoryCrownComponent(PlayerController);
+    static auto GetCrownFn = Component ? Component->GetFunction("GetCrownInPlayerInventory") : nullptr;
+    if (!Component || !GetCrownFn)
+        return false;
+    struct
+    {
+        UObject* ReturnValue = nullptr;
+    } Params;
+    Component->ProcessEvent(GetCrownFn, &Params);
+    return Params.ReturnValue != nullptr;
+}
+
+static void SetVictoryCrownFlag(AFortPlayerControllerAthena* PlayerController, const char* Field)
+{
+    auto Component = GetVictoryCrownComponent(PlayerController);
+    if (!Component)
+        return;
+    auto Offset = Component->GetOffset(Field);
+    if (Offset != -1)
+        *(bool*)(__int64(Component) + Offset) = true;
+}
+
+static bool HasVictoryCrownGuarded(AFortPlayerControllerAthena* PlayerController)
+{
+    __try
+    {
+        return HasVictoryCrown(PlayerController);
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+bool AFortPlayerControllerAthena::HasVictoryCrownSafe(AFortPlayerControllerAthena* PlayerController)
+{
+    return VersionInfo.FortniteVersion >= 19 && HasVictoryCrownGuarded(PlayerController);
+}
+
+static void GiveVictoryCrown(AFortPlayerControllerAthena* PlayerController)
+{
+    static auto Crown = FindObject<UFortItemDefinition>(L"/VictoryCrownsGameplay/Items/AGID_VictoryCrown.AGID_VictoryCrown");
+    if (!Crown || !PlayerController || !PlayerController->WorldInventory || HasVictoryCrown(PlayerController))
+        return;
+
+    TArray<FFortItemEntryStateValue> StateValues{};
+    auto Value = (FFortItemEntryStateValue*)malloc(FFortItemEntryStateValue::Size());
+    memset((PBYTE)Value, 0, FFortItemEntryStateValue::Size());
+    Value->IntValue = 1;
+    Value->StateType = 2;
+    StateValues.Add(*Value, FFortItemEntryStateValue::Size());
+    free(Value);
+    PlayerController->WorldInventory->GiveItem(Crown, 1, 0, 0, true, true, 0, StateValues);
+    StateValues.Free();
+}
+
+void AFortPlayerControllerAthena::GrantOwedVictoryCrown(AFortPlayerControllerAthena* PlayerController)
+{
+    if (VersionInfo.FortniteVersion < 19 || LategameConfig::bLateGame || !PlayerController || !PlayerController->MyFortPawn)
+        return;
+
+    static std::vector<AFortPlayerControllerAthena*> Checked;
+    if (std::find(Checked.begin(), Checked.end(), PlayerController) != Checked.end())
+        return;
+    Checked.push_back(PlayerController);
+
+    auto Name = GUI::GetPlayerName(PlayerController);
+    auto& Holders = CrownHolders();
+    if (Name.empty() || std::find(Holders.begin(), Holders.end(), Name) == Holders.end())
+        return;
+
+    GiveVictoryCrown(PlayerController);
+    BORON_LOG("[Boron][Crown] %s starts crowned\n", Name.c_str());
+}
+
+static void RecordVictoryCrownResultImpl(AFortPlayerControllerAthena* PlayerController, bool bWon, bool bWasCrowned)
+{
+    auto Name = GUI::GetPlayerName(PlayerController);
+    if (Name.empty())
+        return;
+
+    auto& Holders = CrownHolders();
+    auto It = std::find(Holders.begin(), Holders.end(), Name);
+    if (bWon)
+    {
+        SetVictoryCrownFlag(PlayerController, "bWonCrownInMatch");
+        if (bWasCrowned)
+            SetVictoryCrownFlag(PlayerController, "bWonRoyalRoyale");
+        if (It == Holders.end())
+            Holders.push_back(Name);
+        BORON_LOG("[Boron][Crown] %s won%s\n", Name.c_str(), bWasCrowned ? " a Crowned Victory Royale" : "");
+    }
+    else if (It != Holders.end())
+        Holders.erase(It);
+    SaveCrownHolders();
+}
+
+static bool RecordVictoryCrownResultGuarded(AFortPlayerControllerAthena* PlayerController, bool bWon, bool bWasCrowned)
+{
+    __try
+    {
+        RecordVictoryCrownResultImpl(PlayerController, bWon, bWasCrowned);
+        return true;
+    }
+    __except (EXCEPTION_EXECUTE_HANDLER)
+    {
+        return false;
+    }
+}
+
+void AFortPlayerControllerAthena::RecordVictoryCrownResult(AFortPlayerControllerAthena* PlayerController, bool bWon, bool bWasCrowned)
+{
+    if (VersionInfo.FortniteVersion < 19 || LategameConfig::bLateGame || !PlayerController)
+        return;
+    if (!RecordVictoryCrownResultGuarded(PlayerController, bWon, bWasCrowned))
+        BORON_LOG("[Boron][Crown] result for pc=%p faulted, skipped\n", (void*)PlayerController);
+}
+
 static void ProbeQuickEdit(AFortPlayerControllerAthena* PlayerController)
 {
     static auto QuickEditClass = FindClass("FortControllerComponent_QuickEdit");
@@ -166,6 +351,8 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
 
     if (Offsets::FortniteCL == 39768313)
         ProbeQuickEdit(PlayerController);
+
+    AFortGameMode::ArenaNotifyMatchEntered(PlayerController);
 
     auto FortPawn = (AFortPlayerPawnAthena*)Pawn;
 
@@ -240,7 +427,7 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
     if (Playlist && Playlist->RespawnType > 0 && Num > 0)
     {
         if (LategameConfig::bLateGame)
-            FortPawn->SetShield(100.f);
+            GiveLateGameShield(FortPawn);
     }
     if ((!GameRuleConfig::bKeepInventory || LategameConfig::bLateGame) && PlayerController->WorldInventory)
     {
@@ -1005,7 +1192,7 @@ void AFortPlayerControllerAthena::ServerAttemptAircraftJump_(UObject* Context, F
 
     if (LategameConfig::bLateGame)
     {
-        PlayerController->MyFortPawn->SetShield(100.f);
+        GiveLateGameShield(PlayerController->MyFortPawn);
         auto Aircraft = GameState->HasAircrafts() ? GameState->Aircrafts[0] : (GameState->HasAircraft() ? GameState->Aircraft : nullptr);
         if (!Aircraft) // gamephaselogic builds
         {
@@ -2415,6 +2602,9 @@ void AFortPlayerControllerAthena::ClientOnPawnDied(AFortPlayerControllerAthena* 
                     PlayerState->HasDeathInfo() ? PlayerState->DeathInfo.DeathCause : 0, 0);
             }
 
+            AFortGameMode::ArenaPlayersLeftChanged(GameMode, GameState->PlayersLeft);
+            RecordVictoryCrownResult(PlayerController, false, false);
+
             if (VersionInfo.FortniteVersion >= 15)
             {
                 // static auto SpectatingName = FName(L"Spectating");
@@ -2438,6 +2628,7 @@ void AFortPlayerControllerAthena::ClientOnPawnDied(AFortPlayerControllerAthena* 
                 KillerPlayerController->ClientNotifyWon(KillerPawn, KillerWeapon, PlayerState->DeathInfo.DeathCause);
                 KillerPlayerController->ClientNotifyTeamWon(KillerPawn, KillerWeapon, PlayerState->DeathInfo.DeathCause);
 
+                bool bKillerWasCrowned = HasVictoryCrownSafe(KillerPlayerController);
                 if (KillerPlayerState != PlayerState && VersionInfo.FortniteVersion >= 19)
                 {
                     auto Crown = FindObject<UFortItemDefinition>(L"/VictoryCrownsGameplay/Items/AGID_VictoryCrown.AGID_VictoryCrown");
@@ -2462,6 +2653,8 @@ void AFortPlayerControllerAthena::ClientOnPawnDied(AFortPlayerControllerAthena* 
                     GameState->WinningPlayerState = KillerPlayerState;
                     GameState->OnRep_WinningPlayerState();
                 }
+
+                RecordVictoryCrownResult(KillerPlayerController, true, bKillerWasCrowned);
             }
         }
 
@@ -3467,7 +3660,20 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
                 Pawn->SetMaxHealth(100.f);
                 // Pawn->SetHealth(100.f);
 
-                PlayerState->TeamIndex = AFortGameMode::PickTeam(GameMode, 0, PlayerController);
+                auto TeamHasHuman = [&](uint8_t Team)
+                {
+                    for (auto& Alive : GameMode->AlivePlayers)
+                    {
+                        auto AlivePS = Alive ? ((AFortPlayerControllerAthena*)Alive)->PlayerState : nullptr;
+                        if (AlivePS && AlivePS->TeamIndex == Team && !AlivePS->bIsABot)
+                            return true;
+                    }
+                    return false;
+                };
+                uint8_t BotTeam = AFortGameMode::PickTeam(GameMode, 0, PlayerController);
+                for (int Guard = 0; Guard < 200 && TeamHasHuman(BotTeam); Guard++)
+                    BotTeam = AFortGameMode::PickTeam(GameMode, 0, PlayerController);
+                PlayerState->TeamIndex = BotTeam;
                 if (PlayerState->HasSquadId())
                     PlayerState->SquadId = PlayerState->TeamIndex - 3;
                 if (PlayerState->HasbIsABot())

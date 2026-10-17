@@ -141,6 +141,9 @@
     <ClInclude Include="Erbium\Public\LateGame.h">
       <Filter>Erbium\Public</Filter>
     </ClInclude>
+    <ClInclude Include="Erbium\Public\ZonePlanner.h">
+      <Filter>Erbium\Public</Filter>
+    </ClInclude>
     <ClInclude Include="FortniteGame\Public\BuildingItemCollectorActor.h">
       <Filter>FortniteGame\Public</Filter>
     </ClInclude>
@@ -333,6 +336,9 @@
       <Filter>FortniteGame\Private</Filter>
     </ClCompile>
     <ClCompile Include="Erbium\Private\LateGame.cpp">
+      <Filter>Erbium\Private</Filter>
+    </ClCompile>
+    <ClCompile Include="Erbium\Private\ZonePlanner.cpp">
       <Filter>Erbium\Private</Filter>
     </ClCompile>
     <ClCompile Include="FortniteGame\Private\FortPhysicsPawn.cpp">

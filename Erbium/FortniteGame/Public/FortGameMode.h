@@ -29,6 +29,9 @@ public:
     static inline bool bCH5FloorLootTickEnabled = false;
 
     static void TickCH5FloorLoot();
+    static bool IsArenaMatch();
+    static void ArenaNotifyMatchEntered(AFortPlayerControllerAthena* PlayerController);
+    static void ArenaPlayersLeftChanged(AFortGameMode* GameMode, int32 PlayersLeft);
     static void TickCH5PickupDummies();
 
     UCLASS_COMMON_MEMBERS(AFortGameMode);
@@ -60,6 +63,7 @@ public:
     DEFINE_PROP(StormCampingInitialDelayTime, FScalableFloat);
     DEFINE_PROP(bSafeZoneActive, bool);
     DEFINE_PROP(bSafeZonePaused, bool);
+    DEFINE_PROP(GE_OutsideSafeZone, const UClass*);
     DEFINE_PROP(OnSafeZoneIndicatorSpawned, TMulticastInlineDelegate<void(AFortSafeZoneIndicator*)>);
     DEFINE_PROP(MatchState, FName);
     DEFINE_PROP(bEnableDBNO, bool);

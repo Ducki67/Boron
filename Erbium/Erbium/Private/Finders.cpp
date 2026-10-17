@@ -1119,7 +1119,12 @@ uint64 FindHandlePostSafeZonePhaseChanged()
         bInitialized = true;
 
         if (VersionInfo.EngineVersion == 4.16)
-            return HandlePostSafeZonePhaseChanged = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 48 83 EC ? 48 8B B9 ? ? ? ? 33 DB 0F 29 74 24").Get();
+        {
+            auto Scan = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 48 83 EC ? 48 8B B9 ? ? ? ? 33 DB 0F 29 74 24");
+            if (!Scan.IsValid())
+                Scan = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 74 24 ? 57 48 83 EC 70 48 8B B9 ? ? ? ? 33 DB 0F 29 74 24 ? 48 8B F1 48 85 FF 74 2C E8");
+            return HandlePostSafeZonePhaseChanged = Scan.IsValid() ? Scan.Get() : 0;
+        }
         else if (VersionInfo.EngineVersion == 4.19)
             return HandlePostSafeZonePhaseChanged = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 74 24 ? 57 48 83 EC 70 48 8B B9 ? ? ? ? 33 DB 0F 29 74 24 ? 48 8B F1 48 85 FF 74 2C E8").Get();
         else if (VersionInfo.EngineVersion == 4.20)

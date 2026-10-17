@@ -423,6 +423,9 @@ public:
     DEFINE_FUNC(ServerPlayEmoteItem, void);
 
     static void ServerAcknowledgePossession(UObject*, FFrame&);
+    static void GrantOwedVictoryCrown(AFortPlayerControllerAthena*);
+    static bool HasVictoryCrownSafe(AFortPlayerControllerAthena*);
+    static void RecordVictoryCrownResult(AFortPlayerControllerAthena*, bool bWon, bool bWasCrowned);
     DefHookOg(void, ServerAcknowledgePossession_Native, AFortPlayerControllerAthena*, AActor*);
     DefHookOg(void, GetPlayerViewPoint, AFortPlayerControllerAthena*, FVector&, FRotator&);
     DefHookOg(void, ServerAttemptAircraftJump_, UObject*, FFrame&);

@@ -3,8 +3,8 @@
 // Dont ask why i made the configration like this i like it this way and its more pleasing to my eyes :sob:
 
 
-//#define MANUAL_SERVER_SETUP // if defined then the gameserver WONT set up the playlist automatically  You HAVE TO click on the "Setup server" Button on the GUI
-#define HITSCAN_WEAPONS // some hitscan weapons shit for ch5 (will be removed later on)
+// #define MANUAL_SERVER_SETUP // if defined then the gameserver WONT set up the playlist automatically  You HAVE TO click on the "Setup server" Button on the GUI
+//#define HITSCAN_WEAPONS // some hitscan weapons shit for ch5 (will be removed later on)
 //#define BORON_LOGS // if defined then ALL [Boron] logs are printed, if not only errors/warnings are (use BORON_LOG_ON(...) to force a single line on)
 
 ///#define AUTOHOSTER_CONFIGURATOR // this will be for autohoster exes so the exe it self can change all configs even if the dll is compiled  (Coming later)
@@ -126,9 +126,16 @@ struct FConfig
    // static inline wchar_t Playlist[9999] = L"/BRPlaylists/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo"; // 31.xx+ Main BR
    // static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_BlastBerrySquad.Playlist_BlastBerrySquad"; // 30.20 and 30.40 Reload Venture map (this can be Squads and Trios only)
    // static inline wchar_t Playlist[9999] = L"/ToadJam/Athena/Playlists/ToadJam/Playlist_ToadJam_Sm.Playlist_ToadJam_Sm"; // Day of Doom LTM (testing, 31.20, 31.30)
-   // static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_PunchBerrySolo.Playlist_PunchBerrySolo";  // 32.xx+ Oasis Reload map
-   static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_SunflowerSolo.Playlist_SunflowerSolo"; // Venture Reload (32.xx+ iirc? and this one also work on 31.10+ cuz Solo one exists in the files)
+   static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_PunchBerrySolo.Playlist_PunchBerrySolo";  // 32.xx+ Oasis Reload map
+   // static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_SunflowerSolo.Playlist_SunflowerSolo"; // Venture Reload (32.xx+ iirc? and this one also work on 31.10+ cuz Solo one exists in the files)
    // static inline wchar_t Playlist[9999] = L"/FigmentPlaylists/Playlists/Playlist_FigmentSolo.Playlist_FigmentSolo"; // 33.xx+  OG mode
+   
+   // static inline wchar_t Playlist[9999] = L"/BRPlaylists/Athena/Playlists/Showdown/Playlist_ShowdownAlt_Solo.Playlist_ShowdownAlt_Solo"; // 32.xx+ Arena (swap Solo for Duos/Trios/Squads) | on 31.xx use the ch1-4 arena line (/Game/Athena/...) | kicks you 60s after death
+   // static inline wchar_t Playlist[9999] = L"/BRPlaylists/Athena/Playlists/NoBuildBR/Competitive/Playlist_ShowdownAlt_NoBuildBR_Solo.Playlist_ShowdownAlt_NoBuildBR_Solo"; // 32.xx+ Zero Build Arena (swap Solo for Duos/Trios/Squads)
+   // static inline wchar_t Playlist[9999] = L"/BRPlaylists/Athena/Playlists/Habanero/Playlist_HabaneroSolo.Playlist_HabaneroSolo"; // 32.xx+ Ranked BR (HabaneroDuo/HabaneroTrio/HabaneroSquad) | 31.xx: /Game/Athena/Playlists/Habanero/
+   // static inline wchar_t Playlist[9999] = L"/Clyde/Playlist/BR_Build/Clyde_S3/Ranked/Playlist_Habanero_ClydeSolo_S3.Playlist_Habanero_ClydeSolo_S3"; // 32.10/32.11 Remix Ranked (no real Arena on Remix, this is the closest) | untested
+   // static inline wchar_t Playlist[9999] = L"/FigmentPlaylists/Playlists/Habanero/Playlist_Habanero_Figment_Solo.Playlist_Habanero_Figment_Solo"; // 33.xx+ OG Ranked
+   // static inline wchar_t Playlist[9999] = L"/FigmentPlaylists/Playlists/Competitive/Playlist_ShowdownTournament_FigmentSolo.Playlist_ShowdownTournament_FigmentSolo"; // 33.xx+ OG tournament (closest to OG Arena)
 
 
 
@@ -146,8 +153,8 @@ struct FConfig
 
     static inline auto Port = 7777; // can be 7777  or 7778
     static inline auto bEnableIris = true;
-    static inline constexpr auto bGUI = false; // for now dont use this for  s30+  versions it might crash teh build more than it should
-    static inline constexpr auto bCustomCrashReporter = false;
+    static inline constexpr auto bGUI = true; // for now dont use this for  s30+  versions it might crash teh build more than it should
+    static inline constexpr auto bCustomCrashReporter = true;
     static inline constexpr auto bUseStdoutLog = true;
     static inline constexpr auto bSaveConsoleLog = true; // for 31.41 use this to check for some logs Boron_Console.txt  btw) 
 

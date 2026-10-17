@@ -103,6 +103,7 @@ public:
     DEFINE_PROP(ModifierList, TArray<TSoftObjectPtr<UFortGameplayModifierItemDefinition>>);
     DEFINE_PROP(PreloadPersistentLevel, TSoftObjectPtr<UWorld>);
     DEFINE_PROP(UIDisplayName, FText);
+    DEFINE_PROP(UIDisplaySubName, FText);
     DEFINE_PROP(JoinInProgressMatchType, FText);
     DEFINE_PROP(SafeZoneLocationBlacklist, TSoftObjectPtr<UCurveTable>);
     DEFINE_PROP(LastSafeZoneIndex, int32);

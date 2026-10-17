@@ -128,8 +128,10 @@ public:
     UCLASS_COMMON_MEMBERS(UFortHealthSet);
 
     DEFINE_PROP(Health, FFortGameplayAttributeData);
+    DEFINE_PROP(CurrentShield, FFortGameplayAttributeData);
 
     DEFINE_FUNC(OnRep_Health, void);
+    DEFINE_FUNC(OnRep_CurrentShield, void);
 };
 
 struct FDamagerInfo
@@ -160,6 +162,7 @@ public:
     DEFINE_PROP(GameplayTags, FGameplayTagContainer);
     DEFINE_BITFIELD_PROP(bIsInAnyStorm);
     DEFINE_BITFIELD_PROP(bIsInsideSafeZone);
+    DEFINE_PROP(bIsOutsideSafeZone, bool);
     DEFINE_PROP(AIControllerClass, TSubclassOf<AActor>);
     DEFINE_PROP(PlayerState, AActor*);
     DEFINE_PROP(BaseEyeHeight, float);

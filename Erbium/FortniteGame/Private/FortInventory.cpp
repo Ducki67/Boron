@@ -44,6 +44,21 @@ static int32* CH6LoadedAmmo(FFortItemEntry* Entry)
     return (int32*)CH6Component(Entry, "FortItemComponentData_LoadedAmmo", &Cache);
 }
 
+template <typename T>
+static void UnshareArray(TArray<T>& Array, size_t ElementSize)
+{
+    if (!Array.Data || Array.Num() <= 0)
+    {
+        Array.Data = nullptr;
+        Array.NumElements = Array.MaxElements = 0;
+        return;
+    }
+    auto NewData = FMemory::Malloc(ElementSize * Array.Num());
+    memcpy(NewData, Array.Data, ElementSize * Array.Num());
+    Array.Data = (T*)NewData;
+    Array.MaxElements = Array.Num();
+}
+
 UFortWorldItem* AFortInventory::GiveItem(const UFortItemDefinition* Def, int Count, int LoadedAmmo, int Level, bool ShowPickupNoti, bool updateInventory, int PhantomReserveAmmo,
                                          TArray<FFortItemEntryStateValue> StateValues)
 {
@@ -148,6 +163,19 @@ UFortWorldItem* AFortInventory::GiveItem(const UFortItemDefinition* Def, int Cou
     }
 
     auto& repEntry = this->Inventory.ReplicatedEntries.Add(Item->ItemEntry, FFortItemEntry::Size());
+    if (Offsets::FortniteCL == 38202817)
+    {
+        memset((void*)&repEntry, 0, FFortItemEntry::Size());
+        ((FFortItemEntry * (*)(FFortItemEntry*))(Memcury::PE::GetModuleBase() + 0x1BC4DB4))(&repEntry);
+        ((FFortItemEntry * (*)(FFortItemEntry*, const FFortItemEntry*))(Memcury::PE::GetModuleBase() + 0x1BC5450))(&repEntry, &Item->ItemEntry);
+    }
+    else if (Offsets::FortniteCL == 37770125)
+    {
+        if (repEntry.HasStateValues())
+            UnshareArray(repEntry.StateValues, FFortItemEntryStateValue::Size());
+        if (FFortItemEntry::HasWeaponModSlots())
+            UnshareArray(repEntry.WeaponModSlots, FFortWeaponModSlot::Size());
+    }
     repEntry.bIsReplicatedCopy = true;
     this->Inventory.ItemInstances.Add(Item);
 

@@ -1,0 +1,25 @@
+Boron GUI assets - credits
+
+Icons (Icons/*.png)
+  (c) Epic Games, Inc. Extracted from Fortnite 33.30 (Creative Icon Library).
+  Fortnite is a trademark of Epic Games, Inc. Used under the Epic Games Fan Content Policy:
+  https://www.epicgames.com/site/en-US/fan-art-policy
+  More Fortnite icons and images: https://fortnite.gg/assets
+
+Maps (Maps/<version>-<Terrain>.jpg)
+  (c) Epic Games, Inc. Minimap textures extracted from the Fortnite game files of the version in each file name
+  (Athena/Apollo_Terrain_Minimap, Figment MiniMapAthena_S0x, BlastBerry/PunchBerry/DashBerry captures), scaled to 1280px.
+  Same Fan Content Policy as the icons. Extra maps can be dropped next to Boron.dll as Maps\<version>-<Terrain>.png.
+
+Fonts (Fonts/*.ttf)
+  Barlow Condensed and Barlow Semi Condensed
+  Copyright 2017 The Barlow Project Authors (https://github.com/jpt/barlow)
+  Licensed under the SIL Open Font License 1.1, see Fonts/OFL.txt.
+
+Logo
+  The Boron atom logo is drawn in code (DrawLogo in Erbium/Private/GUI.cpp), made for Boron.
+
+Embedded copy
+  Erbium/Public/BoronAssets.h holds these same files as byte arrays so they are built into Boron.dll.
+
+Boron is not affiliated with or endorsed by Epic Games.

@@ -20,10 +20,13 @@ A modifiyed/forked Erbium gameserver with my own features and fixes
   - [ ] Give "extra" ammo from menu.  *(config flag added, currently bugs out inventory)*
   
 - [ ] **GUI**
-  - [ ] Player manager tab. (soon)
+  - [x] Player manager tab. (mostly done pretty much)
   - [x] Calendar tab. (e.g: full snow map on s11)  *(s11 snow wired; s13 water + s19 snow still needs so work tho)*
-  - [x] LateGame tab. *(slots 1-5 + counts + moving-bus toggle should work)*
-  - [x] Pre-StartServer options (Main tab's new feature). (for manual server setup mode)  *(MANUAL_SERVER_SETUP + "Setup server" button done)*
+  - [x] LateGame tab. *(slots 1-5 + counts)*
+  - [x] Pre-StartServer options (Main tab's new feature). (for manual server setup mode)  *(MANUAL_SERVER_SETUP + "Setup server" button done, now waits in the GUI before server init)*
+  - [x] Zone planner. *(LateGame custom zones on the map, Ch2 Remix weekly maps + Reload maps added)*
+  - [x] Fonts, icons and maps baked into the dll. *(only Boron.dll is needed now)*
+  - [ ] Lategame Moving bus toggle (soon-ish or idk).
   
 - [ ] **Gameplay**
   - [ ] Projectile guns on 28.xx and 29.xx versions. **5% Done** *(scaffold in Misc.cpp, hook disabled at :658)*
@@ -57,7 +60,7 @@ Currently the only versions that are "supported" are below:
 | v31.30 | Chapter 5 Season 4 | Supported |
 | v31.41 | Chapter 5 Season 4 | Supported |
 | v32.00 | Chapter 2 Remix | Supported but still missing a bit|
-| v32.11 | Chapter 2 Remix | Supported but still missing a bit + Oasis reload wont work atm! |
+| v32.11 | Chapter 2 Remix | Supported but still missing a bit (Oasis reload works now!) |
 | v33.30 | Chapter 6 Season 1 | Supported should work bette now |
 
 
@@ -71,15 +74,16 @@ Currently the only versions that are "supported" are below:
 
 - Progress (31.41): **~41% Done**
 
-- Progress (32.00): **25% Done** (currently being worked on)
+- Progress (32.00): **27% Done** (currently being worked on)
 
-- Progress (32.11): **23% Done** (currently being worked on)
+- Progress (32.11): **27% Done** (currently being worked on)
 
 - Progress (33.30): **6% Done** (currently being worked on)
 
 ## Notes:
 
 - **Streamed maps:**  On 32.xx+ *Reload* and on Ch6 *Blitz Royale* and other maps (exept OG mode) are **Streamed** by the game so for that to work you will need the right version's paks from [**Here**](https://github.com/KPMisParrot/Fortnite-Streamed-Maps-Archive) AND *Blitz Royale* had diffrent weeks and upadtes of it so you can find those in the same archive as well.
+- **Oasis (Reload):** on 32.xx the client needs **BoronClient.dll** too, it loads the Oasis map on the client side.
 - later ill include more info here ig
 
 

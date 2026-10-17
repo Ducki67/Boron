@@ -101,7 +101,7 @@ void Main()
         {
             FILE* s;
             freopen_s(&s, "stdout.log", "w", stdout);
-            freopen_s(&s, "stdout.log", "w+", stderr);
+            _dup2(_fileno(stdout), _fileno(stderr));
         }
 
         CreateThread(0, 0, (LPTHREAD_START_ROUTINE)GUI::Init, 0, 0, 0);
@@ -473,6 +473,18 @@ void Main()
         }
     }
 
+#ifdef MANUAL_SERVER_SETUP
+    if constexpr (FConfig::bGUI)
+    {
+        BORON_LOG("[Boron][Setup] waiting for Setup server in the GUI
+");
+        while (!GUI::bServerSetupRequested)
+            Sleep(100);
+        BORON_LOG("[Boron][Setup] starting with playlist %ls
+", FConfig::Playlist);
+    }
+#endif
+
     if (wcsstr(FConfig::Playlist, L"/MoleGame/Playlists/Playlist_MoleGame"))
     {
         UKismetSystemLibrary::ExecuteConsoleCommand(UWorld::GetWorld(), FString(L"Mole.WorstCasePlayerCount 1"), nullptr);
@@ -532,7 +544,7 @@ void Main()
             terrainOpen = L"open Apollo_Terrain";
     }
 
-    DumpIfNeeded();
+    GUI::RunOnGameThread([] { DumpIfNeeded(); });
 
 
     if (!bDeferOpen)

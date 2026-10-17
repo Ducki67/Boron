@@ -8,6 +8,7 @@
 #include "../../Erbium/Public/Configuration.h"
 #include "../../Erbium/Public/Events.h"
 #include "../../Erbium/Public/Finders.h"
+#include "../../Erbium/Public/ZonePlanner.h"
 #include "../../Erbium/Public/GUI.h"
 #include "../../Erbium/Public/LateGame.h"
 #include "../../Erbium/Public/Misc.h"
@@ -194,6 +195,17 @@ void SetupPlaylist(AFortGameMode* GameMode, AFortGameStateAthena* GameState)
         {
             GameState->CurrentPlaylistData = Playlist;
             GameState->OnRep_CurrentPlaylistData();
+        }
+
+        if (AFortGameMode::IsArenaMatch())
+        {
+            static auto RoundOff = GameState->GetOffset("EventTournamentRound");
+            if (RoundOff != -1)
+            {
+                *(uint8*)(__int64(GameState) + RoundOff) = 5;
+                if (auto OnRepRound = GameState->GetFunction("OnRep_EventTournamentRound"))
+                    GameState->ProcessEvent(OnRepRound, nullptr);
+            }
         }
 
         GameMode->CurrentPlaylistId = Playlist->PlaylistId;
@@ -1624,11 +1636,30 @@ void AFortGameMode::HandlePostSafeZonePhaseChanged(AFortGameMode* GameMode, int 
             GameMode->SafeZoneIndicator->SafeZoneFinishShrinkTime = GameMode->SafeZoneIndicator->SafeZoneStartShrinkTime + Durations[LategameConfig::LateGameZone];
     }
 
-    if (LategameConfig::bLateGame && (SafeZoneLoc.X != 0 || SafeZoneLoc.Y != 0 || SafeZoneLoc.Z != 0))
+    int PlanOff = ZonePlanner::StartPhaseIndex() - LategameConfig::LateGameZone;
+    int PlanPhase = GameMode->HasSafeZonePhase() ? (int)GameMode->SafeZonePhase : NewSafeZonePhase;
+    bool bPlanned = LategameConfig::bLateGame && NewSafeZonePhase > LategameConfig::LateGameZone && GameMode->HasSafeZoneLocations() &&
+                    NewSafeZonePhase - 1 < GameMode->SafeZoneLocations.Num() && ZonePlanner::IsApplied();
+    if (FVector PlannedLast = SafeZoneLoc, PlannedNext = SafeZoneLoc; LategameConfig::bLateGame && PlanPhase > LategameConfig::LateGameZone &&
+        ZonePlanner::PlannedCenter(PlanPhase - 1 + PlanOff, PlannedLast) && ZonePlanner::PlannedCenter(PlanPhase + PlanOff, PlannedNext))
+    {
+        GameMode->SafeZoneIndicator->LastCenter = PlannedLast;
+        GameMode->SafeZoneIndicator->NextCenter = PlannedNext;
+    }
+    else if (bPlanned)
+    {
+        GameMode->SafeZoneIndicator->LastCenter = GameMode->SafeZoneLocations.Get(NewSafeZonePhase - 2, FVector::Size());
+        GameMode->SafeZoneIndicator->NextCenter = GameMode->SafeZoneLocations.Get(NewSafeZonePhase - 1, FVector::Size());
+    }
+    else if (LategameConfig::bLateGame && (SafeZoneLoc.X != 0 || SafeZoneLoc.Y != 0 || SafeZoneLoc.Z != 0))
     {
         GameMode->SafeZoneIndicator->NextCenter = SafeZoneLoc;
         GameMode->SafeZoneIndicator->LastCenter = SafeZoneLoc;
     }
+    if (LategameConfig::bLateGame)
+        BORON_LOG("[Boron][Storm] phase %d (sz=%d idx=%d): next=(%.0f,%.0f) r=%.0f last=(%.0f,%.0f) r=%.0f\n", NewSafeZonePhase, PlanPhase, PlanPhase + PlanOff, GameMode->SafeZoneIndicator->NextCenter.X, GameMode->SafeZoneIndicator->NextCenter.Y,
+                  GameMode->SafeZoneIndicator->HasNextRadius() ? GameMode->SafeZoneIndicator->NextRadius : -1.f, GameMode->SafeZoneIndicator->LastCenter.X,
+                  GameMode->SafeZoneIndicator->LastCenter.Y, GameMode->SafeZoneIndicator->HasLastRadius() ? GameMode->SafeZoneIndicator->LastRadius : -1.f);
 
     if (NewSafeZonePhase > (LategameConfig::bLateGame ? LategameConfig::LateGameZone : 1))
     {
@@ -1643,6 +1674,78 @@ void AFortGameMode::HandlePostSafeZonePhaseChanged(AFortGameMode* GameMode, int 
 
 uint64_t NotifyGameMemberAdded_ = 0;
 int16_t WorldPlayerId = 0;
+bool AFortGameMode::IsArenaMatch()
+{
+    return VersionInfo.FortniteVersion >= 32 && wcsstr(FConfig::Playlist, L"Playlist_Showdown") != nullptr;
+}
+
+void AFortGameMode::ArenaNotifyMatchEntered(AFortPlayerControllerAthena* PlayerController)
+{
+    if (!IsArenaMatch() || !PlayerController || !PlayerController->PlayerState)
+        return;
+
+    static std::vector<AFortPlayerControllerAthena*> Notified;
+    if (std::find(Notified.begin(), Notified.end(), PlayerController) != Notified.end())
+        return;
+    Notified.push_back(PlayerController);
+
+    auto PlayerState = PlayerController->PlayerState;
+    auto NotifyFn = PlayerState->GetFunction("ClientNotifyMatchEntered");
+    if (!NotifyFn)
+        return;
+
+    const wchar_t* Mode = wcsstr(FConfig::Playlist, L"Squad") ? L"Squads" : wcsstr(FConfig::Playlist, L"Trio") ? L"Trios" : wcsstr(FConfig::Playlist, L"Duo") ? L"Duos" : L"Solo";
+    std::wstring EventId = std::wstring(L"epicgames_Arena_") + Mode;
+    std::wstring WindowId = std::wstring(L"Arena_") + Mode + L"_Window";
+
+    struct
+    {
+        FString EventId;
+        FString WindowId;
+        FString GroupId;
+        FString SubGroupID;
+    } Params{ FString(EventId.c_str()), FString(WindowId.c_str()), FString(L""), FString(L"") };
+    PlayerState->ProcessEvent(NotifyFn, &Params);
+    BORON_LOG("[Boron][Arena] ClientNotifyMatchEntered pc=%p event=%ls window=%ls\n", (void*)PlayerController, EventId.c_str(), WindowId.c_str());
+}
+
+void AFortGameMode::ArenaPlayersLeftChanged(AFortGameMode* GameMode, int32 PlayersLeft)
+{
+    if (!IsArenaMatch() || !GameMode)
+        return;
+
+    struct FPlacementReward
+    {
+        int32 Placement;
+        int32 Points;
+        bool bSent;
+    };
+    static FPlacementReward Rewards[] = { { 25, 3, false }, { 15, 5, false }, { 5, 7, false }, { 1, 10, false } };
+
+    for (auto& Reward : Rewards)
+    {
+        if (Reward.bSent || PlayersLeft > Reward.Placement)
+            continue;
+        Reward.bSent = true;
+
+        for (auto& UncastedPlayer : GameMode->AlivePlayers)
+        {
+            auto Player = (AFortPlayerControllerAthena*)UncastedPlayer;
+            auto ScoredFn = Player ? Player->GetFunction("ClientReportTournamentPlacementPointsScored") : nullptr;
+            if (!ScoredFn)
+                continue;
+
+            struct
+            {
+                int32 Placement;
+                int32 PointsEarned;
+            } Params{ Reward.Placement, Reward.Points };
+            Player->ProcessEvent(ScoredFn, &Params);
+        }
+        BORON_LOG("[Boron][Arena] placement top %d -> +%d points (playersLeft=%d)\n", Reward.Placement, Reward.Points, PlayersLeft);
+    }
+}
+
 static void HandleStartingNewPlayer_Impl(AFortGameMode* GameMode, AFortPlayerControllerAthena* NewPlayer)
 {
     auto GameState = (AFortGameStateAthena*)GameMode->GameState;
@@ -1768,6 +1871,9 @@ bool AFortGameMode::StartAircraftPhase(AFortGameMode* GameMode, char a2)
 
     auto GameState = (AFortGameStateAthena*)GameMode->GameState;
 
+    if (VersionInfo.FortniteVersion < 25.20 && !ZonePlanner::IsArrayLayout() && GameMode->HasSafeZoneLocations() && GameMode->SafeZoneLocations.Num() >= 4)
+        ZonePlanner::Apply(GameMode->SafeZoneLocations);
+
     auto Playlist = VersionInfo.FortniteVersion >= 3.5 && GameMode->HasWarmupRequiredPlayerCount()
                         ? (GameMode->GameState->HasCurrentPlaylistInfo() ? GameMode->GameState->CurrentPlaylistInfo.BasePlaylist : GameMode->GameState->CurrentPlaylistData)
                         : nullptr;
@@ -1823,11 +1929,15 @@ bool AFortGameMode::StartAircraftPhase(AFortGameMode* GameMode, char a2)
 
             TArray<ABuildingFoundation*> Foundations;
             Utils::GetAll<ABuildingFoundation>(Foundations);
-            auto Foundation = Foundations[rand() % Foundations.Num()];
+            auto Foundation = Foundations[std::random_device{}() % Foundations.Num()];
 
             Foundations.Free();
 
-            SafeZoneLoc = Loc = Foundation->K2_GetActorLocation();
+            Loc = Foundation->K2_GetActorLocation();
+            FVector Planned = Loc;
+            if (ZonePlanner::ApplyLegacy(Loc) && ZonePlanner::PlannedCenter(ZonePlanner::StartPhaseIndex(), Planned))
+                Loc = Planned;
+            SafeZoneLoc = Loc;
 
             // FConfiguration::bLateGame = false;
             // printf("LateGame is not supported on this version!\n");
@@ -1836,6 +1946,9 @@ bool AFortGameMode::StartAircraftPhase(AFortGameMode* GameMode, char a2)
         else
         {
             Loc = GameMode->SafeZoneLocations.Get(LategameConfig::LateGameZone + (VersionInfo.FortniteVersion >= 24 ? 3 : 0) - 1, FVector::Size());
+            FVector Planned = Loc;
+            if (ZonePlanner::IsArrayLayout() && ZonePlanner::ApplyLegacy(Loc) && ZonePlanner::PlannedCenter(ZonePlanner::StartPhaseIndex(), Planned))
+                SafeZoneLoc = Loc = Planned;
         }
 
         Loc.Z = 17500.f;
@@ -2410,58 +2523,47 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
     if (VersionInfo.EngineVersion >= 4.22 && VersionInfo.EngineVersion < 4.26)
         GameState->OnRep_CurrentPlaylistInfo();
 
+    auto AddTierRow = [&](FFortLootTierData* Val, TArray<FFortLootTierData*>& TempArr)
+    {
+        for (auto& TierData : TempArr)
+            if (TierData->TierGroup == Val->TierGroup && TierData->LootPackage == Val->LootPackage)
+            {
+                TierData = Val;
+                return;
+            }
+        TempArr.Add(Val);
+    };
+
     auto AddToTierData = [&](const UDataTable* Table, TArray<FFortLootTierData*>& TempArr)
     {
         if (!Table)
             return;
 
         Table->AddToRoot();
-        if (VersionInfo.FortniteVersion >= 20)
+        std::vector<const UDataTable*> Sources;
+        if (auto CompositeTable = Table->Cast<UCompositeDataTable>())
         {
-            if (auto CompositeTable = Table->Cast<UCompositeDataTable>())
-                for (auto& ParentTable : CompositeTable->ParentTables)
-                    if (ParentTable)
-                        for (auto& [Key, Val] : *(TMap<int32, FFortLootTierData*>*)(__int64(ParentTable) + 0x30))
-                            TempArr.Add(Val);
-
-            for (auto& [Key, Val] : *(TMap<int32, FFortLootTierData*>*)(__int64(Table) + 0x30))
-            {
-                bool bFound = false;
-
-                for (auto& TierData : TempArr)
-                    if (TierData->TierGroup == Val->TierGroup && TierData->LootPackage == Val->LootPackage)
-                    {
-                        TierData = Val;
-                        bFound = true;
-                        break;
-                    }
-
-                if (!bFound)
-                    TempArr.Add(Val);
-            }
+            for (auto& ParentTable : CompositeTable->ParentTables)
+                if (ParentTable)
+                {
+                    ParentTable->AddToRoot();
+                    Sources.push_back(ParentTable);
+                }
         }
-        else
+        if (Sources.empty())
+            Sources.push_back(Table);
+
+        for (auto Source : Sources)
         {
-            if (auto CompositeTable = Table->Cast<UCompositeDataTable>())
-                for (auto& ParentTable : CompositeTable->ParentTables)
-                    if (ParentTable)
-                        for (auto& [Key, Val] : (TMap<FName, FFortLootTierData*>)ParentTable->RowMap)
-                            TempArr.Add(Val);
-
-            for (auto& [Key, Val] : (TMap<FName, FFortLootTierData*>)Table->RowMap)
+            if (VersionInfo.FortniteVersion >= 20)
             {
-                bool bFound = false;
-
-                for (auto& TierData : TempArr)
-                    if (TierData->TierGroup == Val->TierGroup && TierData->LootPackage == Val->LootPackage)
-                    {
-                        TierData = Val;
-                        bFound = true;
-                        break;
-                    }
-
-                if (!bFound)
-                    TempArr.Add(Val);
+                for (auto& [Key, Val] : *(TMap<int32, FFortLootTierData*>*)(__int64(Source) + 0x30))
+                    AddTierRow(Val, TempArr);
+            }
+            else
+            {
+                for (auto& [Key, Val] : (TMap<FName, FFortLootTierData*>)Source->RowMap)
+                    AddTierRow(Val, TempArr);
             }
         }
     };
@@ -2472,28 +2574,30 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
             return;
 
         Table->AddToRoot();
-        if (VersionInfo.FortniteVersion >= 20)
+        std::vector<const UDataTable*> Sources;
+        if (auto CompositeTable = Table->Cast<UCompositeDataTable>())
         {
-            if (auto CompositeTable = Table->Cast<UCompositeDataTable>())
-                for (auto& ParentTable : CompositeTable->ParentTables)
-                    if (ParentTable)
-                        for (auto& [Key, Val] : *(TMap<int32, FFortLootPackageData*>*)(__int64(ParentTable) + 0x30))
-                            TempArr[Key] = Val;
-
-            for (auto& [Key, Val] : *(TMap<int32, FFortLootPackageData*>*)(__int64(Table) + 0x30))
-                TempArr[Key] = Val;
+            for (auto& ParentTable : CompositeTable->ParentTables)
+                if (ParentTable)
+                {
+                    ParentTable->AddToRoot();
+                    Sources.push_back(ParentTable);
+                }
         }
-        else
-        {
-            if (auto CompositeTable = Table->Cast<UCompositeDataTable>())
-                for (auto& ParentTable : CompositeTable->ParentTables)
-                    if (ParentTable)
-                        for (auto& [Key, Val] : (TMap<FName, FFortLootPackageData*>)ParentTable->RowMap)
-                            TempArr[Key.ComparisonIndex] = Val;
+        if (Sources.empty())
+            Sources.push_back(Table);
 
-            for (auto& [Key, Val] : (TMap<FName, FFortLootPackageData*>)Table->RowMap)
+        for (auto Source : Sources)
+        {
+            if (VersionInfo.FortniteVersion >= 20)
             {
-                TempArr[Key.ComparisonIndex] = Val;
+                for (auto& [Key, Val] : *(TMap<int32, FFortLootPackageData*>*)(__int64(Source) + 0x30))
+                    TempArr[Key] = Val;
+            }
+            else
+            {
+                for (auto& [Key, Val] : (TMap<FName, FFortLootPackageData*>)Source->RowMap)
+                    TempArr[Key.ComparisonIndex] = Val;
             }
         }
     };

@@ -6,6 +6,7 @@
 #include "../../Erbium/Public/Misc.h"
 #include "../../Erbium/Public/Bots.h"
 #include "../../Erbium/Public/Mythics.h"
+#include "../../Erbium/Public/ZonePlanner.h"
 #include "../../FortniteGame/Public/BattleRoyaleGamePhaseLogic.h"
 #include "../../FortniteGame/Public/FortGameMode.h"
 
@@ -511,6 +512,8 @@ void UNetDriver::TickFlush(UNetDriver* Driver, float DeltaSeconds)
 
     BossAI::Tick();
     Mythics::Tick(DeltaSeconds);
+    ZonePlanner::Tick();
+    GUI::GameThreadTick();
     CheckAutoRestart();
 
     if (Driver->ClientConnections.Num() > 0)
@@ -585,6 +588,8 @@ void UNetDriver::TickFlush__RepGraph(UNetDriver* Driver, float DeltaSeconds)
 
     BossAI::Tick();
     Mythics::Tick(DeltaSeconds);
+    ZonePlanner::Tick();
+    GUI::GameThreadTick();
     CheckAutoRestart();
 
     if (Driver->ReplicationDriver)
@@ -901,6 +906,8 @@ void UNetDriver::TickFlush__Iris(UNetDriver* Driver, float DeltaSeconds)
 
     BossAI::Tick();
     Mythics::Tick(DeltaSeconds);
+    ZonePlanner::Tick();
+    GUI::GameThreadTick();
     CheckAutoRestart();
     AFortGameMode::TickCH5FloorLoot();
     AFortGameMode::TickCH5PickupDummies();
