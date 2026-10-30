@@ -1319,6 +1319,13 @@ void ZonePlanner::Tick()
                 { "Lazy Lake", 0.706, 0.678 },      { "Slurpy Swamp", 0.329, 0.740 },  { "Catty Corner", 0.807, 0.756 },  { "The Fortilla", 0.186, 0.804 },
                 { "Misty Meadows", 0.603, 0.825 },
             };
+            static const FFixedPoi Season15[] = {
+                { "Stealthy Stronghold", 0.408, 0.138 }, { "Craggy Cliffs", 0.610, 0.131 },  { "Steamy Stacks", 0.863, 0.191 }, { "Coral Castle", 0.218, 0.209 },
+                { "Pleasant Park", 0.446, 0.255 },       { "Sweaty Sands", 0.227, 0.368 },   { "Colossal Coliseum", 0.644, 0.382 }, { "Salty Towers", 0.406, 0.445 },
+                { "Dirty Docks", 0.928, 0.440 },         { "Holly Hedges", 0.204, 0.534 },   { "Weeping Woods", 0.374, 0.607 }, { "Hunter's Haven", 0.563, 0.639 },
+                { "Retail Row", 0.866, 0.643 },          { "Lazy Lake", 0.706, 0.678 },      { "Slurpy Swamp", 0.329, 0.740 },  { "Catty Corner", 0.807, 0.756 },
+                { "Misty Meadows", 0.603, 0.825 },
+            };
             static const FFixedPoi Season20[] = {
                 { "Logjam Lotus", 0.333, 0.203 },   { "Sleepy Sound", 0.577, 0.207 },     { "Shifty Shafts", 0.452, 0.277 },      { "Rave Cave", 0.208, 0.347 },
                 { "Lazy Lagoon", 0.718, 0.336 },    { "Coney Crossroads", 0.570, 0.401 }, { "Reality Falls", 0.187, 0.534 },      { "Tilted Towers", 0.388, 0.526 },
@@ -1330,6 +1337,8 @@ void ZonePlanner::Tick()
             size_t FixedCount = 0;
             if (Cache.MapKey == "Apollo_Terrain" && fabs(FN - 14.60) < 0.001)
                 Fixed = Season14, FixedCount = std::size(Season14);
+            else if (Cache.MapKey == "Apollo_Terrain" && fabs(FN - 15.30) < 0.001)
+                Fixed = Season15, FixedCount = std::size(Season15);
             else if (Cache.MapKey == "Artemis_Terrain" && fabs(FN - 21.40) < 0.001)
                 Fixed = Season20, FixedCount = std::size(Season20);
             double Det = Cache.UX * Cache.VY - Cache.UY * Cache.VX;

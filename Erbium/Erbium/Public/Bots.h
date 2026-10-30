@@ -1280,7 +1280,11 @@ namespace BossAI
             State.seen = true;
             State.lastLoc = Bot->K2_GetActorLocation();
 
-            static auto InvOffset = Bot->Controller->GetOffset("Inventory");
+            static std::unordered_map<const UClass*, int> InvOffsets;
+            auto InvIt = InvOffsets.find(Bot->Controller->Class);
+            if (InvIt == InvOffsets.end())
+                InvIt = InvOffsets.emplace(Bot->Controller->Class, (int)Bot->Controller->GetOffset("Inventory")).first;
+            auto InvOffset = InvIt->second;
             if (!State.inv && InvOffset != -1)
                 State.inv = GetFromOffset<AFortInventory*>(Bot->Controller, InvOffset);
             if (!IsLiveActor((AActor*)State.inv))

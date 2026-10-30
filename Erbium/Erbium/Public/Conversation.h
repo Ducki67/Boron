@@ -72,6 +72,7 @@ namespace NPCConversation
     constexpr int32 EntrySize = 0x10;
     constexpr int32 EntryListSize = 0x18;
     constexpr int32 CandidateSize = 0x80;
+    constexpr int32 CandidateSizeLegacy = 0x30;
     constexpr int32 SaleRowSize = 0x48;
     constexpr int32 ServiceRowSize = 0x20;
     constexpr int32 InstanceNodeOffset = 0x110;
@@ -128,6 +129,7 @@ namespace NPCConversation
         const UClass* CharacterData = nullptr;
         std::vector<const UClass*> Hidden;
         bool bInstanceNode = false;
+        int32 CandidateStride = CandidateSize;
         bool bInitialized = false;
         bool bEnabled = false;
     };
@@ -1186,7 +1188,7 @@ namespace NPCConversation
                 break;
             }
         }
-        auto General = (const uint8*)Speech + O.SpeechGeneral;
+        auto General = O.SpeechGeneral == (uint32)-1 ? nullptr : (const uint8*)Speech + O.SpeechGeneral;
 
         const uint8* Picked = nullptr;
         for (auto Config : { SpeakerConfig, General })
@@ -1198,11 +1200,12 @@ namespace NPCConversation
             std::vector<std::pair<const uint8*, float>> Pool;
             for (int32 i = 0; i < Candidates.Num; i++)
             {
-                auto Candidate = Candidates.Data + (uint64)i * CandidateSize;
+                auto Stride = Types().CandidateStride;
+                auto Candidate = Candidates.Data + (uint64)i * Stride;
                 if (((FRawArray*)(Candidate + 0x20))->Num > 0 || TextEmpty(Candidate))
                     continue;
-                float Priority = ((FScalableFloat*)(Candidate + 0x30))->Evaluate();
-                float Weight = ((FScalableFloat*)(Candidate + 0x58))->Evaluate();
+                float Priority = Stride == CandidateSize ? ((FScalableFloat*)(Candidate + 0x30))->Evaluate() : 0.f;
+                float Weight = Stride == CandidateSize ? ((FScalableFloat*)(Candidate + 0x58))->Evaluate() : 1.f;
                 if (Priority > BestPriority)
                 {
                     BestPriority = Priority;
@@ -2003,7 +2006,9 @@ namespace NPCConversation
                                 FExpected{ "NPCDynamicServiceRow", ServiceRowSize } })
         {
             auto Size = StructSize(Expected.Name);
-            if (Size != Expected.Size)
+            if (Expected.Size == CandidateSize && Size == CandidateSizeLegacy && VersionInfo.FortniteVersion < 15.5)
+                T.CandidateStride = Size;
+            else if (Size != Expected.Size)
             {
                 BORON_LOG("[Boron][Conv] struct %s size %d (expected %d), NPC conversations disabled\n", Expected.Name, Size, Expected.Size);
                 return;
@@ -2052,7 +2057,9 @@ namespace NPCConversation
         O.CharacterName = OffsetOf(T.CharacterData, "DisplayName", bOk);
         if (T.Speech)
         {
-            O.SpeechGeneral = OffsetOf(T.Speech, "GeneralConfig", bOk);
+            O.SpeechGeneral = T.Speech->GetOffset("GeneralConfig");
+            if (O.SpeechGeneral == (uint32)-1 && VersionInfo.FortniteVersion >= 15.5)
+                O.SpeechGeneral = OffsetOf(T.Speech, "GeneralConfig", bOk);
             O.SpeechPerSpeaker = OffsetOf(T.Speech, "SpeakerEntryTagToConfig", bOk);
         }
         if (T.Service)

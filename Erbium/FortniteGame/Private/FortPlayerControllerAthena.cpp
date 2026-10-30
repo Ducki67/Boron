@@ -1146,7 +1146,7 @@ void AFortPlayerControllerAthena::ServerAttemptAircraftJump_(UObject* Context, F
 
     if (VersionInfo.FortniteVersion >= 11.00 || LategameConfig::bLateGame)
     {
-        static auto bIsComp = Context->IsA(FindClass("FortControllerComponent_Aircraft"));
+        auto bIsComp = Context->IsA(FindClass("FortControllerComponent_Aircraft"));
         if (bIsComp)
             PlayerController = (AFortPlayerControllerAthena*)((UActorComponent*)Context)->GetOwner();
         else
@@ -1161,7 +1161,7 @@ void AFortPlayerControllerAthena::ServerAttemptAircraftJump_(UObject* Context, F
         BORON_LOG("[Boron][Jump] #%d inAircraft=%d comp=%p currentAircraft=%p pawn=%p\n",
                JumpN, (int)PlayerController->IsInAircraft(), (void*)AircraftComp, CurAircraft, (void*)PlayerController->Pawn);
 
-        if (VersionInfo.EngineVersion >= 5.4 && !PlayerController->IsInAircraft())
+        if ((VersionInfo.EngineVersion >= 5.4 || VersionInfo.FortniteVersion == 15.30) && !PlayerController->IsInAircraft())
         {
             BORON_LOG("[Boron][Jump] #%d ignored - not in aircraft\n", JumpN);
             return;
@@ -1178,6 +1178,9 @@ void AFortPlayerControllerAthena::ServerAttemptAircraftJump_(UObject* Context, F
                JumpN, (void*)PlayerController->Pawn, (void*)PlayerController->MyFortPawn);
         // PlayerController->ServerRestartPlayer();
         PlayerController->SetControlRotation(Rotation);
+
+        if (VersionInfo.FortniteVersion == 15.30 && !LategameConfig::bLateGame && CurAircraft && PlayerController->MyFortPawn)
+            PlayerController->MyFortPawn->K2_SetActorLocation(((AActor*)CurAircraft)->K2_GetActorLocation(), false, nullptr, true);
 
         if (PlayerController->MyFortPawn)
         {
@@ -5943,6 +5946,12 @@ void AFortPlayerControllerAthena::PostLoadHook()
         Hooking::ExecHook(DefaultObjImpl("FortControllerComponent_Aircraft")->GetFunction("ServerAttemptAircraftJump"), ServerAttemptAircraftJump_, ServerAttemptAircraftJump_OG);
     else
         Hooking::ExecHook(ServerAttemptAircraftJumpPC, ServerAttemptAircraftJump_, ServerAttemptAircraftJump_OG);
+
+    if (VersionInfo.FortniteVersion == 15.30 && ServerAttemptAircraftJumpPC)
+    {
+        if (auto AircraftCompDefault = DefaultObjImpl("FortControllerComponent_Aircraft"))
+            Hooking::ExecHook(AircraftCompDefault->GetFunction("ServerAttemptAircraftJump"), ServerAttemptAircraftJump_);
+    }
     //}
 
     auto sapFn = GetDefaultObj()->GetFunction("ServerAcknowledgePossession");

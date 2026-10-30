@@ -1145,7 +1145,7 @@ static const FMapImage* PickMapImage(const std::string& Terrain, const std::stri
         if (Img.Name == Choice)
             return &Img;
     double V = VersionInfo.FortniteVersion;
-    static const double Supported[] = { 1.72, 1.82, 2.42, 4.5, 14.60, 21.40, 31.30, 31.41, 32.00, 32.11, 33.30, 34.40 };
+    static const double Supported[] = { 1.72, 1.82, 2.42, 4.5, 14.60, 15.30, 21.40, 31.30, 31.41, 32.00, 32.11, 33.30, 34.40 };
     if (std::none_of(std::begin(Supported), std::end(Supported), [&](double S) { return fabs(S - V) < 0.001; }))
         return nullptr;
     auto Score = [&](const FMapImage& Img) { return Img.Version <= V + 0.001 ? 1e6 - (V - Img.Version) : -(Img.Version - V); };

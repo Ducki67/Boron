@@ -1293,6 +1293,14 @@ void AFortPlayerPawnAthena::TickLaunchCorrections()
     }
 }
 
+static void (*SandBurrowTickOG)(UObject*, float);
+static void SandBurrowTick(UObject* Cue, float DeltaTime)
+{
+    if (!*(UObject**)(__int64(Cue) + 0x880))
+        return;
+    SandBurrowTickOG(Cue, DeltaTime);
+}
+
 void AFortPlayerPawnAthena::PostLoadHook()
 {
     OnRep_ZiplineState = FindOnRep_ZiplineState();
@@ -1374,6 +1382,12 @@ void AFortPlayerPawnAthena::PostLoadHook()
             Hooking::Hook<AFortPlayerPawnAthena>(*(uint32_t*)SetIsInsideSafeZoneVftPtr / 8, SetIsInsideSafeZone);
             Hooking::Hook<AFortPlayerPawnAthena>(*(uint32_t*)SetIsInsideSafeZoneVftPtr / 8 + 1, UpdateOutsideSafeZone);
         }
+    }
+
+    if (VersionInfo.FortniteVersion == 15.30)
+    {
+        if (auto SandBurrowDefault = DefaultObjImpl("FortGameplayCueNotifyLoop_SandBurrow"))
+            Hooking::Hook(SandBurrowDefault->Vft[0x460 / 8], SandBurrowTick, SandBurrowTickOG);
     }
 }
 
