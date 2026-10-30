@@ -810,7 +810,7 @@ void Misc::Hook()
 {
     if (VersionInfo.FortniteVersion == 23.00 || (VersionInfo.FortniteVersion >= 24.30 && VersionInfo.FortniteVersion != 28.30 && VersionInfo.FortniteVersion != 29.40) || VersionInfo.FortniteVersion >= 30)
     {
-        uint64 AttemptDeriveFromURL = Offsets::FortniteCL == 39768313 ? Memcury::PE::GetModuleBase() + 0x2A873A0 : 0;
+        uint64 AttemptDeriveFromURL = Offsets::FortniteCL == 39768313 ? Memcury::PE::GetModuleBase() + 0x2A873A0 : Offsets::FortniteCL == 41753727 ? Memcury::PE::GetModuleBase() + 0x401DB7C : 0;
         if (!AttemptDeriveFromURL)
             AttemptDeriveFromURL = Memcury::Scanner::FindPattern("48 89 5C 24 ? 55 56 57 41 54 41 55 41 56 41 57 48 81 EC ? ? ? ? 4C 8B C1").Get();
         if (!AttemptDeriveFromURL)
@@ -865,6 +865,9 @@ void Misc::Hook()
         if (!pattern && Offsets::FortniteCL == 39768313)
             pattern = Memcury::PE::GetModuleBase() + 0x60e5bb0;
 
+        if (!pattern && Offsets::FortniteCL == 41753727)
+            pattern = Memcury::PE::GetModuleBase() + 0x6C2B0A0;
+
         Hooking::Hook(pattern, CheckCheckpointHeartBeat);
     }
     if (VersionInfo.EngineVersion < 4.20)
@@ -915,7 +918,7 @@ void Misc::Hook()
     {
         auto pattern = Memcury::Scanner::FindPattern("48 8B 01 FF 90 ? ? ? ? 48 8B 8B ? ? ? ? 48 85 C9 74 ? 48 8B 01 FF 90 ? ? ? ? 48 8D 8B");
 
-        uint64 patchPoint = Offsets::FortniteCL == 39768313 ? Memcury::PE::GetModuleBase() + 0x372EFEA : 0;
+        uint64 patchPoint = Offsets::FortniteCL == 39768313 ? Memcury::PE::GetModuleBase() + 0x372EFEA : Offsets::FortniteCL == 41753727 ? Memcury::PE::GetModuleBase() + 0x4018E9E : 0;
 
         if (!patchPoint)
             patchPoint = pattern.ScanFor(VersionInfo.EngineVersion < 5.5 ? std::vector<uint8_t>{ 0x48, 0x89, 0x5C } : std::vector<uint8_t>{ 0x40, 0x53 }, false).ScanFor({ 0x83, 0xF8, 0x02 }).Get();

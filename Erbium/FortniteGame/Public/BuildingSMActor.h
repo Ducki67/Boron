@@ -31,6 +31,7 @@ public:
 };
 
 inline uint64_t GetSparseClassData_ = 0;
+inline int32 SparseClassDataOffset = 0;
 
 struct FBuildingSMActorClassData
 {
@@ -116,6 +117,9 @@ public:
 
     FBuildingSMActorClassData* GetClassData() const
     {
+        if (SparseClassDataOffset)
+            return *(FBuildingSMActorClassData**)(__int64(Class) + SparseClassDataOffset);
+
         FBuildingSMActorClassData* (*GetSparseClassDataOG)(UObject*, uint8) = decltype(GetSparseClassDataOG)(GetSparseClassData_);
 
         return GetSparseClassDataOG(Class, 1);

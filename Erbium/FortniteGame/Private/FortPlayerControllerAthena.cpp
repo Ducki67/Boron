@@ -7,6 +7,7 @@
 
 
 #include "../Public/FortPlayerControllerAthena.h"
+void ApplyGFPPlayerAttributesCH6(AActor* InventoryOwner);
 #include "../../Erbium/Plugins/CrashReporter/Public/CrashReporter.h"
 #include "../../Erbium/Public/Configuration.h"
 #include "../../Erbium/Public/Events.h"
@@ -620,6 +621,7 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
         if (!bAlreadyGranted)
         {
             GrantedTo.push_back(ASC);
+            ApplyGFPPlayerAttributesCH6(PlayerController);
 
             if (DoorBashSet)
             {
@@ -1306,7 +1308,17 @@ void AFortPlayerControllerAthena::ServerExecuteInventoryItem_(UObject* Context, 
         {
             auto OldGuid = CurrentWeap->ItemEntryGuid;
             auto OldEntry = PC->WorldInventory->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& en) { return en.ItemGuid == OldGuid; }, FFortItemEntry::Size());
-            if (OldEntry && OldEntry->LoadedAmmo != RangedWeap->AmmoCount)
+            if (Offsets::FortniteCL == 41753727 && OldEntry)
+            {
+                static UObject* OldLoadedCache = nullptr;
+                auto OldItem = PC->WorldInventory->Inventory.ItemInstances.Search([&](UFortWorldItem* it) { return it->ItemEntry.ItemGuid == OldGuid; });
+                if (auto OldSaved = (int32*)CH6Component(OldEntry, "FortItemComponentData_LoadedAmmo", &OldLoadedCache))
+                    *OldSaved = RangedWeap->AmmoCount;
+                if (auto OldItemSaved = OldItem ? (int32*)CH6Component(&(*OldItem)->ItemEntry, "FortItemComponentData_LoadedAmmo", &OldLoadedCache) : nullptr)
+                    *OldItemSaved = RangedWeap->AmmoCount;
+                PC->WorldInventory->Inventory.MarkItemDirty(*OldEntry);
+            }
+            else if (OldEntry && OldEntry->LoadedAmmo != RangedWeap->AmmoCount)
             {
                 OldEntry->LoadedAmmo = RangedWeap->AmmoCount;
                 auto OldItem = PC->WorldInventory->Inventory.ItemInstances.Search([&](UFortWorldItem* it) { return it->ItemEntry.ItemGuid == OldGuid; });
@@ -1316,12 +1328,101 @@ void AFortPlayerControllerAthena::ServerExecuteInventoryItem_(UObject* Context, 
             }
         }
 
+        if (Offsets::FortniteCL == 41753727 && CurrentWeap && CurrentWeap->EquippedAbilitySetHandles.Num())
+        {
+            for (int i = 0; i < CurrentWeap->EquippedAbilitySetHandles.Num(); i++)
+                UFortKismetLibrary::UnequipFortAbilitySet(CurrentWeap->EquippedAbilitySetHandles.Get(i, FFortAbilitySetHandle::Size()));
+            CurrentWeap->EquippedAbilitySetHandles.ResetNum();
+        }
+
         bool eqOk = GuardedEquip(NativePawn, ItemDefinition, RequestedGuid, entry->HasTrackerGuid() ? entry->TrackerGuid : FGuid());
         auto NativeCW = NativePawn->CurrentWeapon;
 
         WeaponMods::Reapply((AFortWeapon*)NativeCW);
+        if (Offsets::FortniteCL == 41753727 && NativeCW && NativeCW->Class && NativeCW->Class->Name.ToString().find("DualWield") != std::string::npos)
+        {
+            static auto OffhandClass = FindClass("FortOffhandComponent");
+            auto Offhand = OffhandClass ? NativePawn->GetComponentByClass((UClass*)OffhandClass) : nullptr;
+            bool bAdded = false;
+            if (!Offhand && OffhandClass)
+            {
+                Offhand = (UActorComponent*)NPCConversation::AddComponent(NativePawn, (UClass*)OffhandClass, false);
+                bAdded = Offhand != nullptr;
+            }
+            if (bAdded)
+            {
+                NPCConversation::FParams Params;
+                if (NPCConversation::Prepare(Params, Offhand, "OnWeaponEquipped"))
+                {
+                    if (auto NewWeapon = Params.Param("NewWeapon"))
+                        *(AActor**)NewWeapon = NativeCW;
+                    NPCConversation::TryProcessEvent(Offhand, Params.Fn, Params.Data.data());
+                }
+            }
+            if (Offhand)
+            {
+                static auto CurOffhandOff = Offhand->GetOffset("CurrentEquippedOffhandWeapon");
+                auto CurOffhand = (TWeakObjectPtr<AActor>*)(__int64(Offhand) + CurOffhandOff);
+                if (CurOffhandOff != (uint32)-1 && !CurOffhand->Get())
+                {
+                    static UObject* LinkRuntimeCache = nullptr;
+                    auto PrimaryItem = PC->WorldInventory->Inventory.ItemInstances.Search([&](UFortWorldItem* it) { return it->ItemEntry.ItemGuid == RequestedGuid; });
+                    auto LinkedGuid = PrimaryItem ? (FGuid*)CH6Component(&(*PrimaryItem)->ItemEntry, "FortItemComponentData_ItemLinkingRuntime", &LinkRuntimeCache) : nullptr;
+                    auto LinkedItem = LinkedGuid ? PC->WorldInventory->Inventory.ItemInstances.Search([&](UFortWorldItem* it) { return it->ItemEntry.ItemGuid == *LinkedGuid; }) : nullptr;
+                    if (LinkedItem)
+                        ((void (*)(UActorComponent*, UFortWorldItem*))(Memcury::PE::GetModuleBase() + 0xD167034))(Offhand, *LinkedItem);
+                    BORON_LOG("[Boron][DualWield] EquipOffhandItem linked=%p offhandWeapon=%p\n", LinkedItem ? (void*)*LinkedItem : nullptr, (void*)CurOffhand->Get());
+                }
+                auto OffhandActor = CurOffhandOff != (uint32)-1 ? CurOffhand->Get() : nullptr;
+                static auto PairedOffset = NativeCW->GetOffset("PairedWeapon");
+                static auto DualWieldClass = FindClass("FortWeaponRanged_DualWieldable");
+                if (OffhandActor && OffhandActor != NativeCW && PairedOffset != (uint32)-1 && OffhandActor->IsA((UClass*)DualWieldClass))
+                {
+                    auto PrimaryPaired = (TWeakObjectPtr<AActor>*)(__int64(NativeCW) + PairedOffset);
+                    auto OffhandPaired = (TWeakObjectPtr<AActor>*)(__int64(OffhandActor) + PairedOffset);
+                    if (PrimaryPaired->Get() != OffhandActor || OffhandPaired->Get() != NativeCW)
+                    {
+                        *PrimaryPaired = TWeakObjectPtr<AActor>(OffhandActor);
+                        *OffhandPaired = TWeakObjectPtr<AActor>(NativeCW);
+                        NativeCW->ForceNetUpdate();
+                        OffhandActor->ForceNetUpdate();
+                        BORON_LOG("[Boron][DualWield] paired primary=%p offhand=%p\n", (void*)NativeCW, (void*)OffhandActor);
+                    }
+                }
+            }
+            static int DualLogs = 0;
+            auto RoleOff = NativeCW->GetOffset("DualWieldRole");
+            auto PairedOff = NativeCW->GetOffset("PairedWeapon");
+            auto OffhandOff = Offhand ? Offhand->GetOffset("CurrentEquippedOffhandWeapon") : (uint32)-1;
+            if (DualLogs++ < 15 && RoleOff != (uint32)-1 && PairedOff != (uint32)-1)
+            {
+                auto Role = *(uint8*)(__int64(NativeCW) + RoleOff);
+                auto Paired = (TWeakObjectPtr<AActor>*)(__int64(NativeCW) + PairedOff);
+                auto OffhandWeapon = OffhandOff != (uint32)-1 ? (TWeakObjectPtr<AActor>*)(__int64(Offhand) + OffhandOff) : nullptr;
+                BORON_LOG("[Boron][DualWield] %s role=%d paired=%p cls=%p offhandComp=%p added=%d offhandWeapon=%p\n", NativeCW->Class->Name.ToString().c_str(), Role, (void*)Paired->Get(), (void*)OffhandClass, (void*)Offhand, bAdded, OffhandWeapon ? (void*)OffhandWeapon->Get() : nullptr);
+            }
+        }
 
-        if (Offsets::FortniteCL == 39768313 && NativeCW && NativeCW->IsA(AFortWeaponRanged::StaticClass()) && ((AFortWeaponRanged*)NativeCW)->HasAmmoCount())
+        if (Offsets::FortniteCL == 41753727 && NativeCW)
+        {
+            static int MMELogs = 0;
+            if (MMELogs < 10 && NativeCW->Class && NativeCW->Class->Name.ToString().find("RocketDrill") != std::string::npos)
+            {
+                MMELogs++;
+                static UObject* Registry = nullptr;
+                for (int i = 0; !Registry && i < TUObjectArray::Num(); i++)
+                {
+                    auto Object = (UObject*)TUObjectArray::GetObjectByIndex(i);
+                    if (Object && Object->Class && Object->Class->Name.ToString() == "FortMovementMode_ExtRegistry" && Object->Name.ToString().find("Default__") == std::string::npos)
+                        Registry = Object;
+                }
+                auto SetNum = Registry ? *(int32*)(__int64(Registry) + 0x28 + 8) - *(int32*)(__int64(Registry) + 0x28 + 0x34) : -1;
+                auto MapNum = Registry ? *(int32*)(__int64(Registry) + 0x78 + 8) - *(int32*)(__int64(Registry) + 0x78 + 0x34) : -1;
+                auto PawnMapNum = *(int32*)(__int64(NativePawn) + 0x1DC0 + 8) - *(int32*)(__int64(NativePawn) + 0x1DC0 + 0x34);
+                BORON_LOG("[Boron][MME] drill equip registry=%p regSet=%d regMap=%d pawnMap=%d moveComp=%s\n", (void*)Registry, SetNum, MapNum, PawnMapNum, NativePawn->CharacterMovement && NativePawn->CharacterMovement->Class ? NativePawn->CharacterMovement->Class->Name.ToString().c_str() : "null");
+            }
+        }
+        if ((Offsets::FortniteCL == 39768313 || Offsets::FortniteCL == 41753727) && NativeCW && NativeCW->IsA(AFortWeaponRanged::StaticClass()) && ((AFortWeaponRanged*)NativeCW)->HasAmmoCount())
         {
             auto NewWeap = (AFortWeaponRanged*)NativeCW;
             auto NewGuid = NewWeap->ItemEntryGuid;
@@ -4461,6 +4562,7 @@ void AFortPlayerControllerAthena::ServerSetMultiProductCosmeticLoadout_(UObject*
                                    : Offsets::FortniteCL == 37770125 ? 0x94729e8
                                    : Offsets::FortniteCL == 38202817 ? 0x9672f80
                                    : Offsets::FortniteCL == 39768313 ? 0xc1629c8
+                                   : Offsets::FortniteCL == 41753727 ? 0xd0f234c
                                                                      : 0;
 
     static auto CosmeticCompClass = FindClass("FortControllerComponent_CosmeticLoadout");
@@ -4835,6 +4937,9 @@ void AFortPlayerControllerAthena::ServerDropAllItems(UObject* Context, FFrame& S
 void (*OnUnEquipOG)(AFortWeapon*);
 void OnUnEquip(AFortWeapon* Weapon)
 {
+    static int UnEquipLogs = 0;
+    if (Offsets::FortniteCL == 41753727 && UnEquipLogs++ < 30)
+        BORON_LOG("[Boron][UnEquip] %s abilitySets=%d\n", Weapon && Weapon->WeaponData ? Weapon->WeaponData->Name.ToString().c_str() : "?", Weapon ? Weapon->EquippedAbilitySetHandles.Num() : -1);
     AFortInventory::RemoveWeaponAbilities(Weapon);
 
     return OnUnEquipOG(Weapon);
@@ -5801,6 +5906,8 @@ void AFortPlayerControllerAthena::PostLoadHook()
     GiveAbilityAndActivateOnce = FindGiveAbilityAndActivateOnce();
     if (!GiveAbilityAndActivateOnce && Offsets::FortniteCL == 39768313)
         GiveAbilityAndActivateOnce = Memcury::PE::GetModuleBase() + 0xA57A5CC;
+    if (!GiveAbilityAndActivateOnce && Offsets::FortniteCL == 41753727)
+        GiveAbilityAndActivateOnce = Memcury::PE::GetModuleBase() + 0xB40C664;
     CanAffordToPlaceBuildableClass_ = FindCanAffordToPlaceBuildableClass();
     PayBuildableClassPlacementCost_ = FindPayBuildableClassPlacementCost();
     InitializePlayerGameplayAbilities_ = FindInitializePlayerGameplayAbilities();

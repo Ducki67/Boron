@@ -53,6 +53,9 @@ namespace SDK
             if (!Offsets::FNameIndexKey || !ComparisonIndex)
                 return ComparisonIndex;
 
+            if (Crypto.bRor3Scheme)
+                return (int32)(Ror32((uint32)ComparisonIndex - 1, 3) - Crypto.FNameIndexSub);
+
             return -(int32)(((uint32)ComparisonIndex - 1) ^ Offsets::FNameIndexKey);
         }
 
@@ -231,16 +234,31 @@ namespace SDK
         void** Vft;
 
     private:
-        uint8_t HeaderBytes[0x8];
+        uint8_t ObjectBytes[0x20];
 
     public:
-        class UClass* Class;
+        class UClass* GetObjectClass() const
+        {
+            return *(class UClass**)((uint8_t*)this + Offsets::UObjectClass);
+        }
 
-    private:
-        uint8_t NameBytes[0x8];
+        void SetObjectClass(class UClass* Value)
+        {
+            *(class UClass**)((uint8_t*)this + Offsets::UObjectClass) = Value;
+        }
 
-    public:
-        UObject* Outer;
+        UObject* GetObjectOuter() const
+        {
+            return *(UObject**)((uint8_t*)this + Offsets::UObjectOuter);
+        }
+
+        void SetObjectOuter(UObject* Value)
+        {
+            *(UObject**)((uint8_t*)this + Offsets::UObjectOuter) = Value;
+        }
+
+        __declspec(property(get = GetObjectClass, put = SetObjectClass)) class UClass* Class;
+        __declspec(property(get = GetObjectOuter, put = SetObjectOuter)) UObject* Outer;
 
         int32 GetObjectFlags() const
         {
@@ -365,6 +383,12 @@ namespace SDK
 
         const UField* GetNext() const
         {
+            if (Crypto.bRor3Scheme)
+            {
+                auto Stored = *(const uint64_t*)((const uint8_t*)this + 0x28);
+                return (const UField*)((Stored >> 47) == 0 ? Stored : DecryptFieldPtr3(Stored));
+            }
+
             return (const UField*)ReadFieldPtr(this, 0x28);
         }
 
@@ -736,6 +760,9 @@ namespace SDK
         class UObject* GetItemObject() const
         {
             auto Stored = *(uint64_t*)(Bytes + Offsets::ObjectItemObject);
+            if (Crypto.bRor3Scheme)
+                return Stored ? (class UObject*)(Stored ^ Crypto.ObjectXor) : nullptr;
+
             return (class UObject*)(Offsets::bEncryptedObjectArray ? DecryptPointer(Stored, Crypto.ObjectRotate, Crypto.ObjectSubtract) : Stored);
         }
 
@@ -769,11 +796,17 @@ namespace SDK
     public:
         inline int Num() const
         {
+            if (Crypto.bRor3Scheme)
+                return (int32)(Ror32(*(const uint32_t*)((const uint8_t*)this + Offsets::ObjArrayNum), 3) + Crypto.NumElementsAdd);
+
             return (int32)(*(const uint32_t*)((const uint8_t*)this + Offsets::ObjArrayNum) ^ Crypto.NumElementsXor);
         }
 
         inline int Max() const
         {
+            if (Crypto.bRor3Scheme)
+                return Num();
+
             return (int32)(*(const uint32_t*)((const uint8_t*)this + Offsets::ObjArrayMax) ^ Crypto.MaxElementsXor);
         }
 
@@ -788,11 +821,12 @@ namespace SDK
             if (Offsets::ObjArrayNumChunks >= 0 && ChunkIndex >= (int32)(*(const uint32_t*)((const uint8_t*)this + Offsets::ObjArrayNumChunks) ^ Crypto.NumChunksXor))
                 return nullptr;
 
-            auto Chunks = (uint8_t**)DecryptPointer(*(const uint64_t*)((const uint8_t*)this + Offsets::ObjArrayObjects), Crypto.ObjectsRotate, Crypto.ObjectsSubtract);
+            auto StoredChunks = *(const uint64_t*)((const uint8_t*)this + Offsets::ObjArrayObjects);
+            auto Chunks = Crypto.bRor3Scheme ? (uint8_t**)(~StoredChunks ^ Crypto.ObjectsNotXor) : (uint8_t**)DecryptPointer(StoredChunks, Crypto.ObjectsRotate, Crypto.ObjectsSubtract);
             if (!Chunks || !Chunks[ChunkIndex])
                 return nullptr;
 
-            return (FUObjectItem*)(Chunks[ChunkIndex] + (uint64_t)ChunkOffset * 0x18);
+            return (FUObjectItem*)(Chunks[ChunkIndex] + (uint64_t)ChunkOffset * Offsets::ObjectItemSize);
         }
     };
 
@@ -981,6 +1015,9 @@ namespace SDK
 
     inline uint64_t UClass::GetCastFlags() const
     {
+        if (Offsets::CastFlags && Crypto.bRor3Scheme)
+            return ~*(uint64_t*)(__int64(this) + Offsets::CastFlags) ^ Crypto.CastFlagsNotXor;
+
         if (Offsets::CastFlags)
             return DecryptValue(*(uint64_t*)(__int64(this) + Offsets::CastFlags), Crypto.CastFlagsRotate, Crypto.CastFlagsSubtract);
 

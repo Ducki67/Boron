@@ -1,4 +1,5 @@
 #include "pch.h"
+#include <unordered_set>
 #include "../Public/FortInventory.h"
 #include "../../Erbium/Public/Configuration.h"
 #include "../Public/FortKismetLibrary.h"
@@ -59,6 +60,134 @@ static void UnshareArray(TArray<T>& Array, size_t ElementSize)
     Array.MaxElements = Array.Num();
 }
 
+static std::unordered_set<const UFortItemDefinition*> CH6LinkedDefs;
+
+static void InitAttributeSetCH6(UAbilitySystemComponent* AbilitySystemComponent, const UClass* SetClass, int32 Category, int32 SubCategory, const std::string& Package, const char* Who)
+{
+    static auto SpawnedAttributesOffset = AbilitySystemComponent->GetOffset("SpawnedAttributes");
+    if (SpawnedAttributesOffset == (uint32)-1)
+        return;
+
+    BORON_LOG_ON("[Boron][Gadget] pre-init %s set=%s\n", Who, SetClass->Name.ToString().c_str());
+    AbilitySystemComponent->K2_InitStats(SetClass, nullptr);
+
+    UObject* AttributeSet = nullptr;
+    auto& SpawnedAttributes = *(TArray<UObject*>*)(__int64(AbilitySystemComponent) + SpawnedAttributesOffset);
+    for (auto& Spawned : SpawnedAttributes)
+        if (Spawned && Spawned->IsA(SetClass))
+            AttributeSet = Spawned;
+
+    std::string SetName = SetClass->Name.ToString().c_str();
+    FName CategoryName(Category);
+    FName SubCategoryName(SubCategory);
+    std::string Prefix = std::string(CategoryName.ToString().c_str()) + "." + SubCategoryName.ToString().c_str() + "." + SetName + ".";
+
+    auto PluginEnd = Package.find('/', 1);
+    auto SetBase = SetName.ends_with("AttributeSet") ? SetName.substr(0, SetName.size() - 12) : SetName;
+    const UCurveTable* Table = nullptr;
+    if (AttributeSet && PluginEnd != std::string::npos)
+    {
+        auto TablePath = Package.substr(0, PluginEnd) + "/DataTables/" + SetBase + "AttributeData." + SetBase + "AttributeData";
+        Table = FindObject<UCurveTable>(std::wstring(TablePath.begin(), TablePath.end()).c_str());
+    }
+
+    int Applied = 0;
+    if (Table)
+        for (auto& [RowName, Curve] : Table->RowMap)
+        {
+            std::string Row = RowName.ToString().c_str();
+            if (!Row.starts_with(Prefix))
+                continue;
+            auto AttributeOffset = AttributeSet->GetOffset(Row.substr(Prefix.size()).c_str());
+            if (AttributeOffset == (uint32)-1)
+                continue;
+            float Value = 0.f;
+            UDataTableFunctionLibrary::EvaluateCurveTableRow(Table, RowName, 1.f, nullptr, &Value, FString());
+            *(float*)(__int64(AttributeSet) + AttributeOffset + 8) = Value;
+            *(float*)(__int64(AttributeSet) + AttributeOffset + 0xC) = Value;
+            Applied++;
+        }
+
+    BORON_LOG("[Boron][Gadget] %s set=%s prefix=%s attrset=%p table=%p applied=%d\n", Who, SetName.c_str(), Prefix.c_str(), AttributeSet, Table, Applied);
+}
+
+static void ApplyGadgetAttributesCH6(const UFortItemDefinition* Def, AActor* InventoryOwner)
+{
+    auto PlayerController = (AFortPlayerControllerAthena*)InventoryOwner;
+    if (!PlayerController || !PlayerController->PlayerState || !PlayerController->PlayerState->AbilitySystemComponent)
+        return;
+
+    static auto AttributeSetOffset = Def->GetOffset("AttributeSet");
+    static auto InitKeyOffset = Def->GetOffset("AttributeInitKey");
+    if (AttributeSetOffset == (uint32)-1 || InitKeyOffset == (uint32)-1)
+        return;
+
+    auto SetClass = ((TSoftClassPtr<UClass>*)(__int64(Def) + AttributeSetOffset))->Get();
+    if (!SetClass)
+        return;
+
+    std::string Package = Def->Outer ? Def->Outer->Name.ToString().c_str() : "";
+    InitAttributeSetCH6(PlayerController->PlayerState->AbilitySystemComponent, SetClass, *(int32*)(__int64(Def) + InitKeyOffset), *(int32*)(__int64(Def) + InitKeyOffset + 4), Package, Def->Name.ToString().c_str());
+}
+
+void ApplyGFPPlayerAttributesCH6(AActor* InventoryOwner)
+{
+    auto PlayerController = (AFortPlayerControllerAthena*)InventoryOwner;
+    if (Offsets::FortniteCL != 41753727 || !PlayerController || !PlayerController->PlayerState || !PlayerController->PlayerState->AbilitySystemComponent)
+        return;
+
+    static auto StateMachineClass = FindClass("GameFeaturePluginStateMachine");
+    static auto ActionClass = FindClass("FortGameFeatureAction_AddAttributesToPlayer");
+    if (!StateMachineClass || !ActionClass)
+        return;
+
+    std::vector<std::pair<const UObject*, uint8>> GFDs;
+    uint8 ActiveState = 0;
+    for (int i = 0; i < TUObjectArray::Num(); i++)
+    {
+        auto Object = TUObjectArray::GetObjectByIndex(i);
+        if (!Object || !Object->Class || Object->IsDefaultObject() || !Object->IsA(StateMachineClass))
+            continue;
+        auto State = *(uint8*)(__int64(Object) + 0x28);
+        if (auto GFD = *(const UObject**)(__int64(Object) + 0xD8))
+            GFDs.push_back({ GFD, State });
+        if (State > ActiveState)
+            ActiveState = State;
+    }
+
+    int Sets = 0;
+    for (auto& [GFD, State] : GFDs)
+    {
+        if (State != ActiveState)
+            continue;
+        auto ActionsOffset = GFD->GetOffset("Actions");
+        if (ActionsOffset == (uint32)-1)
+            continue;
+        auto& Actions = *(TArray<UObject*>*)(__int64(GFD) + ActionsOffset);
+        for (int j = 0; j < Actions.Num(); j++)
+        {
+            auto Action = Actions[j];
+            if (!Action || !Action->IsA(ActionClass))
+                continue;
+            static auto AttributesOffset = Action->GetOffset("Attributes");
+            if (AttributesOffset == (uint32)-1)
+                continue;
+            auto& Attributes = *(TArray<uint8>*)(__int64(Action) + AttributesOffset);
+            for (int k = 0; k < Attributes.Num(); k++)
+            {
+                auto Entry = (uint8*)Attributes.Data + k * 40;
+                auto SetClass = ((TSoftClassPtr<UClass>*)Entry)->Get();
+                if (!SetClass)
+                    continue;
+                std::string Package = GFD->Outer ? GFD->Outer->Name.ToString().c_str() : "";
+                InitAttributeSetCH6(PlayerController->PlayerState->AbilitySystemComponent, SetClass, *(int32*)(Entry + 32), *(int32*)(Entry + 36), Package, GFD->Name.ToString().c_str());
+                Sets++;
+            }
+        }
+    }
+    BORON_LOG("[Boron][GFPAttr] activeState=%d gfds=%zu sets=%d\n", (int)ActiveState, GFDs.size(), Sets);
+}
+
 UFortWorldItem* AFortInventory::GiveItem(const UFortItemDefinition* Def, int Count, int LoadedAmmo, int Level, bool ShowPickupNoti, bool updateInventory, int PhantomReserveAmmo,
                                          TArray<FFortItemEntryStateValue> StateValues)
 {
@@ -89,11 +218,17 @@ UFortWorldItem* AFortInventory::GiveItem(const UFortItemDefinition* Def, int Cou
         }
 
         if (Def->IsA<UFortWeaponRangedItemDefinition>())
-            CH6Item->ItemEntry.LoadedAmmo = LoadedAmmo >= 0 ? LoadedAmmo : ((int32 (*)(UFortWorldItem*))CH6Item->Vft[0x82])(CH6Item);
+            CH6Item->ItemEntry.LoadedAmmo = LoadedAmmo >= 0 ? LoadedAmmo : ((int32 (*)(UFortWorldItem*))CH6Item->Vft[Offsets::FortniteCL == 41753727 ? 0x7F : 0x82])(CH6Item);
+        else if (Offsets::FortniteCL == 41753727 && Def->IsA<UFortGadgetItemDefinition>())
+            if (auto GadgetWeapon = (UFortWeaponItemDefinition*)((UFortGadgetItemDefinition*)Def)->GetWeaponItemDefinition())
+                if (auto GadgetStats = GetStats(GadgetWeapon))
+                    CH6Item->ItemEntry.LoadedAmmo = LoadedAmmo >= 0 ? LoadedAmmo : GadgetStats->ClipSize;
+        if (Offsets::FortniteCL == 41753727 && Def->IsA<UFortGadgetItemDefinition>())
+            ApplyGadgetAttributesCH6(Def, Owner);
 
         auto& CH6Rep = this->Inventory.ReplicatedEntries.Add(CH6Item->ItemEntry, FFortItemEntry::Size());
-        if (Offsets::FortniteCL == 39768313)
-            ((FFortItemEntry * (*)(FFortItemEntry*, const FFortItemEntry*))(Memcury::PE::GetModuleBase() + 0x3B1BA38))(&CH6Rep, &CH6Item->ItemEntry);
+        if (Offsets::FortniteCL == 39768313 || Offsets::FortniteCL == 41753727)
+            ((FFortItemEntry * (*)(FFortItemEntry*, const FFortItemEntry*))(Memcury::PE::GetModuleBase() + (Offsets::FortniteCL == 41753727 ? 0x4371F38 : 0x3B1BA38)))(&CH6Rep, &CH6Item->ItemEntry);
         this->Inventory.ItemInstances.Add(CH6Item);
 
         if (updateInventory)
@@ -107,6 +242,45 @@ UFortWorldItem* AFortInventory::GiveItem(const UFortItemDefinition* Def, int Cou
 
         if (OnItemInstanceAddedVft)
             ((bool (*)(const UFortWorldItem*, const IInterface*))CH6Item->Vft[OnItemInstanceAddedVft])(CH6Item, Owner->GetInterface(IFortInventoryOwnerInterface::StaticClass()));
+
+        if (Offsets::FortniteCL == 41753727 && Def->HasDataList())
+        {
+            static auto LinkStruct = (const UStruct*)FindStruct("FortItemComponentData_ItemLinking");
+            for (auto& ItemData : Def->DataList)
+            {
+                if (!LinkStruct || ItemData.ScriptStruct != LinkStruct || !ItemData.Struct)
+                    continue;
+                auto LinkedDef = (const UFortItemDefinition*)((TSoftObjectPtr<UFortItemDefinition>*)ItemData.Struct)->Get();
+                if (!LinkedDef || LinkedDef == Def || CH6LinkedDefs.contains(Def))
+                    break;
+                CH6LinkedDefs.insert(LinkedDef);
+                auto Linked = GiveItem(LinkedDef, 1, -1, Level, false, updateInventory);
+                if (Linked)
+                {
+                    static UObject* LinkCache = nullptr;
+                    auto PrimaryGuid = CH6Item->ItemEntry.ItemGuid;
+                    auto LinkedGuid = Linked->ItemEntry.ItemGuid;
+                    auto SetLink = [&](FFortItemEntry* Entry, const FGuid& Target)
+                    {
+                        if (auto LinkData = (FGuid*)CH6AddComponent(Entry, "FortItemComponentData_ItemLinkingRuntime", &LinkCache, sizeof(FGuid)))
+                            *LinkData = Target;
+                    };
+                    SetLink(&CH6Item->ItemEntry, LinkedGuid);
+                    SetLink(&Linked->ItemEntry, PrimaryGuid);
+                    for (int i = 0; i < Inventory.ReplicatedEntries.Num(); i++)
+                    {
+                        auto& RepEntry = Inventory.ReplicatedEntries.Get(i, FFortItemEntry::Size());
+                        if (RepEntry.ItemGuid == PrimaryGuid || RepEntry.ItemGuid == LinkedGuid)
+                        {
+                            SetLink(&RepEntry, RepEntry.ItemGuid == PrimaryGuid ? LinkedGuid : PrimaryGuid);
+                            Inventory.MarkItemDirty(RepEntry);
+                        }
+                    }
+                }
+                BORON_LOG("[Boron][CH6Link] %s -> %s linked=%p\n", Def->Name.ToString().c_str(), LinkedDef->Name.ToString().c_str(), (void*)Linked);
+                break;
+            }
+        }
 
         static int ch6Logs = 0;
         if (ch6Logs++ < 12)
@@ -613,13 +787,13 @@ struct FRawInstancedStruct
 
 void* CH6Component(FFortItemEntry* Entry, const char* StructName, UObject** Cache)
 {
-    if (!Entry || Offsets::FortniteCL != 39768313)
+    if (!Entry || (Offsets::FortniteCL != 39768313 && Offsets::FortniteCL != 41753727))
         return nullptr;
     if (!*Cache)
         *Cache = (UObject*)FindStruct(StructName);
     if (!*Cache)
         return nullptr;
-    auto& List = *(TArray<FRawInstancedStruct>*)((uint8*)Entry + 0x30);
+    auto& List = *(TArray<FRawInstancedStruct>*)((uint8*)Entry + (Offsets::FortniteCL == 41753727 ? 0x28 : 0x30));
     for (int i = 0; i < List.Num(); i++)
     {
         auto& Data = List[i];
@@ -633,11 +807,11 @@ void* CH6AddComponent(FFortItemEntry* Entry, const char* StructName, UObject** C
 {
     if (auto Existing = CH6Component(Entry, StructName, Cache))
         return Existing;
-    if (!Entry || !*Cache || Offsets::FortniteCL != 39768313)
+    if (!Entry || !*Cache || (Offsets::FortniteCL != 39768313 && Offsets::FortniteCL != 41753727))
         return nullptr;
     auto Memory = FMemory::Malloc<uint8>(Size, 8);
     memset(Memory, 0, Size);
-    auto& List = *(TArray<FRawInstancedStruct>*)((uint8*)Entry + 0x30);
+    auto& List = *(TArray<FRawInstancedStruct>*)((uint8*)Entry + (Offsets::FortniteCL == 41753727 ? 0x28 : 0x30));
     List.Add(FRawInstancedStruct{ *Cache, Memory });
     static int Logged = 0;
     if (Logged++ < 10)
@@ -711,6 +885,9 @@ static AFortPickupAthena* SpawnPickupCH6(FVector Loc, const UFortItemDefinition*
     }
     if (auto SourceLoaded = Ret && SourceEntry ? CH6LoadedAmmo(SourceEntry) : nullptr)
         Ret->PrimaryPickupItemEntry.LoadedAmmo = *SourceLoaded;
+    else if (Ret && !SourceEntry && Offsets::FortniteCL == 41753727 && ItemDefinition->IsA<UFortWeaponRangedItemDefinition>())
+        if (auto Stats = AFortInventory::GetStats((UFortWeaponItemDefinition*)ItemDefinition))
+            Ret->PrimaryPickupItemEntry.LoadedAmmo = Stats->ClipSize;
     static int ch6Pickups = 0;
     if (ch6Pickups++ < 20)
         BORON_LOG("[Boron][CH6Pickup] %s x%d -> %p manual=%d stack=%lld\n", ItemDefinition->Name.ToString().c_str(), Count, (void*)Ret, bManual, Ret && CH6StackSize(&Ret->PrimaryPickupItemEntry) ? (long long)*CH6StackSize(&Ret->PrimaryPickupItemEntry) : -1ll);
@@ -865,6 +1042,12 @@ AFortPickupAthena* AFortInventory::SpawnPickup(ABuildingContainer* Container, FF
 
 bool AFortInventory::IsPrimaryQuickbar(const UFortItemDefinition* ItemDefinition)
 {
+    static auto AugmentClass = VersionInfo.FortniteVersion >= 28 ? FindClass("FortPlayerAugmentItemDefinition") : nullptr;
+    if (CH6LinkedDefs.contains(ItemDefinition))
+        return false;
+    if (AugmentClass && ItemDefinition->IsA(AugmentClass))
+        return false;
+
     return ItemDefinition->ItemType == EFortItemType::GetWeaponHarvest() || ItemDefinition->ItemType == EFortItemType::GetWorldResource() || ItemDefinition->ItemType == EFortItemType::GetAmmo() ||
                    ItemDefinition->ItemType == EFortItemType::GetTrap() || ItemDefinition->ItemType == EFortItemType::GetBuildingPiece() || ItemDefinition->ItemType == EFortItemType::GetEditTool() ||
                    ItemDefinition->ItemType == EFortItemType::GetIngredient() || (ItemDefinition->HasbForceIntoOverflow() && ItemDefinition->bForceIntoOverflow)
@@ -1201,6 +1384,11 @@ void AFortInventory::PostLoadHook()
     {
         Hooking::Hook<UFortWorldItem>(uint32(0xC4), SetLoadedAmmoCH5);
         Hooking::Hook<UFortWorldItem>(uint32(0xC5), SetPhantomReserveAmmoCH5);
+    }
+    else if (!SetOwningInventory && Offsets::FortniteCL == 41753727)
+    {
+        Hooking::Hook<UFortWorldItem>(uint32(0xC1), SetLoadedAmmoCH5);
+        Hooking::Hook<UFortWorldItem>(uint32(0xC2), SetPhantomReserveAmmoCH5);
     }
 
     Hooking::ExecHook(DefaultObjImpl("FortAthenaSupplyDrop")->GetFunction("SpawnPickup"), SpawnPickup_);

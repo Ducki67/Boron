@@ -477,8 +477,8 @@ void UFortKismetLibrary::PostLoadHook()
     }
     else
     {
-        uint64 SetIsDoorOpenRva = Offsets::FortniteCL == 37770125 ? 0x935F1C4 : Offsets::FortniteCL == 38202817 ? 0x955C49C : Offsets::FortniteCL == 39768313 ? 0xC032188 : 0;
-        uint64 OpenActorRva = Offsets::FortniteCL == 37770125 ? 0x8C59700 : Offsets::FortniteCL == 38202817 ? 0x8E47384 : Offsets::FortniteCL == 39768313 ? 0xB7F1BAC : 0;
+        uint64 SetIsDoorOpenRva = Offsets::FortniteCL == 37770125 ? 0x935F1C4 : Offsets::FortniteCL == 38202817 ? 0x955C49C : Offsets::FortniteCL == 39768313 ? 0xC032188 : Offsets::FortniteCL == 41753727 ? 0xCF8825C : 0;
+        uint64 OpenActorRva = Offsets::FortniteCL == 37770125 ? 0x8C59700 : Offsets::FortniteCL == 38202817 ? 0x8E47384 : Offsets::FortniteCL == 39768313 ? 0xB7F1BAC : Offsets::FortniteCL == 41753727 ? 0xC767B58 : 0;
 
         if (SetIsDoorOpenRva && OpenActorRva)
         {

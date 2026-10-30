@@ -373,6 +373,22 @@ void Main()
         BORON_LOG("[Boron][3330] RequestExit patched\n");
     }
 
+    if (Offsets::FortniteCL == 41753727)
+    {
+        auto Base = Memcury::PE::GetModuleBase();
+        Hooking::Patch<uint8_t>(Base + 0x5B8DF74, 0xC3);
+        Hooking::Patch<uint8_t>(Base + 0x5B8DDE8, 0xC3);
+        Hooking::Patch<uint8_t>(Base + 0x76074E0, 0xC3);
+        Hooking::Patch<uint8_t>(Base + 0x3E880F8, 0xEB);
+        Hooking::Patch<uint8_t>(Base + 0x3E9C36C, 0xC3);
+        for (uint64_t Rva : { 0xDBCBC58ull, 0xDBCBF54ull })
+        {
+            Hooking::Patch<uint32_t>(Base + Rva, 0xC0FFC031);
+            Hooking::Patch<uint8_t>(Base + Rva + 4, 0xC3);
+        }
+        BORON_LOG("[Boron][3440] RequestExit patched\n");
+    }
+
     auto SpawnTrackingGate = FindSpawnActorTrackingGate();
     if (SpawnTrackingGate)
     {
@@ -409,6 +425,11 @@ void Main()
     {
         GIsClientAddr = Memcury::PE::GetModuleBase() + 0x161B4DE9;
         GIsServerAddr = Memcury::PE::GetModuleBase() + 0x161B4D72;
+    }
+    else if (Offsets::FortniteCL == 41753727)
+    {
+        GIsClientAddr = Memcury::PE::GetModuleBase() + 0x17691C69;
+        GIsServerAddr = Memcury::PE::GetModuleBase() + 0x17691BED;
     }
     BORON_LOG("[Boron] GIsClient=0x%llX GIsServer=0x%llX (FN %.2f)\n",
            (unsigned long long)GIsClientAddr, (unsigned long long)GIsServerAddr, VersionInfo.FortniteVersion);
@@ -451,6 +472,11 @@ void Main()
         GFSURLByName = 0x1f84d4c;
         GFSChangeState = 0x4610898;
     }
+    else if (Offsets::FortniteCL == 41753727)
+    {
+        GFSGet = 0x3e87200;
+        GFSChangeState = 0x2c805c8;
+    }
 
     if (GFSGet)
     {
@@ -469,6 +495,25 @@ void Main()
                 alignas(16) uint8_t SimpleEditDone[0x10] = {};
                 ((void (*)(void*, FString*, uint8_t, void*))(Base + GFSChangeState))(GFS, &SimpleEditURL, 3, SimpleEditDone);
                 BORON_LOG("[Boron][SimpleEdit] activated SimpleEdit GFP\n");
+            }
+
+            if (Offsets::FortniteCL == 41753727)
+            {
+                alignas(16) FString ClamberURL = L"file:../../../FortniteGame/Plugins/GameFeatures/ClamberingContent/ClamberingContent.uplugin";
+                alignas(16) uint8_t ClamberDone[0x10] = {};
+                ((void (*)(void*, FString*, uint8_t, void*))(Base + GFSChangeState))(GFS, &ClamberURL, 3, ClamberDone);
+                BORON_LOG("[Boron][Clamber] activated ClamberingContent GFP\n");
+
+                GUI::RunOnGameThread([Base, GFSGet, GFSChangeState]
+                {
+                    auto GTGFS = ((void* (*)())(Base + GFSGet))();
+                    if (!GTGFS)
+                        return;
+                    static FString DualWieldURL = L"file:../../../FortniteGame/Plugins/GameFeatures/DualWielding/DualWielding.uplugin";
+                    alignas(16) static uint8_t DualWieldDone[0x10] = {};
+                    ((void (*)(void*, FString*, uint8_t, void*))(Base + GFSChangeState))(GTGFS, &DualWieldURL, 3, DualWieldDone);
+                    BORON_LOG("[Boron][DualWield] activated DualWielding GFP\n");
+                });
             }
         }
     }
@@ -520,8 +565,12 @@ void Main()
     }
     else if (VersionInfo.FortniteVersion >= 32.10 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_PunchBerry"))
         terrainOpen = L"open PunchBerry_Terrain";
-    else if (VersionInfo.FortniteVersion >= 33.00 && wcsstr(FConfig::Playlist, L"/FigmentPlaylists/"))
+    else if (VersionInfo.FortniteVersion >= 34.20 && wcsstr(FConfig::Playlist, L"/FigmentPlaylists/"))
+        terrainOpen = L"open /Figment_S03_Map/Athena_Terrain_S03"; //s3 OG mode terrain
+    else if (VersionInfo.FortniteVersion >= 33.11 && wcsstr(FConfig::Playlist, L"/FigmentPlaylists/"))
         terrainOpen = L"open /Figment_S02_Map/Athena_Terrain_S02";
+    else if (VersionInfo.FortniteVersion >= 33.00 && wcsstr(FConfig::Playlist, L"/FigmentPlaylists/"))
+        terrainOpen = L"open /Figment_S02_Map/Athena_Terrain_S01";
     /*
      else if (VersionInfo.FortniteVersion == 32.00 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_PunchBerrySolo.Playlist_PunchBerrySolo"))
         terrainOpen = L"open PunchBerry_Terrain";*/

@@ -75,10 +75,11 @@ void ABuildingSMActor::OnDamageServer(ABuildingSMActor* Actor, float Damage, FGa
             ResCount = (int)round(RC);
         }
     }
-    else if (GetSparseClassData_)
+    else if (GetSparseClassData_ || SparseClassDataOffset)
     {
         auto ClassData = Actor->GetClassData();
-        FCurveTableRowHandle& BuildingResourceAmountOverride = ClassData->BuildingResourceAmountOverride;
+        static FCurveTableRowHandle EmptyHandle{};
+        FCurveTableRowHandle& BuildingResourceAmountOverride = ClassData ? ClassData->BuildingResourceAmountOverride : EmptyHandle;
 
         if (BuildingResourceAmountOverride.RowName.IsValid())
         {
@@ -638,6 +639,19 @@ void ABuildingSMActor::PostLoadHook()
 
         if (!GetSparseClassData_ && Offsets::FortniteCL == 39768313)
             GetSparseClassData_ = Memcury::PE::GetModuleBase() + 0x2426664;
+
+        if (!GetSparseClassData_ && Offsets::FortniteCL == 41753727)
+        {
+            auto DataStruct = (UObject*)FindStruct("BuildingSMActorClassData");
+            auto BuildingClass = (uint8*)ABuildingSMActor::StaticClass();
+            for (int32 Off = 0x100; DataStruct && BuildingClass && Off < 0x300; Off += 8)
+                if (*(UObject**)(BuildingClass + Off) == DataStruct)
+                {
+                    SparseClassDataOffset = Off - 8;
+                    break;
+                }
+            BORON_LOG("[Boron][Init] SparseClassData struct=%p offset=0x%x data=%p\n", (void*)DataStruct, SparseClassDataOffset, SparseClassDataOffset ? *(void**)(BuildingClass + SparseClassDataOffset) : nullptr);
+        }
 
         BORON_LOG("[Boron][Init] GetSparseClassData=%p\n", (void*)GetSparseClassData_);
     }

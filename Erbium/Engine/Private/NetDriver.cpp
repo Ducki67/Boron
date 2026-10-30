@@ -841,6 +841,20 @@ void UNetDriver::TickFlush__Iris(UNetDriver* Driver, float DeltaSeconds)
             for (auto Conn : Driver->ClientConnections)
                 if (Conn && Conn->PlayerController)
                 {
+                    if (Offsets::FortniteCL == 41753727)
+                    {
+                        static float FirstSeen = -1.f;
+                        auto Now = (float)UGameplayStatics::GetTimeSeconds(World);
+                        if (FirstSeen < 0.f)
+                            FirstSeen = Now;
+
+                        auto PC = (AFortPlayerControllerAthena*)Conn->PlayerController;
+                        if (PC->HasbLoadingScreenDropped() && !PC->bLoadingScreenDropped && Now - FirstSeen < 120.f)
+                            continue;
+
+                        BORON_LOG("[Boron][ForceStart] client ready after %.1fs (dropped=%d)\n", Now - FirstSeen, (int)PC->bLoadingScreenDropped);
+                    }
+
                     hasReadyConn = true;
                     break;
                 }

@@ -2634,7 +2634,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
     std::unordered_map<const UObject*, uint8> GFDStates;
     uint8 ActiveState = 0;
     int ActiveLootGFDs = 0;
-    if (Offsets::FortniteCL == 39768313)
+    if (Offsets::FortniteCL == 39768313 || Offsets::FortniteCL == 41753727)
     {
         auto StateMachineClass = FindClass("GameFeaturePluginStateMachine");
         for (int i = 0; StateMachineClass && i < TUObjectArray::Num(); i++)
@@ -2643,7 +2643,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
             if (!Object || !Object->Class || Object->IsDefaultObject() || !Object->IsA(StateMachineClass))
                 continue;
             auto State = *(uint8*)(__int64(Object) + 0x28);
-            if (auto GFD = *(const UObject**)(__int64(Object) + 0xD0))
+            if (auto GFD = *(const UObject**)(__int64(Object) + (Offsets::FortniteCL == 41753727 ? 0xD8 : 0xD0)))
                 GFDStates[GFD] = State;
             if (State > ActiveState)
                 ActiveState = State;
@@ -2679,7 +2679,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
         return Path.substr(Start, End == std::string::npos ? std::string::npos : End - Start);
     };
     bool bCurrentSeasonLoot = wcsstr(FConfig::Playlist, L"/BRPlaylists/") != nullptr;
-    if (Playlist && Offsets::FortniteCL == 39768313)
+    if (Playlist && (Offsets::FortniteCL == 39768313 || Offsets::FortniteCL == 41753727))
         for (auto ListName : { "GameFeaturePluginURLsToLoad", "BuiltInGameFeaturePluginsToLoad" })
         {
             auto ListOffset = Playlist->GetOffset(ListName);
@@ -2697,7 +2697,17 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
             }
         }
 
-    if (GameFeatureDataClass)
+    if (GameFeatureDataClass && Offsets::FortniteCL == 41753727)
+    {
+        auto SeasonGFD = FindObject(L"/LootCurrentSeason/GameFeatureData.GameFeatureData", GameFeatureDataClass);
+        BORON_LOG("[Boron][LootGFD] LootCurrentSeason GFD=%p\n", (void*)SeasonGFD);
+    }
+
+    bool bPlaylistOwnsLoot = Offsets::FortniteCL == 41753727 && wcsstr(FConfig::Playlist, L"/FigmentPlaylists/") && LootTierData && LootPackages;
+    if (bPlaylistOwnsLoot)
+        BORON_LOG("[Boron][LootGFD] OG playlist tables only: %s / %s\n", LootTierData->Name.ToString().c_str(), LootPackages->Name.ToString().c_str());
+
+    if (GameFeatureDataClass && !bPlaylistOwnsLoot)
         for (int i = 0; i < TUObjectArray::Num(); i++)
         {
             auto Object = TUObjectArray::GetObjectByIndex(i);
@@ -2723,7 +2733,7 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
                     auto It = GFDStates.find(Object);
                     int State = It != GFDStates.end() ? It->second : -1;
                     auto Plugin = PluginNameOf(Object);
-                    bool bSeason = bCurrentSeasonLoot && std::any_of(std::begin(CurrentSeasonPlugins), std::end(CurrentSeasonPlugins), [&](const char* Name) { return Plugin == Name; });
+                    bool bSeason = bCurrentSeasonLoot && (Offsets::FortniteCL == 41753727 ? Plugin == "LootCurrentSeason" : std::any_of(std::begin(CurrentSeasonPlugins), std::end(CurrentSeasonPlugins), [&](const char* Name) { return Plugin == Name; }));
                     bool bApplied = State == ActiveState || bSeason;
                     if (!bApplied)
                         continue;
@@ -3198,6 +3208,14 @@ void AFortGameMode::TickCH5FloorLoot()
             }
             else
                 printf("[Boron][Loot] synthetic tier group: warmup CDO not found\n");
+
+            if (Offsets::FortniteCL == 41753727)
+            {
+                static auto FloorLootTG = FName(L"Loot_AthenaFloorLoot");
+                if (TierDataMap.contains(FloorLootTG.ComparisonIndex))
+                    FloorTG = FloorLootTG;
+                BORON_LOG("[Boron][Loot] synthetic tier group override Loot_AthenaFloorLoot found=%d\n", (int)TierDataMap.contains(FloorLootTG.ComparisonIndex));
+            }
         }
 
         static std::unordered_set<unsigned long long> SynthDone;
@@ -3414,6 +3432,10 @@ void AFortGameMode::TickCH5PickupDummies()
         if (!Dummy)
             continue;
 
+        static UObject* PickupLoadedCache = nullptr;
+        if (Offsets::FortniteCL == 41753727 && Def->IsA<UFortWeaponRangedItemDefinition>() && !CH6Component(&P->PrimaryPickupItemEntry, "FortItemComponentData_LoadedAmmo", &PickupLoadedCache))
+            if (auto Stats = AFortInventory::GetStats((UFortWeaponItemDefinition*)Def))
+                P->PrimaryPickupItemEntry.LoadedAmmo = Stats->ClipSize;
         Dummy->ItemEntry.LoadedAmmo = P->PrimaryPickupItemEntry.LoadedAmmo;
         P->PrimaryPickupDummyItem = (UObject*)Dummy;
         if (!firstFixed)

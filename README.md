@@ -62,6 +62,7 @@ Currently the only versions that are "supported" are below:
 | v32.00 | Chapter 2 Remix | Supported but still missing a bit|
 | v32.11 | Chapter 2 Remix | Supported but still missing a bit (Oasis reload works now!) |
 | v33.30 | Chapter 6 Season 1 | Supported should work bette now |
+| v34.40 | Chapter 6 Season 2 | Supported (BR + OG mode work) |
 
 
 
@@ -79,6 +80,8 @@ Currently the only versions that are "supported" are below:
 - Progress (32.11): **27% Done** (currently being worked on)
 
 - Progress (33.30): **6% Done** (currently being worked on)
+
+- Progress (34.40): **~20% Done** (currently being worked on) - BR, OG mode + OG loot, Pump & Dump work. Still broken: Kneecapper, Mortal Kombat items, sticky grenade launcher
 
 ## Notes:
 

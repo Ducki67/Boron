@@ -393,7 +393,7 @@ namespace NPCConversation
     inline UObject* AddComponent(AActor* Actor, const UClass* Class, bool bDeferred)
     {
         FParams Params;
-        if (!Actor || !Class || FVector::Size() != 0xc || !Prepare(Params, Actor, "AddComponentByClass"))
+        if (!Actor || !Class || (FVector::Size() != 0xc && FVector::Size() != 0x18) || !Prepare(Params, Actor, "AddComponentByClass"))
             return nullptr;
         auto ClassParam = Params.Param("Class");
         auto Transform = Params.Param("RelativeTransform");
@@ -402,10 +402,20 @@ namespace NPCConversation
         if (!ClassParam || !Transform || !Ret)
             return nullptr;
         *(const UClass**)ClassParam = Class;
-        *(float*)(Transform + 0xC) = 1.f;
-        *(float*)(Transform + 0x20) = 1.f;
-        *(float*)(Transform + 0x24) = 1.f;
-        *(float*)(Transform + 0x28) = 1.f;
+        if (FVector::Size() == 0x18)
+        {
+            *(double*)(Transform + 0x18) = 1.0;
+            *(double*)(Transform + 0x40) = 1.0;
+            *(double*)(Transform + 0x48) = 1.0;
+            *(double*)(Transform + 0x50) = 1.0;
+        }
+        else
+        {
+            *(float*)(Transform + 0xC) = 1.f;
+            *(float*)(Transform + 0x20) = 1.f;
+            *(float*)(Transform + 0x24) = 1.f;
+            *(float*)(Transform + 0x28) = 1.f;
+        }
         if (Deferred)
             *Deferred = bDeferred ? 1 : 0;
         if (!TryProcessEvent(Actor, Params.Fn, Params.Data.data()))
@@ -423,10 +433,20 @@ namespace NPCConversation
         if (!CompParam || !Transform)
             return;
         *(UObject**)CompParam = Component;
-        *(float*)(Transform + 0xC) = 1.f;
-        *(float*)(Transform + 0x20) = 1.f;
-        *(float*)(Transform + 0x24) = 1.f;
-        *(float*)(Transform + 0x28) = 1.f;
+        if (FVector::Size() == 0x18)
+        {
+            *(double*)(Transform + 0x18) = 1.0;
+            *(double*)(Transform + 0x40) = 1.0;
+            *(double*)(Transform + 0x48) = 1.0;
+            *(double*)(Transform + 0x50) = 1.0;
+        }
+        else
+        {
+            *(float*)(Transform + 0xC) = 1.f;
+            *(float*)(Transform + 0x20) = 1.f;
+            *(float*)(Transform + 0x24) = 1.f;
+            *(float*)(Transform + 0x28) = 1.f;
+        }
         TryProcessEvent(Actor, Params.Fn, Params.Data.data());
     }
 

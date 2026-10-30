@@ -149,6 +149,7 @@ public:
     DEFINE_FUNC(BP_ApplyGameplayEffectToSelf, FActiveGameplayEffectHandle);
     DEFINE_FUNC(UpdateActiveGameplayEffectSetByCallerMagnitude, void);
     DEFINE_FUNC(SetActiveGameplayEffectLevel, void);
+    DEFINE_FUNC(K2_InitStats, void);
 
     FGameplayAbilitySpecHandle GiveAbility(const UObject* Ability, UObject* SourceObject = nullptr);
     void GiveAbilitySet(const UFortAbilitySet* Set);

@@ -114,6 +114,13 @@ void UFortLootPackage::SetupLDSForPackage(TArray<FFortItemEntry*>& LootDrops, SD
     {
         if (!Val)
             continue;
+        if (IsBadReadPtr(Val, sizeof(void*)))
+        {
+            static int StaleLogs = 0;
+            if (StaleLogs++ < 5)
+                BORON_LOG_ON("[Boron][LDS] stale loot row %p in %s\n", (void*)Val, Package.ToString().c_str());
+            continue;
+        }
 
         if (i != -1 && Val->LootPackageCategory != i)
             continue;
@@ -330,8 +337,17 @@ void UFortLootPackage::ChooseLootForContainer(TArray<FFortItemEntry*>& LootDrops
     TArray<FFortLootTierData*> TierDataGroups{};
 
     for (auto const& Val : TierDataMap[TierGroup.ComparisonIndex])
+    {
+        if (!Val || IsBadReadPtr(Val, FFortLootTierData::Size()))
+        {
+            static int StaleTierLogs = 0;
+            if (StaleTierLogs++ < 5)
+                BORON_LOG_ON("[Boron][LDS] stale tier row %p in %s\n", (void*)Val, TierGroup.ToString().c_str());
+            continue;
+        }
         if (LootTier == -1 ? true : LootTier == Val->LootTier)
             TierDataGroups.Add(Val);
+    }
 
     static int TierDiag = 0;
     if (VersionInfo.FortniteVersion >= 32 && TierDiag++ < 4)

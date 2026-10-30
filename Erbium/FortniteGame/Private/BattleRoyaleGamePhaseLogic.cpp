@@ -460,7 +460,7 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::Tick()
     static auto GamePhaseOffset = this->GetOffset("GamePhase");
     auto& _GamePhase = *(EAthenaGamePhase*)(__int64(this) + GamePhaseOffset);
 
-    if (_GamePhase == EAthenaGamePhase::Aircraft || (_GamePhase == EAthenaGamePhase::SafeZones && !SafeZoneIndicator))
+    if (_GamePhase == EAthenaGamePhase::Setup || _GamePhase == EAthenaGamePhase::Warmup || _GamePhase == EAthenaGamePhase::Aircraft || (_GamePhase == EAthenaGamePhase::SafeZones && !SafeZoneIndicator))
     {
         for (auto& UncastedPlayer : ((AFortGameMode*)UWorld::GetWorld()->AuthorityGameMode)->AlivePlayers)
         {

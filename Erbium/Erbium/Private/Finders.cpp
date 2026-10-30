@@ -294,6 +294,9 @@ uint64 FindCreateNamedNetDriverLocal()
     if (Offsets::FortniteCL == 39768313)
         return Addr = Memcury::PE::GetModuleBase() + 0x37DA338;
 
+    if (Offsets::FortniteCL == 41753727)
+        return Addr = Memcury::PE::GetModuleBase() + 0x5276880;
+
     // CH5/UE5.5 (31.41): direct prologue pattern for UEngine::CreateNamedNetDriver_Local
     // (Engine, Context, NetDriverName, NetDriverDefinition) -> bool, from the 31.41 dump (fmgnio).
     // This lands right on the function start, so it sidesteps the string-anchored cold-block walk
@@ -514,6 +517,9 @@ uint64_t FindInitListen()
         if (Offsets::FortniteCL == 39768313)
             return InitListen = Memcury::PE::GetModuleBase() + 0x98E010C;
 
+        if (Offsets::FortniteCL == 41753727)
+            return InitListen = Memcury::PE::GetModuleBase() + 0xA7A0790;
+
         if (VersionInfo.EngineVersion >= 5.0)
         {
             InitListen = Memcury::Scanner::FindPattern("4D 8B C8 4C 8B C2 33 D2 FF 90 ? ? ? ? 84 C0 75 ? 80 3D").ScanFor({ 0x4C, 0x8B, 0xDC }, false).Get();
@@ -568,6 +574,9 @@ uint64_t FindSetWorld()
 
         if (Offsets::FortniteCL == 39768313)
             return SetWorld = Memcury::PE::GetModuleBase() + 0x25406EC;
+
+        if (Offsets::FortniteCL == 41753727)
+            return SetWorld = Memcury::PE::GetModuleBase() + 0x3A30DC4;
 
         SetWorld = VersionInfo.FortniteVersion <= 13.20 ? Memcury::Scanner::FindStringRef(L"AOnlineBeaconHost::InitHost failed").ScanFor({ 0x48, 0x8B, 0xD0, 0xE8 }, false).RelativeOffset(4).Get() : 0;
 
@@ -655,6 +664,9 @@ uint64_t FindTickFlush()
 
         if (Offsets::FortniteCL == 39768313)
             return TickFlush = Memcury::PE::GetModuleBase() + 0x2434F50;
+
+        if (Offsets::FortniteCL == 41753727)
+            return TickFlush = Memcury::PE::GetModuleBase() + 0x3478F28;
 
         TickFlush = VersionInfo.EngineVersion == 4.16 ? Memcury::Scanner::FindPattern("4C 8B DC 55 53 56 57 49 8D AB ? ? ? ? 48 81 EC ? ? ? ? 41 0F 29 7B").Get() : 0;
 
@@ -854,6 +866,9 @@ uint64_t FindSendRequestNow()
         if (Offsets::FortniteCL == 39768313)
             return SendRequestNow = Memcury::PE::GetModuleBase() + 0xA6AD63C;
 
+        if (Offsets::FortniteCL == 41753727)
+            return SendRequestNow = Memcury::PE::GetModuleBase() + 0xB4E70F0;
+
         auto sRef = Memcury::Scanner::FindStringRef(L"MCP-Profile: Dispatching request to %s", true, 0, VersionInfo.FortniteVersion >= 19).Get();
         if (!sRef)
             sRef = Memcury::Scanner::FindStringRef(L"MCP-Profile: Dispatching request to %s - ContextCredentials: %s", true, 0, VersionInfo.FortniteVersion >= 19).Get();
@@ -1028,6 +1043,9 @@ uint64_t FindInternalTryActivateAbility()
         if (Offsets::FortniteCL == 39768313)
             return InternalTryActivateAbility = Memcury::PE::GetModuleBase() + 0xA57B560;
 
+        if (Offsets::FortniteCL == 41753727)
+            return InternalTryActivateAbility = Memcury::PE::GetModuleBase() + 0xB40D60C;
+
         auto sRef = Memcury::Scanner::FindStringRef(L"InternalTryActivateAbility called with invalid Handle! ASC: %s. AvatarActor: %s", true, 0, VersionInfo.FortniteVersion >= 16).Get();
 
         if (auto ObfOwner = ObfuscatedOwner(sRef))
@@ -1168,6 +1186,9 @@ uint64 FindSpawnLoot()
             return SpawnLoot = Memcury::PE::GetModuleBase() + 0x94CCD48;
         if (Offsets::FortniteCL == 39768313)
             return SpawnLoot = Memcury::PE::GetModuleBase() + 0xBFAA33C;
+
+        if (Offsets::FortniteCL == 41753727)
+            return SpawnLoot = Memcury::PE::GetModuleBase() + 0xCF07934;
 
         auto sRef = Memcury::Scanner::FindStringRef(L"ABuildingContainer::SpawnLoot() called on %s (%s)...", false, 0, VersionInfo.FortniteVersion >= 19).Get();
 
@@ -1521,6 +1542,9 @@ uint64_t FindKickPlayerVirtual()
 
     if (Offsets::FortniteCL == 39768313)
         return Memcury::PE::GetModuleBase() + 0x298EE58;
+
+    if (Offsets::FortniteCL == 41753727)
+        return Memcury::PE::GetModuleBase() + 0x5D2C5CC;
 
     auto KickPlayer = Memcury::Scanner::FindPattern("48 8B C4 48 89 58 08 48 89 68 10 48 89 70 18 57 48 83 EC 40 48 8B DA 48 8B E9 48 8D 15 ? ? ? ? 49 8B F0 48 8D 48 D8").Get();
 
@@ -1981,6 +2005,9 @@ uint64_t FindSetPickupItems()
         if (Offsets::FortniteCL == 39768313)
             return SetPickupItems = Memcury::PE::GetModuleBase() + 0xC93B38C;
 
+        if (Offsets::FortniteCL == 41753727)
+            return SetPickupItems = Memcury::PE::GetModuleBase() + 0xD8FBE28;
+
         if (VersionInfo.EngineVersion == 4.16 || VersionInfo.EngineVersion == 4.19)
             return SetPickupItems = Memcury::Scanner::FindPattern("48 89 6C 24 ? 48 89 74 24 ? 57 48 83 EC 20 80 B9 ? ? ? ? ? 41 0F B6 E9").Get();
         else if (VersionInfo.FortniteVersion <= 3.3)
@@ -2077,6 +2104,9 @@ uint64_t FindSendClientAdjustment()
 
         if (Offsets::FortniteCL == 39768313)
             return SendClientAdjustment = Memcury::PE::GetModuleBase() + 0x96637F4;
+
+        if (Offsets::FortniteCL == 41753727)
+            return SendClientAdjustment = Memcury::PE::GetModuleBase() + 0xA517BCC;
 
         if (Offsets::FortniteCL == 38202817)
             return SendClientAdjustment = Memcury::PE::GetModuleBase() + 0x71152EC;
@@ -2475,6 +2505,9 @@ uint64_t FindGetPlayerViewPoint()
     if (Offsets::FortniteCL == 39768313)
         return Memcury::PE::GetModuleBase() + 0x2477A08;
 
+    if (Offsets::FortniteCL == 41753727)
+        return Memcury::PE::GetModuleBase() + 0x2D2472C;
+
     uint64 ftspAddr = 0;
 
     auto ftspRef = Memcury::Scanner::FindStringRef(L"%s failed to spawn a pawn", true, 0, VersionInfo.FortniteVersion >= 19).Get();
@@ -2693,6 +2726,9 @@ uint64 FindUpdateIrisReplicationViews()
         if (Offsets::FortniteCL == 39768313)
             return UpdateIrisReplicationViews = Memcury::PE::GetModuleBase() + 0x958BCE4;
 
+        if (Offsets::FortniteCL == 41753727)
+            return UpdateIrisReplicationViews = Memcury::PE::GetModuleBase() + 0xA402ADC;
+
         UpdateIrisReplicationViews = Memcury::Scanner::FindPattern("48 8B C4 48 89 58 ? 48 89 70 ? 48 89 78 ? 55 41 54 41 55 41 56 41 57 48 8D A8 ? ? ? ? 48 81 EC ? ? ? ? 48 8B "
                                                                    "05 ? ? ? ? 48 33 C4 48 89 85 ? ? ? ? 4C 8B F1 E8 ? ? ? ? BB")
                                          .Get();
@@ -2868,6 +2904,9 @@ uint64 FindInitializeFlightPath()
         if (Offsets::FortniteCL == 39768313)
             return InitializeFlightPath = Memcury::PE::GetModuleBase() + 0xBAD3478;
 
+        if (Offsets::FortniteCL == 41753727)
+            return InitializeFlightPath = Memcury::PE::GetModuleBase() + 0xCA4F910;
+
         InitializeFlightPath = Memcury::Scanner::FindPattern("48 89 5C 24 ? 48 89 6C 24 ? 48 89 74 24 ? 57 48 81 EC ? ? ? ? 48 8B E9 41 8A D9").Get();
 
         if (!InitializeFlightPath)
@@ -2894,6 +2933,9 @@ uint64 FindReset()
 
         if (Offsets::FortniteCL == 39768313)
             return Reset = Memcury::PE::GetModuleBase() + 0x9662444;
+
+        if (Offsets::FortniteCL == 41753727)
+            return Reset = Memcury::PE::GetModuleBase() + 0xA516EE4;
 
         Reset = Memcury::Scanner::FindPattern("48 89 5C 24 ? 57 48 83 EC ? 48 8B 91 ? ? ? ? 48 8B F9 48 85 D2 74 ? 48 8B 01").Get();
 
