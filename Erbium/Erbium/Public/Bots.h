@@ -10,6 +10,7 @@
 #include "../../FortniteGame/Public/FortPlayerPawnAthena.h"
 #include "../../FortniteGame/Public/FortPlayerControllerAthena.h"
 #include "../../FortniteGame/Public/FortInventory.h"
+#include "../../FortniteGame/Public/LevelStreamingDynamic.h"
 #include "../../FortniteGame/Public/FortGameMode.h"
 #include "Conversation.h"
 
@@ -800,6 +801,8 @@ namespace BossAI
 
         int spawned = 0;
         double FirstX = 0, FirstY = 0, FirstZ = 0;
+        struct FUsedPoint { double X, Y, Z; };
+        std::vector<FUsedPoint> UsedPoints;
         for (size_t i = 0; i < Matches.size(); i++)
         {
             static auto PointsOffset = Matches[i]->GetOffset("PatrolPoints");
@@ -813,6 +816,16 @@ namespace BossAI
 
             auto LocV = SpawnPoint->K2_GetActorLocation();
             auto RotV = SpawnPoint->K2_GetActorRotation();
+            bool bDuplicate = false;
+            for (auto& Used : UsedPoints)
+            {
+                double dx = Used.X - LocV.X, dy = Used.Y - LocV.Y, dz = Used.Z - LocV.Z;
+                if (dx * dx + dy * dy + dz * dz < 500.0 * 500.0)
+                    bDuplicate = true;
+            }
+            if (bDuplicate)
+                continue;
+            UsedPoints.push_back({ LocV.X, LocV.Y, LocV.Z });
             if (!spawned)
             {
                 FirstX = LocV.X;
@@ -853,9 +866,22 @@ namespace BossAI
                 spawned++;
                 ApplyBotLoadout((AFortPlayerPawnAthena*)spawnedPawn, SpawnerCDO);
                 ApplyBotCosmetics((AFortPlayerPawnAthena*)spawnedPawn, SpawnerCDO);
+                if (VersionInfo.FortniteVersion == 16.40)
+                {
+                    static auto ControllerOff = spawnedPawn->GetOffset("Controller");
+                    auto BotController = ControllerOff != -1 ? GetFromOffset<UObject*>(spawnedPawn, ControllerOff) : nullptr;
+                    static auto CachedOff = BotController ? BotController->GetOffset("CachedBotManager") : -1;
+                    if (BotController && CachedOff != -1)
+                    {
+                        if (!GetFromOffset<UObject*>(BotController, CachedOff))
+                            GetFromOffset<UObject*>(BotController, CachedOff) = (UObject*)BotManager;
+                        auto AssignTeamAndSquad = (void (*)(UObject*, UObject*, const uint8*))((uint64)GetModuleHandleW(nullptr) + 0x46133E8);
+                        AssignTeamAndSquad((UObject*)BotManager, BotController, nullptr);
+                    }
+                }
                 if (VersionInfo.FortniteVersion >= 14.0 && VersionInfo.FortniteVersion < 16.0)
                     TrackSpawnedBot((AFortPlayerPawnAthena*)spawnedPawn, SpawnerCDO, Name);
-                if (VersionInfo.FortniteVersion >= 15.0 && VersionInfo.FortniteVersion < 16.0)
+                if (VersionInfo.FortniteVersion >= 15.0 && VersionInfo.FortniteVersion < 17.0)
                 {
                     AddNPCSpecialActor((AFortPlayerPawnAthena*)spawnedPawn, SpawnerCDO);
                     static auto ConvOff = SpawnerCDO->GetOffset("ConversationComponent");
@@ -1093,7 +1119,7 @@ namespace BossAI
 
     inline void S15Tick()
     {
-        if (VersionInfo.FortniteVersion < 15.0 || VersionInfo.FortniteVersion >= 16.0)
+        if (VersionInfo.FortniteVersion < 15.0 || VersionInfo.FortniteVersion >= 17.0)
             return;
         static bool bDone = false;
         static ULONGLONG NextCheck = 0;
@@ -1109,6 +1135,26 @@ namespace BossAI
         static auto PhaseOff = GameState->GetOffset("GamePhase");
         if (PhaseOff == -1 || GetFromOffset<uint8>(GameState, PhaseOff) < 3)
             return;
+        static bool bBossOverlay = false;
+        static ULevelStreamingDynamic* BossOverlay = nullptr;
+        static int OverlayWaits = 0;
+        if (VersionInfo.FortniteVersion >= 16.0)
+        {
+            if (!bBossOverlay)
+            {
+                bBossOverlay = true;
+                TSoftObjectPtr<UWorld> Overlay{};
+                Overlay.ObjectID.AssetPathName = FName(L"/NPCLibrary/LevelOverlays/Apollo_Terrain_NPCLibraryBoss_Overlay.Apollo_Terrain_NPCLibraryBoss_Overlay");
+                bool bLoaded = false;
+                BossOverlay = ULevelStreamingDynamic::LoadLevelInstanceBySoftObjectPtr(World, Overlay, FVector(), FRotator(), &bLoaded, FString(), nullptr);
+                printf("[Boron][Bots] NPCLibrary boss overlay streamed=%d level=%p\n", bLoaded, (void*)BossOverlay);
+                return;
+            }
+            bool bReady = BossOverlay && BossOverlay->LoadedLevel && BossOverlay->LoadedLevel->bIsVisible;
+            if (!bReady && ++OverlayWaits < 12)
+                return;
+            printf("[Boron][Bots] NPCLibrary boss overlay ready=%d after %d waits\n", bReady, OverlayWaits);
+        }
         bDone = true;
         NPCConversation::Init();
 
@@ -1129,6 +1175,24 @@ namespace BossAI
         auto PluginPath = [](const std::string& Plugin, const std::string& Folder, const std::string& File) {
             return "/" + Plugin + "/AI/NPCs/" + Folder + "/AISpawnerData/BP_AIBotSpawnerData_" + File + ".BP_AIBotSpawnerData_" + File + "_C";
         };
+        bool bS16 = VersionInfo.FortniteVersion >= 16.0;
+        auto NPCLibraryPath = [](const std::string& Name) {
+            if (Name == "CubeThief")
+                return std::string("/NPCLibrary/NPCs/CubeThief/CubeThief/BP_AIBotSpawnerData_NPC_CubeNinja.BP_AIBotSpawnerData_NPC_CubeNinja_C");
+            if (Name == "SuntanJonesy")
+                return std::string("/NPCLibrary/NPCs/SuntanSpecialist/BP_AIBotSpawnerData_NPC_SuntanSpecialist.BP_AIBotSpawnerData_NPC_SuntanSpecialist_C");
+            std::string Candidates[] = { Name + "/" + Name + "/BP_AIBotSpawnerData_NPC_" + Name, Name + "/" + Name + "/BP_AIBotSpawnerData_" + Name,
+                                         Name + "/BP_AIBotSpawnerData_NPC_" + Name, Name + "/BP_AIBotSpawnerData_" + Name };
+            for (auto& Candidate : Candidates)
+            {
+                auto Path = "/NPCLibrary/NPCs/" + Candidate + "." + Candidate.substr(Candidate.rfind('/') + 1) + "_C";
+                if (FindObject<UClass>(std::wstring(Path.begin(), Path.end()).c_str()))
+                    return Path;
+            }
+            return "/NPCLibrary/NPCs/" + Candidates[0];
+        };
+        if (!bS16)
+        {
         for (auto Name : BattlepassNPCs)
             AddSpawner(Name, BattlepassPath(Name, Name));
         AddSpawner("RuckusH", BattlepassPath("RuckusH", "NPC_RuckusH"));
@@ -1147,6 +1211,7 @@ namespace BossAI
         AddSpawner("M", PluginPath("IO_Guard", "IOBase", "IO_Base"));
         AddSpawner("LG", PluginPath("IO_Guard", "IO_LG", "IO_LG"));
         AddSpawner("LS", PluginPath("IO_Guard", "IO_LS", "IO_LS"));
+        }
 
         std::string TagLeaves;
         std::unordered_map<std::string, bool> TagSeen;
@@ -1174,7 +1239,7 @@ namespace BossAI
                 TagSeen[TagName] = true;
                 TagLeaves += TagName + " ";
                 if (!Seen[Leaf])
-                    AddSpawner(Leaf, BattlepassPath(Leaf, Leaf));
+                    AddSpawner(Leaf, bS16 ? NPCLibraryPath(Leaf) : BattlepassPath(Leaf, Leaf));
             }
             Actors.Free();
         };
@@ -1191,15 +1256,67 @@ namespace BossAI
                 continue;
             }
             bool bIOGuard = Spawner.Path.find("/IO_Guard/") != std::string::npos;
-            SpawnAIOnPaths(Class, Spawner.Name, bIOGuard, true, bIOGuard ? (Spawner.Name == "Grunt" ? 15 : 5) : 0);
+            SpawnAIOnPaths(Class, Spawner.Name, bIOGuard || Spawner.Name == "Outter", true, bIOGuard ? (Spawner.Name == "Grunt" ? 15 : 5) : 0);
         }
         printf("[Boron][Bots] S15 NPC spawners not found: %s\n", Missing.c_str());
+        if (bS16)
+            printf("[Boron][Bots] patrol tags: %s\n", TagLeaves.c_str());
+    }
+
+    inline void S16CraftingTick()
+    {
+        if (VersionInfo.FortniteVersion < 16.0 || VersionInfo.FortniteVersion >= 17.0)
+            return;
+        static bool bDone = false;
+        static int Tries = 0;
+        static ULONGLONG NextCheck = 0;
+        auto Now = GetTickCount64();
+        if (bDone || Now < NextCheck)
+            return;
+        NextCheck = Now + 2000;
+
+        auto World = UWorld::GetWorld();
+        auto GameState = World ? (AFortGameStateAthena*)World->GameState : nullptr;
+        if (!GameState || !GameState->HasCurrentPlaylistInfo() || !GameState->CurrentPlaylistInfo.BasePlaylist)
+            return;
+        static auto CompClass = FindClass("FortGameStateComponent_Crafting");
+        auto Comp = CompClass ? (UObject*)GameState->GetComponentByClass((UClass*)CompClass) : nullptr;
+        if (!Comp)
+        {
+            if (++Tries >= 30)
+            {
+                bDone = true;
+                printf("[Boron][Craft] FortGameStateComponent_Crafting not on GameState (class=%p)\n", (void*)CompClass);
+            }
+            return;
+        }
+        bDone = true;
+        auto Fn = Comp->GetFunction("OnPlaylistDataReady");
+        if (!Fn)
+        {
+            printf("[Boron][Craft] OnPlaylistDataReady not found\n");
+            return;
+        }
+        auto FnStruct = (const UStruct*)Fn;
+        static auto GameStateOff = FnStruct->GetOffset("GameState");
+        static auto PlaylistOff = FnStruct->GetOffset("Playlist");
+        static int ParmsSize = FnStruct->GetPropertiesSize();
+        uint8 Parms[0x100]{};
+        if (GameStateOff == (uint32)-1 || PlaylistOff == (uint32)-1 || ParmsSize <= 0 || ParmsSize > (int)sizeof(Parms))
+            return;
+        *(AFortGameStateAthena**)(Parms + GameStateOff) = GameState;
+        *(UObject**)(Parms + PlaylistOff) = (UObject*)GameState->CurrentPlaylistInfo.BasePlaylist;
+        bool ok = SafeProcessEvent(Comp, Fn, Parms);
+        static auto ResultsOff = Comp->GetOffset("CraftingResultsList");
+        int Results = ResultsOff != -1 ? GetFromOffset<TArray<uint8>>(Comp, ResultsOff).Num() : -1;
+        printf("[Boron][Craft] OnPlaylistDataReady ok=%d results=%d\n", ok, Results);
     }
 
     inline void Tick()
     {
         S12Watch();
         S15Tick();
+        S16CraftingTick();
         S13BotTick();
         S12DropTick();
 

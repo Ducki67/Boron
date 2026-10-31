@@ -1547,13 +1547,13 @@ namespace NPCConversation
 
     inline UDataTable* SalesTable()
     {
-        static auto Table = NPCTable(L"/BattlepassS15/Balance/DataTables/NPCSales.NPCSales");
+        static auto Table = NPCTable(VersionInfo.FortniteVersion >= 16.0 ? L"/NPCLibrary/DataTables/NPCSales.NPCSales" : L"/BattlepassS15/Balance/DataTables/NPCSales.NPCSales");
         return Table;
     }
 
     inline UDataTable* ServicesTable()
     {
-        static auto Table = NPCTable(L"/BattlepassS15/Balance/DataTables/NPCServices.NPCServices");
+        static auto Table = NPCTable(VersionInfo.FortniteVersion >= 16.0 ? L"/NPCLibrary/DataTables/NPCServices.NPCServices" : L"/BattlepassS15/Balance/DataTables/NPCServices.NPCServices");
         return Table;
     }
 
@@ -1663,8 +1663,11 @@ namespace NPCConversation
 
     inline void MergeLootTables()
     {
-        static const wchar_t* TierTables[] = { L"/BattlepassS15/Balance/DataTables/AthenaNPCBundleLootTierData_Client.AthenaNPCBundleLootTierData_Client" };
-        static const wchar_t* PackageTables[] = { L"/BattlepassS15/Balance/DataTables/AthenaNPCBundleLootPackages_Client.AthenaNPCBundleLootPackages_Client" };
+        bool bS16 = VersionInfo.FortniteVersion >= 16.0;
+        const wchar_t* TierTables[] = { bS16 ? L"/NPCLibrary/DataTables/AthenaNPCBundleLootTierData_Client.AthenaNPCBundleLootTierData_Client"
+                                             : L"/BattlepassS15/Balance/DataTables/AthenaNPCBundleLootTierData_Client.AthenaNPCBundleLootTierData_Client" };
+        const wchar_t* PackageTables[] = { bS16 ? L"/NPCLibrary/DataTables/AthenaNPCBundleLootPackages_Client.AthenaNPCBundleLootPackages_Client"
+                                                : L"/BattlepassS15/Balance/DataTables/AthenaNPCBundleLootPackages_Client.AthenaNPCBundleLootPackages_Client" };
         int32 Tiers = 0;
         int32 Packages = 0;
         int32 Found = 0;
@@ -1954,7 +1957,7 @@ namespace NPCConversation
         if (T.bInitialized)
             return;
         T.bInitialized = true;
-        if (VersionInfo.FortniteVersion < 15.0 || VersionInfo.FortniteVersion >= 16.0 || FVector::Size() != 0xc)
+        if (VersionInfo.FortniteVersion < 15.0 || VersionInfo.FortniteVersion >= 17.0 || FVector::Size() != 0xc)
             return;
 
         T.Database = FindClass("ConversationDatabase");
@@ -2086,15 +2089,62 @@ namespace NPCConversation
                                            "NPC_Conversation_Sleuth", "NPC_Conversation_Snomando", "NPC_Conversation_Sparkplug", "NPC_Conversation_Splode", "NPC_Conversation_Sunflower",
                                            "NPC_Conversation_TheReaper", "NPC_Conversation_TomatoHead", "NPC_Conversation_Triggerfish", "NPC_Conversation_Turk", "NPC_Conversation_WeaponsExpert",
                                            "Share_Conversation_Quests", "Share_Conversation_Services" };
-        std::string Missing;
-        for (auto Name : Databases)
+        static const char* Databases16[] = { "/NPCLibrary/NPCs/BrawnySmasher/NPCLibrary_Conversation_BrawnySmasher", "/NPCLibrary/NPCs/BrawnySmasher/NPCLibrary_BrawnySmasher_Conversation_Services",
+                                             "/NPCLibrary/NPCs/DerbyDominator/DerbyDominator/NPCLibrary_Conversation_DerbyDominator", "/NPCLibrary/NPCs/ShotStopper/ShotStopper/NPCLibrary_Conversation_ShotStopper",
+                                             "/NPCLibrary/NPCs/Galactico/Galactico/NPCLibrary_Conversation_Galactico", "/NPCLibrary/NPCs/WickedDuck/NPCLibrary_Conversation_WickedDuck",
+                                             "/NPCLibrary/NPCs/Zenith/NPCLibrary_Conversation_Zenith", "/NPCLibrary/NPCs/WreckRaider/NPCLibrary_Conversation_WreckRaider",
+                                             "/NPCLibrary/NPCs/Willow/Willow/NPCLibrary_Conversation_Willow", "/NPCLibrary/NPCs/Turk/Turk/NPCLibrary_Conversation_Turk",
+                                             "/NPCLibrary/NPCs/Triggerfish/Triggerfish/NPCLibrary_Conversation_Triggerfish", "/NPCLibrary/NPCs/TomatoHead/TomatoHead_Generic/NPCLibrary_Conversation_TomatoHeadGeneric",
+                                             "/NPCLibrary/NPCs/TomatoHead/TomatoHead/NPCLibrary_Conversation_TomatoHead", "/NPCLibrary/NPCs/TheReaper/TheReaper/NPCLibrary_Conversation_TheReaper",
+                                             "/NPCLibrary/NPCs/Tess/Tess/NPCLibrary_Conversation_Tess", "/NPCLibrary/NPCs/Temple/NPCLibrary_Conversation_Temple",
+                                             "/NPCLibrary/NPCs/SuntanSpecialist/NPCLibrary_Conversation_SuntanSpecialist", "/NPCLibrary/NPCs/StageSlayer/NPCLibrary_Conversation_StageSlayer",
+                                             "/NPCLibrary/NPCs/Splode/Splode/NPCLibrary_Conversation_Splode", "/NPCLibrary/NPCs/Sparkplug/Sparkplug/NPCLibrary_Conversation_Sparkplug",
+                                             "/NPCLibrary/NPCs/SnowSniper/SnowSniper/NPCLibrary_Conversation_SnowSniper", "/NPCLibrary/NPCs/SlurpJonesy/NPCLibrary_Conversation_SlurpJonesy",
+                                             "/NPCLibrary/NPCs/Shade/Shade/NPCLibrary_Conversation_Shade", "/NPCLibrary/NPCs/SashSeargent/NPCLibrary_Conversation_SashSeargent",
+                                             "/NPCLibrary/NPCs/Rex/NPCLibrary_Conversation_Rex", "/NPCLibrary/NPCs/Remedy/Remedy/NPCLibrary_Conversation_Remedy",
+                                             "/NPCLibrary/NPCs/Raptor/Raptor/NPCLibrary_Conversation_Raptor", "/NPCLibrary/NPCs/Ragnarok/Ragnarok/NPCLibrary_Conversation_Ragnarok",
+                                             "/NPCLibrary/NPCs/PowerChord/PowerChord/NPCLibrary_Conversation_PowerChord", "/NPCLibrary/NPCs/Outcast/Outcast/NPCLibrary_Conversation_Outcast",
+                                             "/NPCLibrary/NPCs/Obsidian/Obsidian/NPCLibrary_Conversation_Obsidian", "/NPCLibrary/NPCs/Kyle/Kyle/NPCLibrary_Conversation_Kyle",
+                                             "/NPCLibrary/NPCs/Jules/Jules/NPCLibrary_Conversation_Jules", "/NPCLibrary/NPCs/JonesyTheFirst/JonesyTheFirst/NPCLibrary_Conversation_JonesyTheFirst",
+                                             "/NPCLibrary/NPCs/Jekyll/Jekyll/NPCLibrary_Conversation_Jekyll", "/NPCLibrary/NPCs/GutBomb/GutBomb/NPCLibrary_Conversation_GutBomb",
+                                             "/NPCLibrary/NPCs/GrillSeargent/GrillSeargent/NPCLibrary_Conversation_GrillSeargent", "/NPCLibrary/NPCs/GoldenSkeleton/NPCLibrary_Conversation_GoldenSkeleton",
+                                             "/NPCLibrary/NPCs/FarmerSteel/FarmerSteel/NPCLibrary_Conversation_FarmerSteel", "/NPCLibrary/NPCs/Dummy/Dummy/NPCLibrary_Conversation_Dummy",
+                                             "/NPCLibrary/NPCs/DinoHunter/DinoHunter/NPCLibrary_Conversation_DinoHunter", "/NPCLibrary/NPCs/Deadfire/Deadfire/NPCLibrary_Conversation_Deadfire",
+                                             "/NPCLibrary/NPCs/CubeThief/CubeThief/NPCLibrary_Conversation_CubeNinja", "/NPCLibrary/NPCs/Crustina/Crustina/NPCLibrary_Conversation_Crustina",
+                                             "/NPCLibrary/NPCs/Cole/Cole/NPCLibrary_Conversation_Cole", "/NPCLibrary/NPCs/Cobb/Cobb/NPCLibrary_Conversation_Cobb",
+                                             "/NPCLibrary/NPCs/ChickenWarrior/ChickenWarrior/NPCLibrary_Conversation_ChickenWarrior", "/NPCLibrary/NPCs/CastawayJonesy/CastawayJonesy/NPCLibrary_Conversation_CastawayJonesy",
+                                             "/NPCLibrary/NPCs/Cabbie/Cabbie/NPCLibrary_Conversation_Cabbie", "/NPCLibrary/NPCs/Bushranger/Bushranger/NPCLibrary_Conversation_Bushranger",
+                                             "/NPCLibrary/NPCs/Burnout/Burnout/NPCLibrary_Conversation_Burnout", "/NPCLibrary/NPCs/BunkerJonesy/BunkerJonesy/NPCLibrary_Conversation_BunkerJonesy",
+                                             "/NPCLibrary/NPCs/Blaze/Blaze/NPCLibrary_Conversation_Blaze", "/NPCLibrary/NPCs/Blackheart/Blackheart/NPCLibrary_Conversation_Blackheart",
+                                             "/NPCLibrary/NPCs/BigChuggus/BigChuggus/NPCLibrary_Conversation_BigChuggus", "/NPCLibrary/NPCs/BeefBoss/BeefBoss_Generic/NPCLibrary_Conversation_BeefBossGeneric",
+                                             "/NPCLibrary/NPCs/BeefBoss/BeefBoss/NPCLibrary_Conversation_BeefBoss", "/NPCLibrary/NPCs/Bandolette/Bandolette/NPCLibrary_Conversation_Bandolette",
+                                             "/NPCLibrary/NPCs/NPCLibrary_Conversation_VendingMachine", "/NPCLibrary/NPCs/NPCLibrary_Conversation_UpgradeBench",
+                                             "/NPCLibrary/NPCs/NPCLibrary_Conversation_Printer", "/NPCLibrary/NPCs/NPCLibrary_Conversation_BountyBoard", "/NPCLibrary/ConversationsShared/Shared_Conversation_Quests",
+                                             "/NPCLibrary/ConversationsShared/Shared_Conversation_Services", "/BattlepassS16/QuestActors/Conversations/Shared_Conversation_TheSpire_Joneses",
+                                             "/BattlepassS16/QuestActors/Conversations/Shared_Conversation_TheSpire_NewManagement", "/BattlepassS16/QuestActors/Conversations/Shared_Conversation_TheSpire_CubeNinja",
+                                             "/BattlepassS16/QuestActors/Conversations/Shared_Conversation_TheSpire_DinoHunter" };
+        std::vector<std::string> Paths;
+        if (VersionInfo.FortniteVersion >= 16.0)
         {
-            auto Path = std::string("/BattlepassS15/Conversations/") + Name + "." + Name;
+            for (auto Name : Databases16)
+            {
+                std::string Path = Name;
+                Paths.push_back(Path + "." + Path.substr(Path.rfind('/') + 1));
+            }
+        }
+        else
+        {
+            for (auto Name : Databases)
+                Paths.push_back(std::string("/BattlepassS15/Conversations/") + Name + "." + Name);
+        }
+        std::string Missing;
+        for (auto& Path : Paths)
+        {
             auto Database = (UObject*)FindObject<UObject>(std::wstring(Path.begin(), Path.end()).c_str());
             if (Database && Database->IsA(T.Database))
                 AddDatabase(Database);
             else
-                Missing += std::string(Name) + " ";
+                Missing += Path.substr(Path.rfind('.') + 1) + " ";
         }
         for (int32 i = 0; i < TUObjectArray::Num(); i++)
         {

@@ -614,6 +614,7 @@ void AFortInventory::Remove(FGuid Guid)
 
     auto ItemInstanceIdx = Inventory.ItemInstances.SearchIndex([&](UFortWorldItem* entry) { return entry->ItemEntry.ItemGuid == Guid; });
     auto ItemInstance = Inventory.ItemInstances.Search([&](UFortWorldItem* entry) { return entry->ItemEntry.ItemGuid == Guid; });
+    auto Instance = ItemInstance ? *ItemInstance : nullptr;
 
     if (ItemEntryIdx == -1 || ItemInstanceIdx == -1)
     {
@@ -629,8 +630,6 @@ void AFortInventory::Remove(FGuid Guid)
         Inventory.ReplicatedEntries.Remove(ItemEntryIdx, FFortItemEntry::Size());
     if (ItemInstanceIdx != -1)
         Inventory.ItemInstances.Remove(ItemInstanceIdx);
-
-    auto Instance = ItemInstance ? *ItemInstance : nullptr;
 
     auto PlayerController = (AFortPlayerControllerAthena*)Owner;
     if (VersionInfo.FortniteVersion < 3 && ItemEntryIdx != -1)

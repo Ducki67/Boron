@@ -69,7 +69,7 @@ struct GameRuleConfig
     static inline auto bAutoRestart = false;
     static inline auto bKeepInventory = false;
     static inline auto bCreativeExtraAmmo = false; // this is buggy btw! fuckes inventory up a bit (dont use it unless u wanna see the bug)
-    static inline auto bLWM_AI = false; // NPC + boss AI logic (move/shoot). Bosses/NPCs/henchmen always SPAWN (with guns + drops); turn this off on weak PCs or for less lag while testing
+    static inline auto bLWM_AI = true; // NPC + boss AI logic (move/shoot). Bosses/NPCs/henchmen always SPAWN (with guns + drops); turn this off on weak PCs or for less lag while testing
    
     static inline auto bCH5AutoPickupWeapons = false; //temp shit dont use it its ass
 };
@@ -101,7 +101,7 @@ struct FConfig
     
 
     // Core gamemodes (s30 below 
-    // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo";
+     static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo";
 
     ///static inline wchar_t Playlist[9999] = L"/BlueCheese/Playlists/Playlist_ShowdownAlt_BlueCheese_Trios.Playlist_ShowdownAlt_BlueCheese_Trios"; // Bugha's LateGame Arena trios (17.20)
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Showdown/Playlist_ShowdownAlt_Solo.Playlist_ShowdownAlt_Solo"; // ch1-4 arena
@@ -116,6 +116,14 @@ struct FConfig
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Tutorial/Playlist_Tutorial_1.Playlist_Tutorial_1"; // tutorial  (works lmao)
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/gg/Playlist_Gg_Reverse.Playlist_Gg_Reverse"; // gungame (maybe ill add this but dont ask bruh :/ )
     // static inline wchar_t Playlist[9999] = L"/Melt/Playlists/Playlist_Melt_Squads.Playlist_Melt_Squads"; // 29.40 Midas' Floor is lava (broken mme or sum)
+    /// 16.40 LTMs (untested)
+    // static inline wchar_t Playlist[9999] = L"/Rebirth/Playlists/Playlist_Rebirth_Solo.Playlist_Rebirth_Solo"; // Comeback (16.40)
+    // static inline wchar_t Playlist[9999] = L"/Titanium/Playlists/Playlist_Titanium_Solo.Playlist_Titanium_Solo"; // Rags to Riches (16.40 path)
+    // static inline wchar_t Playlist[9999] = L"/Nickel/Playlists/Playlist_Nickel_Evergreen_Solo.Playlist_Nickel_Evergreen_Solo"; // Pickaxe Frenzy (16.40)
+    // static inline wchar_t Playlist[9999] = L"/Nickel/Playlists/Playlist_Nickel_Trios.Playlist_Nickel_Trios"; // Nickel Trios arena (16.40) // idfk what this shit is tho
+    // static inline wchar_t Playlist[9999] = L"/Melt/Playlists/Playlist_Melt_Solo.Playlist_Melt_Solo"; // The Floor is Lava (16.40)
+    // static inline wchar_t Playlist[9999] = L"/ArsenicCore/Playlists/Playlist_ArsenicCore_Solo.Playlist_ArsenicCore_Solo"; // Fortnitemares Midas + shadows (16.40) // Huh?????
+    // static inline wchar_t Playlist[9999] = L"/Daybreak/Playlists/Playlist_Daybreak_PE_Squads.Playlist_Daybreak_PE_Squads"; // Impossible Escape PvE (16.40)
 
  
     
@@ -123,7 +131,7 @@ struct FConfig
     
    /// high version playlists (s30+)
 
-   static inline wchar_t Playlist[9999] = L"/BRPlaylists/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo"; // 31.xx+ Main BR
+   // static inline wchar_t Playlist[9999] = L"/BRPlaylists/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo"; // 31.xx+ Main BR
    // static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_BlastBerrySquad.Playlist_BlastBerrySquad"; // 30.20 and 30.40 Reload Venture map (this can be Squads and Trios only)
    // static inline wchar_t Playlist[9999] = L"/ToadJam/Athena/Playlists/ToadJam/Playlist_ToadJam_Sm.Playlist_ToadJam_Sm"; // Day of Doom LTM (testing, 31.20, 31.30)
    // static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_PunchBerrySolo.Playlist_PunchBerrySolo";  // 32.xx+ Oasis Reload map
@@ -154,7 +162,7 @@ struct FConfig
     static inline auto Port = 7777; // can be 7777  or 7778
     static inline auto bEnableIris = true;
     static inline constexpr auto bGUI = true; // for now dont use this for  s30+  versions it might crash teh build more than it should
-    static inline constexpr auto bCustomCrashReporter = false;
+    static inline constexpr auto bCustomCrashReporter = true;
     static inline constexpr auto bUseStdoutLog = true;
     static inline constexpr auto bSaveConsoleLog = true; // for 31.41 use this to check for some logs Boron_Console.txt  btw) 
 

@@ -5393,9 +5393,16 @@ void AFortPlayerControllerAthena::ServerCraftSchematic(UObject* Context, FFrame&
 {
     FString ItemId;
     int32 PostCraftSlot;
+    int32 CraftAmount = 1;
+    uint8 RequestedTier = 0;
     bool bIsQuickCrafted;
     Stack.StepCompiledIn(&ItemId);
     Stack.StepCompiledIn(&PostCraftSlot);
+    if (VersionInfo.FortniteVersion >= 16.0 && VersionInfo.FortniteVersion < 17.0)
+    {
+        Stack.StepCompiledIn(&CraftAmount);
+        Stack.StepCompiledIn(&RequestedTier);
+    }
     Stack.StepCompiledIn(&bIsQuickCrafted);
     Stack.IncrementCode();
 
