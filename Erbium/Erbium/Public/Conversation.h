@@ -59,14 +59,14 @@ namespace NPCConversation
     constexpr int32 OptionTags = 0x18;
     constexpr int32 OptionType = 0x38;
     constexpr int32 OptionNode = 0x40;
-    constexpr int32 MessageSize = 0x38;
+    inline int32 MessageSize = 0x38;
     constexpr int32 MessageName = 0x8;
     constexpr int32 MessageText = 0x20;
-    constexpr int32 PayloadSize = 0x68;
-    constexpr int32 PayloadParticipants = 0x38;
-    constexpr int32 PayloadNode = 0x48;
-    constexpr int32 PayloadOptions = 0x58;
-    constexpr int32 ResultSize = 0x70;
+    inline int32 PayloadSize = 0x68;
+    inline int32 PayloadParticipants = 0x38;
+    inline int32 PayloadNode = 0x48;
+    inline int32 PayloadOptions = 0x58;
+    inline int32 ResultSize = 0x70;
     constexpr int32 ResultChoice = 0x8;
     constexpr int32 ResultMessage = 0x38;
     constexpr int32 EntrySize = 0x10;
@@ -1204,8 +1204,8 @@ namespace NPCConversation
                 auto Candidate = Candidates.Data + (uint64)i * Stride;
                 if (((FRawArray*)(Candidate + 0x20))->Num > 0 || TextEmpty(Candidate))
                     continue;
-                float Priority = Stride == CandidateSize ? ((FScalableFloat*)(Candidate + 0x30))->Evaluate() : 0.f;
-                float Weight = Stride == CandidateSize ? ((FScalableFloat*)(Candidate + 0x58))->Evaluate() : 1.f;
+                float Priority = Stride != CandidateSizeLegacy ? ((FScalableFloat*)(Candidate + 0x30))->Evaluate() : 0.f;
+                float Weight = Stride != CandidateSizeLegacy ? ((FScalableFloat*)(Candidate + 0x58))->Evaluate() : 1.f;
                 if (Priority > BestPriority)
                 {
                     BestPriority = Priority;
@@ -1547,13 +1547,13 @@ namespace NPCConversation
 
     inline UDataTable* SalesTable()
     {
-        static auto Table = NPCTable(VersionInfo.FortniteVersion >= 16.0 ? L"/NPCLibrary/DataTables/NPCSales.NPCSales" : L"/BattlepassS15/Balance/DataTables/NPCSales.NPCSales");
+        static auto Table = NPCTable(VersionInfo.FortniteVersion >= 16.0 ? (VersionInfo.FortniteVersion >= 18.0 ? L"/BattlePassS18/DataTables/NPCSales_S18.NPCSales_S18" : L"/NPCLibrary/DataTables/NPCSales.NPCSales") : L"/BattlepassS15/Balance/DataTables/NPCSales.NPCSales");
         return Table;
     }
 
     inline UDataTable* ServicesTable()
     {
-        static auto Table = NPCTable(VersionInfo.FortniteVersion >= 16.0 ? L"/NPCLibrary/DataTables/NPCServices.NPCServices" : L"/BattlepassS15/Balance/DataTables/NPCServices.NPCServices");
+        static auto Table = NPCTable(VersionInfo.FortniteVersion >= 16.0 ? (VersionInfo.FortniteVersion >= 18.0 ? L"/BattlePassS18/DataTables/NPCServices_S18.NPCServices_S18" : L"/NPCLibrary/DataTables/NPCServices.NPCServices") : L"/BattlepassS15/Balance/DataTables/NPCServices.NPCServices");
         return Table;
     }
 
@@ -1562,7 +1562,7 @@ namespace NPCConversation
         auto& O = Offs();
         auto Character = At<UObject*>(Comp, O.CharacterData);
         auto& Table = At<UDataTable*>(Comp, O.SalesTable);
-        if (!Table)
+        if (!Table || (VersionInfo.FortniteVersion >= 18.0 && SalesTable()))
             Table = SalesTable();
         auto& Rows = At<FRawArray>(Comp, O.SupportedSales);
         if (!Character || !Table || Rows.Num > 0)
@@ -1589,22 +1589,22 @@ namespace NPCConversation
         auto& O = Offs();
         auto Character = At<UObject*>(Comp, O.CharacterData);
         auto& Table = At<UDataTable*>(Comp, O.ServicesTable);
-        if (!Table)
+        if (!Table || (VersionInfo.FortniteVersion >= 18.0 && ServicesTable()))
             Table = ServicesTable();
         auto& Tags = At<FRawArray>(Comp, O.SupportedServices);
         if (!Character || !Table || Tags.Num > 0)
             return;
         auto NPCTag = At<uint64>(Character, O.CharacterTag);
         auto MaxServices = At<int32>(Comp, O.MaxServices);
+        std::vector<uint8*> Rolled;
         for (auto& [RowName, Row] : Table->GetRowMap())
+            if (Row && *(uint64*)(Row + 0x8) == NPCTag && ((float)rand() / ((float)RAND_MAX + 1.f)) < *(float*)(Row + 0x10))
+                Rolled.push_back(Row);
+        std::stable_sort(Rolled.begin(), Rolled.end(), [](uint8* A, uint8* B) { return *(int32*)(A + 0x1c) > *(int32*)(B + 0x1c); });
+        for (auto Row : Rolled)
         {
-            if (!Row || *(uint64*)(Row + 0x8) != NPCTag)
-                continue;
             if (MaxServices > 0 && Tags.Num >= MaxServices)
                 break;
-            float Chance = *(float*)(Row + 0x10);
-            if (Chance > 0.f && Chance < 1.f && ((float)rand() / (float)RAND_MAX) > Chance)
-                continue;
             auto Service = *(uint64*)(Row + 0x14);
             bool bDuplicate = false;
             for (int32 i = 0; i < Tags.Num && !bDuplicate; i++)
@@ -1623,11 +1623,12 @@ namespace NPCConversation
         auto CompClass = At<const UClass*>(SpawnerConversation, O.SpawnerCompClass);
         if (!CompClass)
             return;
-        auto Comp = (UObject*)Pawn->GetComponentByClass((UClass*)CompClass);
+        AActor* Owner = (AActor*)Pawn;
+        auto Comp = (UObject*)Owner->GetComponentByClass((UClass*)CompClass);
         bool bAdded = false;
         if (!Comp)
         {
-            Comp = AddComponent(Pawn, CompClass, true);
+            Comp = AddComponent(Owner, CompClass, true);
             bAdded = Comp != nullptr;
         }
         if (!IsA(Comp, T.NPCComp))
@@ -1642,6 +1643,13 @@ namespace NPCConversation
         At<uint64>(Comp, O.SelfTag) = At<uint64>(SpawnerConversation, O.SpawnerSelfTag);
         if (auto Character = At<UObject*>(SpawnerConversation, O.SpawnerCharacterData))
             At<UObject*>(Comp, O.CharacterData) = Character;
+        if (VersionInfo.FortniteVersion >= 18.0)
+        {
+            static auto ProviderOff = (int)Comp->GetOffset("ServiceProviderIDTag");
+            auto Character = At<UObject*>(Comp, O.CharacterData);
+            if (ProviderOff != -1 && Character && !At<uint64>(Comp, ProviderOff))
+                At<uint64>(Comp, ProviderOff) = At<uint64>(Character, O.CharacterTag);
+        }
         At<uint64>(Comp, O.CollisionProfile) = At<uint64>(SpawnerConversation, O.SpawnerCollisionProfile);
         memcpy((uint8*)Comp + O.BoxExtent, (uint8*)SpawnerConversation + O.SpawnerBoxExtent, 12);
         memcpy((uint8*)Comp + O.BoxOffset, (uint8*)SpawnerConversation + O.SpawnerBoxOffset, 12);
@@ -1656,9 +1664,14 @@ namespace NPCConversation
                    ServicesTable ? ServicesTable->Name.ToString().c_str() : "null", At<FRawArray>(Comp, O.SupportedServices).Num);
         }
         if (bAdded)
-            FinishComponent(Pawn, Comp);
+            FinishComponent(Owner, Comp);
         SetBool(Comp, "bCanStartConversation", true);
         CallSingle(Comp, "OnRep_CanStartConversation", nullptr, 0);
+        if (VersionInfo.FortniteVersion >= 18.0)
+        {
+            bool bOn = true;
+            CallSingle(Comp, "SetIsReplicated", &bOn, 1);
+        }
     }
 
     inline void MergeLootTables()
@@ -1957,7 +1970,7 @@ namespace NPCConversation
         if (T.bInitialized)
             return;
         T.bInitialized = true;
-        if (VersionInfo.FortniteVersion < 15.0 || VersionInfo.FortniteVersion >= 17.0 || FVector::Size() != 0xc)
+        if (VersionInfo.FortniteVersion < 15.0 || VersionInfo.FortniteVersion >= 19.0 || FVector::Size() != 0xc)
             return;
 
         T.Database = FindClass("ConversationDatabase");
@@ -1998,6 +2011,15 @@ namespace NPCConversation
             return;
         }
 
+        {
+            int32 Grow = StructSize("ClientConversationMessage") == 0x48 ? 0x10 : 0;
+            MessageSize = 0x38 + Grow;
+            PayloadSize = 0x68 + Grow;
+            PayloadParticipants = 0x38 + Grow;
+            PayloadNode = 0x48 + Grow;
+            PayloadOptions = 0x58 + Grow;
+            ResultSize = 0x70 + Grow;
+        }
         struct FExpected
         {
             const char* Name;
@@ -2010,6 +2032,8 @@ namespace NPCConversation
         {
             auto Size = StructSize(Expected.Name);
             if (Expected.Size == CandidateSize && Size == CandidateSizeLegacy && VersionInfo.FortniteVersion < 15.5)
+                T.CandidateStride = Size;
+            else if (Expected.Size == CandidateSize && Size == 0x90 && VersionInfo.FortniteVersion >= 18.0)
                 T.CandidateStride = Size;
             else if (Size != Expected.Size)
             {
@@ -2130,6 +2154,59 @@ namespace NPCConversation
             {
                 std::string Path = Name;
                 Paths.push_back(Path + "." + Path.substr(Path.rfind('/') + 1));
+            }
+            static const char* Databases17[] = { "/NPCLibrary/NPCs/Abstrakt/Abstrakt/NPCLibrary_Conversation_Abstrakt",
+                                                 "/NPCLibrary/NPCs/AlienSummer/AlienSummer/NPCLibrary_Conversation_AlienSummer",
+                                                 "/NPCLibrary/NPCs/AlienTrooper/AlienTrooper/NPCLibrary_Conversation_AlienTrooper",
+                                                 "/NPCLibrary/NPCs/Antique/Antique/NPCLibrary_Conversation_Antique",
+                                                 "/NPCLibrary/NPCs/Believer/Believer/NPCLibrary_Conversation_Believer",
+                                                 "/NPCLibrary/NPCs/Dreamflower/Dreamflower/NPCLibrary_Conversation_Dreamflower",
+                                                 "/NPCLibrary/NPCs/Faux/Faux/NPCLibrary_Conversation_Faux",
+                                                 "/NPCLibrary/NPCs/Hayseed/Hayseed/NPCLibrary_Conversation_Hayseed",
+                                                 "/NPCLibrary/NPCs/Marigold/Marigold/NPCLibrary_Conversation_Marigold",
+                                                 "/NPCLibrary/NPCs/Maven/Maven/NPCLibrary_Conversation_Maven",
+                                                 "/NPCLibrary/NPCs/Rickus/Rickus/NPCLibrary_Conversation_Rickus",
+                                                 "/NPCLibrary/NPCs/Riot/Riot/NPCLibrary_Conversation_Riot",
+                                                 "/NPCLibrary/NPCs/Rook/Rook/NPCLibrary_Conversation_Rook",
+                                                 "/NPCLibrary/NPCs/SpecialForces/SpecialForces/NPCLibrary_Conversation_SpecialForces",
+                                                 "/NPCLibrary/NPCs/SwampStalker/SwampStalker/NPCLibrary_Conversation_SwampStalker",
+                                                 "/NPCLibrary/NPCs/Emperor/Emperor/NPCLibrary_Conversation_Emperor",
+                                                 "/NPCLibrary/NPCs/HenchmanSummer/HenchmanSummer/NPCLibrary_Conversation_HenchmanSummer",
+                                                 "/NPCLibrary/NPCs/NPCLibrary_Conversation_FirstAid",
+                                                 "/NPCLibrary/NPCs/NPCLibrary_Conversation_Payphone",
+                                                 "/BattlepassS17/Conversations/Shared_Conversation_Week1",
+                                                 "/BattlepassS17/Conversations/Shared_Conversation_Week2",
+                                                 "/BattlepassS17/Conversations/Shared_Conversation_Week3",
+                                                 "/BattlepassS17/Conversations/Shared_Conversation_Week5",
+                                                 "/BattlepassS17/Conversations/Shared_Conversation_Week8_Impostor",
+                                                 "/BattlepassS17/Conversations/Shared_Conversation_Week8_Brawny",
+                                                 "/BattlepassS17/Conversations/Shared_Conversation_Mindwipe",
+                                                 "/BattlepassS17/Conversations/Shared_Conversation_Sloan_Payphones" };
+            if (VersionInfo.FortniteVersion >= 17.0)
+                for (auto Name : Databases17)
+                {
+                    std::string Path = Name;
+                    Paths.push_back(Path + "." + Path.substr(Path.rfind('/') + 1));
+                }
+            static const char* Tandems18[] = { "BabaYaga", "BigMouth", "BistroAstronaut", "Brat", "CerealBox", "CritterManiac", "CritterRaven", "DarkJonesy", "Dire",
+                                               "Division", "Dusk", "Ember", "GhostHunter", "GrimFable", "Hush", "Kitbash", "Madcap", "Malcore", "MoistyMerman", "Nitehare",
+                                               "Penny", "Pitstop", "Prisoner", "PunkKoi", "Ragsy", "Raven", "RustLord", "ScubaJonesy", "ShadowOps", "Sledgehammer",
+                                               "Sorana", "SpaceChimp", "TeriyakiFishToon", "Tsuki", "Wrath", "York", "EightBall" };
+            static const char* Databases18[] = { "/HeadbandAi/HeadbandK/Conversation/NPCLibrary_Conversation_HeadbandK",
+                                                 "/CorruptionNPC/NPCs/SmallBag/SmallBag/NPCLibrary_Conversation_SmallBag",
+                                                 "/NPCLibrary/NPCs/NPCLibrary_Conversation_Cashier", "/NPCLibrary/NPCs/NPCLibrary_Conversation_Cashier_Quests",
+                                                 "/NPCLibrary/NPCs/NPCLibrary_Conversation_Payphone_Quests", "/NPCLibrary/NPCs/NPCLibrary_Conversation_VendingMachine_Weapons",
+                                                 "/NPCLibrary/NPCs/NPCLibrary_Conversation_VendingMachine_Medical", "/NPCLibrary/NPCs/NPCLibrary_Conversation_VendingMachine_Malfunctioning",
+                                                 "/BattlePassS18/Conversations/Shared_Conversation_S18_Fortnitemares" };
+            if (VersionInfo.FortniteVersion >= 18.0)
+            {
+                for (auto Name : Tandems18)
+                    Paths.push_back(std::string("/NPCLibrary/NPCs/") + Name + "/" + Name + "/NPCLibrary_Conversation_" + Name + ".NPCLibrary_Conversation_" + Name);
+                for (auto Name : Databases18)
+                {
+                    std::string Path = Name;
+                    Paths.push_back(Path + "." + Path.substr(Path.rfind('/') + 1));
+                }
             }
         }
         else

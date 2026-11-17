@@ -1,4 +1,5 @@
 #include "pch.h"
+#include <share.h>
 #include "../../Engine/Public/NetDriver.h"
 #include "../../Erbium/Plugins/CrashReporter/Public/CrashReporter.h"
 #include "../../FortniteGame/Public/FortInventory.h"
@@ -99,9 +100,14 @@ void Main()
     {
         if constexpr (FConfig::bUseStdoutLog)
         {
-            FILE* s;
-            freopen_s(&s, "stdout.log", "w", stdout);
-            _dup2(_fileno(stdout), _fileno(stderr));
+            fflush(stdout);
+            FILE* s = _fsopen("stdout.log", "w", _SH_DENYNO);
+            if (s)
+            {
+                _dup2(_fileno(s), _fileno(stdout));
+                _dup2(_fileno(s), _fileno(stderr));
+                setvbuf(stdout, nullptr, _IONBF, 0);
+            }
         }
 
         CreateThread(0, 0, (LPTHREAD_START_ROUTINE)GUI::Init, 0, 0, 0);

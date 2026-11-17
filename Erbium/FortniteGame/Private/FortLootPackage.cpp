@@ -138,7 +138,7 @@ void UFortLootPackage::SetupLDSForPackage(TArray<FFortItemEntry*>& LootDrops, SD
     }
 
     static int LDSDiag = 0;
-    bool bLDSDiag = VersionInfo.FortniteVersion >= 32 && LDSDiag++ < 24;
+    bool bLDSDiag = (VersionInfo.FortniteVersion >= 32 || (VersionInfo.FortniteVersion == 17.20 && TierGroup.ToString().contains("SupplyDrop"))) && LDSDiag++ < 60;
     if (bLDSDiag)
         BORON_LOG("[Boron][LDS] pkg=%s cat=%d all=%d groups=%d\n", Package.ToString().c_str(), i, LootPackageMap[Package.ComparisonIndex].Num(), LPGroups.Num());
 
@@ -164,6 +164,8 @@ void UFortLootPackage::SetupLDSForPackage(TArray<FFortItemEntry*>& LootDrops, SD
 
     if (!ItemDefinition)
         return;
+    if (bLDSDiag)
+        BORON_LOG("[Boron][LDS]   item=%s x%d\n", ItemDefinition->Name.ToString().c_str(), PackageCount);
 
     FFortItemEntry* AmmoEntry = nullptr;
 
@@ -474,7 +476,7 @@ void UFortLootPackage::ChooseLootForContainer(TArray<FFortItemEntry*>& LootDrops
             return {};*/
 
     static int CLDiag = 0;
-    if (VersionInfo.FortniteVersion >= 32 && CLDiag++ < 8)
+    if ((VersionInfo.FortniteVersion >= 32 || (VersionInfo.FortniteVersion == 17.20 && TierGroup.ToString().contains("SupplyDrop"))) && CLDiag++ < 8)
         BORON_LOG("[Boron][LDS] tierPkg=%s num=%.2f drops=%d cats=%d min0=%d\n", LootTierData->LootPackage.ToString().c_str(), LootTierData->NumLootPackageDrops, DropCount, (int)NumMap.size(), NumMap.size() ? NumMap[0] : -1);
 
     LootDrops.Reserve((int)DropCount);

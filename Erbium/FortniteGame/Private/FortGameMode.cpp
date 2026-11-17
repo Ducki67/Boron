@@ -145,6 +145,37 @@ void SetupPlaylist(AFortGameMode* GameMode, AFortGameStateAthena* GameState)
             }
             BORON_LOG("[Boron][AI] null AIServices dropped=%d settingsCls=%p overrideCls=%p\n", Swept, SettingsClass, OverrideClass);
         }
+        if (VersionInfo.FortniteVersion >= 18.0 && VersionInfo.FortniteVersion < 19.0)
+        {
+            auto PlayerBotsClass = (UClass*)FindClass("AthenaAIServicePlayerBots");
+            auto Settings = Playlist->HasAISettings() ? (UAthenaAISettings*)Playlist->AISettings.Get() : nullptr;
+            auto AddPlayerBots = [&](UAthenaAISettings* S) -> int
+            {
+                if (!S || !PlayerBotsClass || !S->HasAIServices())
+                    return -1;
+                auto& Services = S->AIServices;
+                int Had = 0;
+                for (int32 i = 0; i < Services.NumElements; i++)
+                    Had |= Services.Data[i] == PlayerBotsClass;
+                if (!Had)
+                    Services.Add(PlayerBotsClass);
+                BORON_LOG("[Boron][AI] 18.x AISettings=%s playerbots=%p had=%d\n", S->Name.ToString().c_str(), (void*)PlayerBotsClass, Had);
+                return Had;
+            };
+            int Patched = 0;
+            if (Settings)
+                Patched += AddPlayerBots(Settings) >= 0;
+            else if (auto SettingsCls = UAthenaAISettings::StaticClass())
+            {
+                for (int i = 0; i < TUObjectArray::Num(); i++)
+                {
+                    auto Object = (UObject*)TUObjectArray::GetObjectByIndex(i);
+                    if (Object && Object->Class && !Object->IsDefaultObject() && Object->IsA(SettingsCls))
+                        Patched += AddPlayerBots((UAthenaAISettings*)Object) >= 0;
+                }
+            }
+            BORON_LOG("[Boron][AI] 18.x playerbots service patched into %d AISettings (playlist settings %s)\n", Patched, Settings ? "loaded" : "not loaded");
+        }
         if (GameRuleConfig::bForceRespawns)
         {
             if (Playlist->HasbRespawnInAir())
@@ -1427,6 +1458,25 @@ void AFortGameMode::SpawnDefaultPawnFor(UObject* Context, FFrame& Stack, AActor*
                 else
                     GameState->MapInfo->SupplyDropClass = SupplyDropClass;
             }
+
+            if (VersionInfo.FortniteVersion == 17.20 && GameState->MapInfo->HasSupplyDropInfoList())
+            {
+                static bool bPlaylistDrops = false;
+                auto DropPlaylist = GameState->HasCurrentPlaylistInfo() ? GameState->CurrentPlaylistInfo.BasePlaylist : nullptr;
+                if (!bPlaylistDrops && DropPlaylist && DropPlaylist->HasSupplyDropInfoList() && DropPlaylist->SupplyDropInfoList.Num() > 0)
+                {
+                    bPlaylistDrops = true;
+                    auto& DropList = GameState->MapInfo->SupplyDropInfoList;
+                    for (auto& Info : DropList)
+                        BORON_LOG("[Boron][SupplyDrop] map before: %s\n", Info ? Info->Name.ToString().c_str() : "null");
+                    DropList.ResetNum();
+                    for (auto& Soft : DropPlaylist->SupplyDropInfoList)
+                        if (auto Info = (UFortSupplyDropInfo*)Soft.Get())
+                            DropList.Add(Info);
+                    for (auto& Info : DropList)
+                        BORON_LOG("[Boron][SupplyDrop] playlist: %s\n", Info ? Info->Name.ToString().c_str() : "null");
+                }
+            }
         }
     }
     else
@@ -1865,11 +1915,238 @@ uint8_t AFortGameMode::PickTeam(AFortGameMode* GameMode, uint8_t PreferredTeam, 
     return ret;
 }
 
+static std::string PoiKey(const std::string& Text)
+{
+    std::string Out;
+    for (auto C : Text)
+        if ((unsigned char)C < 128 && isalnum((unsigned char)C))
+            Out += (char)tolower((unsigned char)C);
+    return Out;
+}
+
+static bool FindPoiVolumeByTag(const std::string& TagName, FVector& Out)
+{
+    static auto ContainerClass = FindClass("BuildingContainer");
+    if (!ContainerClass)
+        return false;
+    auto Want = PoiKey(TagName.substr(TagName.rfind('.') + 1));
+    if (Want == "dirtydocks")
+        Want = "dirty";
+    else if (Want == "retailrow")
+        Want = "retail";
+    else if (Want == "mountainmeadow")
+        Want = "mountainmeadows";
+    TArray<AActor*> Containers;
+    Utils::GetAll<AActor>(ContainerClass, Containers);
+    double SumX = 0, SumY = 0, SumZ = 0;
+    int Count = 0;
+    for (int i = 0; i < Containers.Num(); i++)
+    {
+        auto Container = Containers[i];
+        auto Level = Container ? Container->Outer : nullptr;
+        auto LevelWorld = Level ? Level->Outer : nullptr;
+        if (!LevelWorld)
+            continue;
+        auto LevelName = PoiKey(LevelWorld->Name.ToString().c_str());
+        if (LevelName.find("apollopoi") != 0 || LevelName.find(Want) == std::string::npos)
+            continue;
+        auto Loc = Container->K2_GetActorLocation();
+        SumX += Loc.X;
+        SumY += Loc.Y;
+        SumZ += Loc.Z;
+        Count++;
+    }
+    Containers.Free();
+    if (Count == 0)
+        return false;
+    Out.X = (float)(SumX / Count);
+    Out.Y = (float)(SumY / Count);
+    Out.Z = (float)(SumZ / Count);
+    return true;
+}
+
+static void CenterSafeZonesOnPoiMutator(TArray<FVector>& Locations)
+{
+    static auto MutatorClass = FindClass("FortAthenaMutator_CenterSafezonesOnPOIs");
+    static auto TagListStruct = (const UStruct*)TUObjectArray::FindObject("TaggedPOIList", 0x10, nullptr);
+    static auto TagEntryStruct = (const UStruct*)TUObjectArray::FindObject("CenterOnTaggedPOI", 0x10, nullptr);
+    static auto LocListStruct = (const UStruct*)TUObjectArray::FindObject("LocationPOIList", 0x10, nullptr);
+    static auto LocEntryStruct = (const UStruct*)TUObjectArray::FindObject("CenterOnLocationPOI", 0x10, nullptr);
+    if (!MutatorClass || Locations.Num() == 0)
+        return;
+    TArray<AActor*> Mutators;
+    Utils::GetAll<AActor>(MutatorClass, Mutators);
+    auto Mutator = Mutators.Num() > 0 ? Mutators[0] : nullptr;
+    Mutators.Free();
+    if (!Mutator)
+        return;
+
+    struct FRawArray { uint8* Data; int32 Num; int32 Max; };
+    struct FKind { const UStruct* List; const UStruct* Entry; bool bTagged; };
+    struct FZoneList { int Key; uint8* List; const FKind* Kind; };
+    static const FKind TagKind{ TagListStruct, TagEntryStruct, true };
+    static const FKind LocKind{ LocListStruct, LocEntryStruct, false };
+    std::vector<FZoneList> Keyed;
+    auto Collect = [&](const char* MapName, const FKind* Kind) {
+        if (!Kind->List || !Kind->Entry)
+            return;
+        auto MapOff = Mutator->GetOffset(MapName);
+        int ListSize = Kind->List->GetPropertiesSize();
+        if (MapOff == -1 || ListSize <= 0)
+            return;
+        auto MapBase = (uint8*)Mutator + MapOff;
+        auto& Elements = *(FRawArray*)MapBase;
+        if (*(int32*)(MapBase + 0x34) != 0 || !Elements.Data)
+            return;
+        int ElementSize = (8 + ListSize + 8 + 7) & ~7;
+        for (int e = 0; e < Elements.Num; e++)
+        {
+            auto Element = Elements.Data + e * ElementSize;
+            Keyed.push_back({ *(int32*)Element, Element + 8, Kind });
+        }
+    };
+    Collect("CenterSafezonesOnPOITag", &TagKind);
+    Collect("CenterSafezonesOnLiteralLocation", &LocKind);
+    std::stable_sort(Keyed.begin(), Keyed.end(), [](const FZoneList& A, const FZoneList& B) { return A.Key < B.Key; });
+
+    bool bHavePrev = false;
+    float PrevX = 0.f, PrevY = 0.f;
+    int LastKey = -1;
+    for (auto& Zone : Keyed)
+    {
+        if (Zone.Key < 0 || Zone.Key >= Locations.Num() || Zone.Key == LastKey)
+            continue;
+        auto ListEnabledOff = Zone.Kind->List->GetOffset("Enabled");
+        auto ChanceOff = Zone.Kind->List->GetOffset("ChanceToApply");
+        auto ListOff = Zone.Kind->List->GetOffset("List");
+        auto EntryEnabledOff = Zone.Kind->Entry->GetOffset("Enabled");
+        auto TagOff = Zone.Kind->Entry->GetOffset("TagForPOI");
+        auto LocOff = Zone.Kind->Entry->GetOffset("LocationForPOI");
+        auto RelOff = Zone.Kind->Entry->GetOffset("RelativeToPreviousChosenLocation");
+        auto RadiusOff = Zone.Kind->Entry->GetOffset("WithinRadius");
+        int EntrySize = Zone.Kind->Entry->GetPropertiesSize();
+        if (ListOff == (uint32)-1 || EntrySize <= 0)
+            continue;
+        if (ListEnabledOff != (uint32)-1 && ((FScalableFloat*)(Zone.List + ListEnabledOff))->Evaluate() <= 0.f)
+            continue;
+        if (ChanceOff != (uint32)-1 && (float)rand() / RAND_MAX > ((FScalableFloat*)(Zone.List + ChanceOff))->Evaluate())
+            continue;
+        auto& Entries = *(FRawArray*)(Zone.List + ListOff);
+        std::vector<uint8*> Enabled;
+        for (int i = 0; i < Entries.Num && Entries.Data; i++)
+        {
+            auto Entry = Entries.Data + i * EntrySize;
+            if (EntryEnabledOff == (uint32)-1 || ((FScalableFloat*)(Entry + EntryEnabledOff))->Evaluate() > 0.f)
+                Enabled.push_back(Entry);
+        }
+        std::string Label;
+        FVector Center = Locations.Get(Zone.Key, FVector::Size());
+        uint8* Entry = nullptr;
+        while (!Enabled.empty())
+        {
+            int Pick = rand() % Enabled.size();
+            Entry = Enabled[Pick];
+            Enabled.erase(Enabled.begin() + Pick);
+            if (Zone.Kind->bTagged && TagOff != (uint32)-1)
+            {
+                Label = ((FName*)(Entry + TagOff))->ToString().c_str();
+                if (!Label.empty() && Label != "None" && FindPoiVolumeByTag(Label, Center))
+                    break;
+                BORON_LOG("[Boron][PoiZones] no map label for %s\n", Label.c_str());
+            }
+            else if (!Zone.Kind->bTagged && LocOff != (uint32)-1)
+            {
+                auto Loc = (float*)(Entry + LocOff);
+                bool bRelative = RelOff != (uint32)-1 && ((FScalableFloat*)(Entry + RelOff))->Evaluate() > 0.f;
+                if (!bRelative || bHavePrev)
+                {
+                    Center.X = (bRelative ? PrevX : 0.f) + Loc[0];
+                    Center.Y = (bRelative ? PrevY : 0.f) + Loc[1];
+                    Label = bRelative ? "relative" : "literal";
+                    break;
+                }
+            }
+            Entry = nullptr;
+        }
+        if (!Entry)
+            continue;
+        float Radius = RadiusOff != (uint32)-1 ? ((FScalableFloat*)(Entry + RadiusOff))->Evaluate() : 0.f;
+        float Angle = (float)rand() / RAND_MAX * 6.2831853f;
+        float Dist = (float)rand() / RAND_MAX * Radius;
+        Center.X += cosf(Angle) * Dist;
+        Center.Y += sinf(Angle) * Dist;
+        for (int i = Zone.Key; i < Locations.Num(); i++)
+        {
+            auto& V = Locations.Get(i, FVector::Size());
+            V.X = Center.X;
+            V.Y = Center.Y;
+        }
+        PrevX = Center.X;
+        PrevY = Center.Y;
+        bHavePrev = true;
+        LastKey = Zone.Key;
+        BORON_LOG("[Boron][PoiZones] zone %d %s -> (%.0f,%.0f)\n", Zone.Key, Label.c_str(), (double)Center.X, (double)Center.Y);
+    }
+}
+
 bool AFortGameMode::StartAircraftPhase(AFortGameMode* GameMode, char a2)
 {
+    bool bPoiZonesDone = false;
+    if (VersionInfo.FortniteVersion == 17.20 && GameMode->HasSafeZoneLocations() && GameMode->SafeZoneLocations.Num() > 0)
+    {
+        CenterSafeZonesOnPoiMutator(GameMode->SafeZoneLocations);
+        bPoiZonesDone = true;
+    }
+
     auto Ret = StartAircraftPhaseOG(GameMode, a2);
 
     auto GameState = (AFortGameStateAthena*)GameMode->GameState;
+
+    if (VersionInfo.FortniteVersion == 17.20 && !bPoiZonesDone && GameMode->HasSafeZoneLocations())
+        CenterSafeZonesOnPoiMutator(GameMode->SafeZoneLocations);
+
+    if (VersionInfo.FortniteVersion == 17.20 && GameMode->HasSafeZoneLocations() && GameMode->SafeZoneLocations.Num() > 0 && FindClass("FortAthenaMutator_CenterSafezonesOnPOIs"))
+    {
+        auto Aircraft = GameState->HasAircrafts() ? (GameState->Aircrafts.Num() > 0 ? GameState->Aircrafts[0] : nullptr) : GameState->Aircraft;
+        if (Aircraft)
+        {
+            auto Center = GameMode->SafeZoneLocations.Get(0, FVector::Size());
+            auto Forward = Aircraft->GetActorForwardVector();
+            Forward.Z = 0.f;
+            Forward.Normalize();
+            auto Start = Aircraft->HasFlightInfo() ? Aircraft->FlightInfo.FlightStartLocation : Aircraft->FlightStartLocation;
+            float Speed = Aircraft->HasFlightInfo() ? Aircraft->FlightInfo.FlightSpeed : Aircraft->FlightSpeed;
+            float DropStart = Aircraft->HasFlightInfo() ? Aircraft->FlightInfo.TimeTillDropStart : Aircraft->TimeTillDropStart;
+            float DropEnd = Aircraft->HasFlightInfo() ? Aircraft->FlightInfo.TimeTillDropEnd : Aircraft->TimeTillDropEnd;
+            float Mid = Speed * (DropStart + DropEnd) * 0.5f;
+            float ShiftX = Center.X - (Start.X + Forward.X * Mid);
+            float ShiftY = Center.Y - (Start.Y + Forward.Y * Mid);
+            FVector NewStart = Start;
+            NewStart.X += ShiftX;
+            NewStart.Y += ShiftY;
+            if (Aircraft->HasFlightInfo())
+                Aircraft->FlightInfo.FlightStartLocation = NewStart;
+            else
+                Aircraft->FlightStartLocation = NewStart;
+            int PathCount = 0;
+            if (GameState->HasTeamFlightPaths())
+                for (int p = 0; p < GameState->TeamFlightPaths.Num(); p++)
+                {
+                    auto& Path = GameState->TeamFlightPaths.Get(p, FAircraftFlightInfo::Size());
+                    auto PathStart = Path.FlightStartLocation;
+                    PathStart.X += ShiftX;
+                    PathStart.Y += ShiftY;
+                    Path.FlightStartLocation = PathStart;
+                    PathCount++;
+                }
+            BORON_LOG("[Boron][PoiBus] speed=%.0f drop %.1f..%.1fs mid=%.0f shift (%.0f,%.0f) teamPaths=%d\n", (double)Speed, (double)DropStart, (double)DropEnd, (double)Mid, (double)ShiftX, (double)ShiftY, PathCount);
+            auto Loc = Aircraft->K2_GetActorLocation();
+            Loc.X += NewStart.X - Start.X;
+            Loc.Y += NewStart.Y - Start.Y;
+            Aircraft->K2_SetActorLocation(Loc, false, nullptr, true);
+            BORON_LOG("[Boron][PoiBus] start (%.0f,%.0f) -> (%.0f,%.0f) center (%.0f,%.0f)\n", (double)Start.X, (double)Start.Y, (double)NewStart.X, (double)NewStart.Y, (double)Center.X, (double)Center.Y);
+        }
+    }
 
     if (VersionInfo.FortniteVersion < 25.20 && !ZonePlanner::IsArrayLayout() && GameMode->HasSafeZoneLocations() && GameMode->SafeZoneLocations.Num() >= 4)
         ZonePlanner::Apply(GameMode->SafeZoneLocations);
@@ -2740,11 +3017,24 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
                     BORON_LOG("[Boron][LootGFD] %s state=%d season=%d tier=%s\n", Plugin.c_str(), State, (int)bSeason, LTDFeatureData ? LTDFeatureData->Name.ToString().c_str() : "-");
                 }
 
-                if (LTDFeatureData)
+                bool bOverrideTier = false, bOverridePkg = false;
+                if (VersionInfo.FortniteVersion == 17.20 && Playlist)
+                    for (auto& Tag : Playlist->GameplayTagContainer.GameplayTags)
+                        for (auto& Override : PlaylistOverrideLootTableData)
+                            if (Tag.TagName == Override.First.TagName)
+                            {
+                                bOverrideTier |= Override.Second.LootTierData.Get() != nullptr;
+                                bOverridePkg |= Override.Second.LootPackageData.Get() != nullptr;
+                            }
+                if (bOverrideTier || bOverridePkg)
+                    BORON_LOG("[Boron][LootGFD] %s playlist override tier=%d pkg=%d\n", PluginNameOf(Object).c_str(), (int)bOverrideTier, (int)bOverridePkg);
+
+                if (LTDFeatureData || bOverrideTier)
                 {
                     TArray<FFortLootTierData*> LTDTempData;
 
-                    AddToTierData(LTDFeatureData, LTDTempData);
+                    if (!bOverrideTier)
+                        AddToTierData(LTDFeatureData, LTDTempData);
 
                     if (Playlist)
                     {
@@ -2776,11 +3066,12 @@ void AFortGameMode::FinishWorldInitialization(AFortGameMode* _this, AActor* Worl
                         TierDataMap[Val->TierGroup.ComparisonIndex].Add(Val);
                 }
 
-                if (LootPackageData)
+                if (LootPackageData || bOverridePkg)
                 {
                     std::unordered_map<int32, FFortLootPackageData*> LPTempData;
 
-                    AddToPackages(LootPackageData, LPTempData);
+                    if (!bOverridePkg)
+                        AddToPackages(LootPackageData, LPTempData);
 
                     if (Playlist)
                     {

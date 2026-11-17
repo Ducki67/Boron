@@ -102,6 +102,7 @@ struct FConfig
 
     // Core gamemodes (s30 below 
      static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo";
+     //static inline wchar_t Playlist[9999] = L"/BlueCheese/Playlists/Playlist_BlueCheese_Trios.Playlist_BlueCheese_Trios"; // Bugha's Late Game (17.20)
 
     ///static inline wchar_t Playlist[9999] = L"/BlueCheese/Playlists/Playlist_ShowdownAlt_BlueCheese_Trios.Playlist_ShowdownAlt_BlueCheese_Trios"; // Bugha's LateGame Arena trios (17.20)
     // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Showdown/Playlist_ShowdownAlt_Solo.Playlist_ShowdownAlt_Solo"; // ch1-4 arena
@@ -162,7 +163,7 @@ struct FConfig
     static inline auto Port = 7777; // can be 7777  or 7778
     static inline auto bEnableIris = true;
     static inline constexpr auto bGUI = true; // for now dont use this for  s30+  versions it might crash teh build more than it should
-    static inline constexpr auto bCustomCrashReporter = true;
+    static inline constexpr auto bCustomCrashReporter = false;
     static inline constexpr auto bUseStdoutLog = true;
     static inline constexpr auto bSaveConsoleLog = true; // for 31.41 use this to check for some logs Boron_Console.txt  btw) 
 

@@ -10,6 +10,7 @@ void AFortAthenaMutator_GiveItemsAtGamePhaseStep::OnGamePhaseStepChanged(UObject
     Stack.StepCompiledIn(&GamePhaseStep);
     Stack.IncrementCode();
     auto Mutator = (AFortAthenaMutator_GiveItemsAtGamePhaseStep*)Context;
+    BORON_LOG("[Boron][Mutator] %s step=%d give=%d\n", Mutator->Name.ToString().c_str(), (int)GamePhaseStep, (int)Mutator->PhaseToGiveItems);
 
     if (GamePhaseStep == Mutator->PhaseToGiveItems)
         for (auto& UncastedPC : Mutator->CachedGameMode->AlivePlayers)

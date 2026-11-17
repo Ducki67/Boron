@@ -462,6 +462,8 @@ namespace BossAI
         Handled = NextHandled;
     }
 
+    inline void ApplyBotLoadoutFromComponent(AFortPlayerPawnAthena* Bot, UObject* InvCompCDO);
+
     inline void ApplyBotLoadout(AFortPlayerPawnAthena* Bot, UObject* SpawnerCDO)
     {
         if (!Bot || !Bot->Controller || !SpawnerCDO)
@@ -472,8 +474,12 @@ namespace BossAI
             return;
 
         auto InvCompClass = GetFromOffset<UClass*>(SpawnerCDO, InvCompOff);
-        auto InvCompCDO = FindCDO(InvCompClass);
-        if (!InvCompCDO)
+        ApplyBotLoadoutFromComponent(Bot, FindCDO(InvCompClass));
+    }
+
+    inline void ApplyBotLoadoutFromComponent(AFortPlayerPawnAthena* Bot, UObject* InvCompCDO)
+    {
+        if (!Bot || !Bot->Controller || !InvCompCDO)
             return;
 
         static auto ItemsOff = InvCompCDO->GetOffset("Items");
@@ -639,13 +645,20 @@ namespace BossAI
             S12Bots().push_back(Tracked);
     }
 
+    inline void AddNPCSpecialActorFromConv(AFortPlayerPawnAthena* Bot, UObject* ConvCDO);
+
     inline void AddNPCSpecialActor(AFortPlayerPawnAthena* Bot, UObject* SpawnerCDO)
     {
         if (!IsValidPtr(Bot) || !SpawnerCDO || FVector::Size() != 0xc)
             return;
         static auto ConvOff = SpawnerCDO->GetOffset("ConversationComponent");
         auto ConvCDO = ConvOff != -1 ? FindCDO(GetFromOffset<UClass*>(SpawnerCDO, ConvOff)) : nullptr;
-        if (!ConvCDO)
+        AddNPCSpecialActorFromConv(Bot, ConvCDO);
+    }
+
+    inline void AddNPCSpecialActorFromConv(AFortPlayerPawnAthena* Bot, UObject* ConvCDO)
+    {
+        if (!IsValidPtr(Bot) || !ConvCDO || FVector::Size() != 0xc)
             return;
         static auto SpecialOff = ConvCDO->GetOffset("SpecialActorComponentClass");
         auto SpecialClass = SpecialOff != -1 ? GetFromOffset<UClass*>(ConvCDO, SpecialOff) : nullptr;
@@ -676,7 +689,205 @@ namespace BossAI
         bool Ok = SafeProcessEvent(Bot, AddFn, Parms);
         auto Comp = Ok ? *(UObject**)(Parms + RetOff) : nullptr;
         if (!Comp)
+        {
             printf("[Boron][Bots] S15 special actor %s failed ok=%d\n", SpecialClass->Name.ToString().c_str(), Ok);
+            return;
+        }
+        static auto SetRepFn = Comp->GetFunction("SetIsReplicated");
+        uint8 RepParms[0x10]{ 1 };
+        bool bRep = SetRepFn && SafeProcessEvent(Comp, SetRepFn, RepParms);
+        static int Logged = 0;
+        if (Logged++ < 40)
+            BORON_LOG("[Boron][Bots] npc special actor %s on %s rep=%d\n", SpecialClass->Name.ToString().c_str(), Bot->Name.ToString().c_str(), (int)bRep);
+    }
+
+    inline void OnSpawned18_Conversation(UObject* Comp, AFortPlayerPawnAthena* Pawn)
+    {
+        if (!IsValidPtr(Pawn) || !Comp)
+            return;
+        AddNPCSpecialActorFromConv(Pawn, Comp);
+        NPCConversation::SetupNPC(Pawn, Comp);
+    }
+
+    struct NPCDeathLoot
+    {
+        bool bDropInventory = true;
+        std::vector<FName> Tiers;
+    };
+    inline std::unordered_map<void*, NPCDeathLoot> g_NPCDeathLoot;
+
+    inline void OnSpawned18_Inventory(UObject* Comp, AFortPlayerPawnAthena* Pawn)
+    {
+        if (!IsValidPtr(Pawn) || !Comp)
+            return;
+        ApplyBotLoadoutFromComponent(Pawn, Comp);
+        static auto LootInfoOff = (int)Comp->GetOffset("LootInfo");
+        if (LootInfoOff == -1)
+            return;
+        auto Table = *(UDataTable**)((uint8*)Comp + LootInfoOff);
+        auto RowName = *(FName*)((uint8*)Comp + LootInfoOff + 8);
+        if (!Table)
+            return;
+        for (auto& [Name, Row] : Table->GetRowMap())
+        {
+            if (!Row || Name != RowName)
+                continue;
+            auto& Entries = *(NPCConversation::FRawArray*)(Row + 0x8);
+            if (Entries.Num <= 0)
+                break;
+            uint8* Chosen = Entries.Data + (uint64)(Entries.Num - 1) * 0x60;
+            for (int i = 0; i < Entries.Num; i++)
+            {
+                auto Entry = Entries.Data + (uint64)i * 0x60;
+                if (((NPCConversation::FRawArray*)(Entry + 0x18))->Num == 0)
+                {
+                    Chosen = Entry;
+                    break;
+                }
+            }
+            NPCDeathLoot Loot;
+            Loot.bDropInventory = (Chosen[0x48] & 1) != 0;
+            if (Chosen[0x48] & 2)
+            {
+                auto& Tiers = *(NPCConversation::FRawArray*)(Chosen + 0x50);
+                for (int t = 0; t < Tiers.Num; t++)
+                    Loot.Tiers.push_back(*(FName*)(Tiers.Data + (uint64)t * sizeof(FName)));
+            }
+            g_NPCDeathLoot[(void*)Pawn] = Loot;
+            break;
+        }
+    }
+
+    inline void OnSpawned18_Cosmetic(UObject* Comp, AFortPlayerPawnAthena* Pawn)
+    {
+        static auto LoadoutClass = FindClass("FortAthenaAISpawnerDataComponent_CosmeticLoadout");
+        if (!IsValidPtr(Pawn) || !Comp || !LoadoutClass || !Comp->IsA(LoadoutClass))
+            return;
+        static auto ChoosePartFn = Pawn->GetFunction("ServerChoosePart");
+        static auto CosLoadoutOff = (int)Comp->GetOffset("CosmeticLoadout");
+        static auto CustomPartsOff = (int)Comp->GetOffset("CustomCharacterParts");
+        if (!ChoosePartFn)
+            return;
+        struct { uint8_t Part; uint8_t pad[7]; const UObject* ChosenCharacterPart; } cp{};
+        int applied = 0;
+        auto Choose = [&](const UCustomCharacterPart* Part)
+        {
+            if (!Part || !Part->HasCharacterPartType() || Part->CharacterPartType >= 7)
+                return;
+            cp.Part = Part->CharacterPartType;
+            cp.ChosenCharacterPart = Part;
+            Pawn->ProcessEvent(ChoosePartFn, &cp);
+            applied++;
+        };
+        if (CustomPartsOff != -1)
+        {
+            auto& Parts = GetFromOffset<TArray<UCustomCharacterPart*>>(Comp, CustomPartsOff);
+            for (int i = 0; i < Parts.Num(); i++)
+                Choose(Parts[i]);
+        }
+        UAthenaCharacterItemDefinition* CID = CosLoadoutOff != -1 ? *(UAthenaCharacterItemDefinition**)((char*)Comp + CosLoadoutOff + 0x40) : nullptr;
+        if (!applied && IsValidPtr(CID))
+        {
+            if (CID->HasBaseCharacterParts())
+                for (auto& PartSoft : CID->BaseCharacterParts)
+                    Choose(PartSoft.Get());
+            if (auto Hero = CID->GetHeroDefinition())
+                for (auto& SpecSoft : Hero->Specializations)
+                    if (auto Spec = (UFortHeroSpecialization*)SpecSoft.Get())
+                        for (auto& PartSoft : Spec->CharacterParts)
+                            Choose(PartSoft.Get());
+        }
+        static int Logged = 0;
+        if (Logged++ < 40)
+            BORON_LOG("[Boron][Bots] 18.40 npc cosmetics pawn=%s cid=%s parts=%d\n", Pawn->Name.ToString().c_str(), IsValidPtr(CID) ? CID->Name.ToString().c_str() : "none", applied);
+    }
+
+    inline void (*OnPawnAISpawned18OG)(void*, AFortPlayerPawnAthena*) = nullptr;
+    inline void OnPawnAISpawned18(void* Ctx, AFortPlayerPawnAthena* Pawn)
+    {
+        UObject* Service = nullptr;
+        if (IsValidPtr(Pawn) && Pawn->Controller)
+        {
+            auto Controller = (UObject*)Pawn->Controller;
+            auto Off = (int)Controller->GetOffset("CachedAIServicePlayerBots");
+            Service = Off != -1 ? *(UObject**)((uint8*)Controller + Off) : nullptr;
+        }
+        if (!Service)
+        {
+            static UObject* Found = nullptr;
+            if (!Found)
+                if (auto Cls = FindClass("AthenaAIServicePlayerBots"))
+                    for (int i = 0; i < TUObjectArray::Num() && !Found; i++)
+                    {
+                        auto Obj = (UObject*)TUObjectArray::GetObjectByIndex(i);
+                        if (Obj && !Obj->IsDefaultObject() && Obj->IsA(Cls))
+                            Found = Obj;
+                    }
+            Service = Found;
+        }
+        if (Service)
+            *(bool*)((uint8*)Service + 0x688) = true;
+        OnPawnAISpawned18OG(Ctx, Pawn);
+        auto MaxHealthOf = [](AFortPlayerPawnAthena* P)
+        {
+            static auto Fn = P->GetFunction("GetMaxHealth");
+            float Ret = 0.f;
+            if (Fn)
+                P->ProcessEvent(Fn, &Ret);
+            return Ret;
+        };
+        if (IsValidPtr(Pawn) && MaxHealthOf(Pawn) <= 0.f)
+        {
+            Pawn->SetMaxHealth(100.f);
+            float Max = MaxHealthOf(Pawn);
+            Pawn->SetHealth(Max > 0.f ? Max : 100.f);
+        }
+    }
+
+    inline void HookSpawnerComponents18()
+    {
+        static bool bHooked = false;
+        if (bHooked || VersionInfo.FortniteVersion != 18.40)
+            return;
+        bHooked = true;
+        Hooking::Hook((uint64)GetModuleHandleW(nullptr) + 0x47E939C, OnPawnAISpawned18, OnPawnAISpawned18OG);
+        auto ConvBase = FindClass("FortAthenaAISpawnerDataComponent_ConversationBase");
+        auto InvBase = FindClass("FortAthenaAISpawnerDataComponent_InventoryBase");
+        auto CosBase = FindClass("FortAthenaAISpawnerDataComponent_CosmeticBase");
+        int Slot = -1;
+        auto Img = (uint64)GetModuleHandleW(nullptr);
+        auto AffClass = FindClass("FortAthenaAISpawnerDataComponent_AIBotAffiliation");
+        auto AffCDO = AffClass ? FindCDO((UClass*)AffClass) : nullptr;
+        if (AffCDO)
+        {
+            auto Vt = (void**)AffCDO->Vft;
+            for (int i = 0; i < 0x200 && Slot < 0; i++)
+                if ((uint64)Vt[i] == Img + 0x49A1438)
+                    Slot = i;
+        }
+        BORON_LOG("[Boron][Bots] 18.40 OnSpawned slot=0x%x (aff=%p)\n", Slot, (void*)AffCDO);
+        if (Slot < 0)
+            return;
+        int Hooked = 0;
+        for (int i = 0; i < TUObjectArray::Num(); i++)
+        {
+            auto Obj = (UObject*)TUObjectArray::GetObjectByIndex(i);
+            if (!Obj || !Obj->IsDefaultObject())
+                continue;
+            void* Detour = ConvBase && Obj->IsA(ConvBase) ? (void*)OnSpawned18_Conversation : InvBase && Obj->IsA(InvBase) ? (void*)OnSpawned18_Inventory
+                         : CosBase && Obj->IsA(CosBase) ? (void*)OnSpawned18_Cosmetic : nullptr;
+            if (!Detour)
+                continue;
+            auto Vt = (void**)Obj->Vft;
+            if (Vt[Slot] == Detour)
+                continue;
+            DWORD Old;
+            VirtualProtect(Vt + Slot, 8, PAGE_EXECUTE_READWRITE, &Old);
+            Vt[Slot] = Detour;
+            VirtualProtect(Vt + Slot, 8, Old, &Old);
+            Hooked++;
+        }
+        BORON_LOG("[Boron][Bots] 18.40 spawner component OnSpawned hooks=%d conv=%p inv=%p cos=%p\n", Hooked, (void*)ConvBase, (void*)InvBase, (void*)CosBase);
     }
 
     inline void SpawnAIOnPaths(const UClass* SpawnerClass, const std::string& Name, bool bAllPaths, bool bExactLeaf = false, int MaxPaths = 0)
@@ -686,9 +897,27 @@ namespace BossAI
 
         auto World = UWorld::GetWorld();
         auto GameMode = World ? (AFortGameModeAthena*)World->AuthorityGameMode : nullptr;
-        auto BotManager = GameMode ? GameMode->ServerBotManager : nullptr;
-        if (!BotManager)
-            return;
+        const bool bNativeSpawner = VersionInfo.FortniteVersion >= 18.0;
+        UObject* BotManager = nullptr;
+        UObject* AISpawner = nullptr;
+        if (bNativeSpawner)
+        {
+            static auto AISysOff = World ? World->GetOffset("AISystem") : -1;
+            auto AISys = World && AISysOff != -1 ? GetFromOffset<UObject*>(World, AISysOff) : nullptr;
+            static auto SpawnerOff = AISys ? AISys->GetOffset("AISpawner") : -1;
+            AISpawner = AISys && SpawnerOff != -1 ? GetFromOffset<UObject*>(AISys, SpawnerOff) : nullptr;
+            if (!AISpawner)
+            {
+                printf("[Boron][Bots] spawn %s aborted: no AISpawner (aisys=%p off=%d)\n", Name.c_str(), (void*)AISys, (int)SpawnerOff);
+                return;
+            }
+        }
+        else
+        {
+            BotManager = GameMode ? (UObject*)GameMode->ServerBotManager : nullptr;
+            if (!BotManager)
+                return;
+        }
 
         auto PathClass = FindClass("FortAthenaPatrolPath");
         if (!PathClass)
@@ -713,7 +942,8 @@ namespace BossAI
                 continue;
 
             std::string TagName = Tags.Get(0, FGameplayTag::Size()).TagName.ToString().c_str();
-            bool bMatch = bExactLeaf ? TagName.substr(TagName.rfind('.') + 1) == Name
+            bool bMatch = Name.rfind("Athena.", 0) == 0 ? TagName.rfind(Name, 0) == 0
+                                     : bExactLeaf ? TagName.substr(TagName.rfind('.') + 1) == Name
                                      : (TagName.length() >= Name.length() && TagName.compare(TagName.length() - Name.length(), Name.length(), Name) == 0);
             if (bMatch)
                 Matches.push_back(Path);
@@ -738,7 +968,8 @@ namespace BossAI
                 if (Tags.Num() == 0 || !Associated)
                     continue;
                 std::string TagName = Tags.Get(0, FGameplayTag::Size()).TagName.ToString().c_str();
-                bool bMatch = bExactLeaf ? TagName.substr(TagName.rfind('.') + 1) == Name
+                bool bMatch = Name.rfind("Athena.", 0) == 0 ? TagName.rfind(Name, 0) == 0
+                                     : bExactLeaf ? TagName.substr(TagName.rfind('.') + 1) == Name
                                          : (TagName.length() >= Name.length() && TagName.compare(TagName.length() - Name.length(), Name.length(), Name) == 0);
                 if (bMatch && std::find(Matches.begin(), Matches.end(), Associated) == Matches.end())
                     Matches.push_back(Associated);
@@ -761,7 +992,7 @@ namespace BossAI
         }
 
         auto CreateFn = SpawnerCDO ? SpawnerCDO->GetFunction("CreateComponentListFromClass") : nullptr;
-        auto SpawnFn = BotManager->GetFunction("SpawnAI");
+        auto SpawnFn = bNativeSpawner ? AISpawner->GetFunction("RequestSpawn") : BotManager->GetFunction("SpawnAI");
         if (!CreateFn || !SpawnFn)
         {
             printf("[Boron][Bots] spawn %s aborted: cdo=%p CreateComponentListFromClass=%p SpawnAI=%p\n", Name.c_str(), (void*)SpawnerCDO, (void*)CreateFn, (void*)SpawnFn);
@@ -833,6 +1064,38 @@ namespace BossAI
                 FirstZ = LocV.Z;
             }
 
+            if (bNativeSpawner)
+            {
+                HookSpawnerComponents18();
+                auto FnStruct = (const UStruct*)SpawnFn;
+                static auto ListOff = FnStruct->GetOffset("AISpawnerComponentList");
+                static auto XfOff = FnStruct->GetOffset("SpawnTransform");
+                static auto ReqRetOff = FnStruct->GetOffset("ReturnValue");
+                static int ReqParmsSize = FnStruct->GetPropertiesSize();
+                alignas(16) uint8 ReqParms[0x100]{};
+                if (ListOff == (uint32)-1 || XfOff == (uint32)-1 || ReqParmsSize <= 0 || ReqParmsSize > (int)sizeof(ReqParms) || FVector::Size() != 0xc)
+                {
+                    printf("[Boron][Bots] spawn %s aborted: RequestSpawn layout list=%d xf=%d size=%d\n", Name.c_str(), (int)ListOff, (int)XfOff, ReqParmsSize);
+                    break;
+                }
+                double HalfYaw = RotV.Yaw * 3.14159265358979 / 360.0;
+                auto Xf = (float*)(ReqParms + XfOff);
+                Xf[2] = (float)sin(HalfYaw);
+                Xf[3] = (float)cos(HalfYaw);
+                Xf[4] = (float)LocV.X;
+                Xf[5] = (float)LocV.Y;
+                Xf[6] = (float)LocV.Z;
+                Xf[8] = Xf[9] = Xf[10] = 1.f;
+                *(UObject**)(ReqParms + ListOff) = CreateParams.ReturnValue;
+                bool ok = SafeProcessEvent(AISpawner, SpawnFn, ReqParms);
+                int ReqId = ok && ReqRetOff != (uint32)-1 ? *(int*)(ReqParms + ReqRetOff) : -1;
+                if (ok && ReqId >= 0)
+                    spawned++;
+                else
+                    printf("[Boron][Bots] spawn %s RequestSpawn failed ok=%d id=%d\n", Name.c_str(), ok, ReqId);
+                continue;
+            }
+
             int vsz = FVector::Size();
             int rsz = FRotator::Size();
             int listOff = vsz + rsz;
@@ -866,7 +1129,7 @@ namespace BossAI
                 spawned++;
                 ApplyBotLoadout((AFortPlayerPawnAthena*)spawnedPawn, SpawnerCDO);
                 ApplyBotCosmetics((AFortPlayerPawnAthena*)spawnedPawn, SpawnerCDO);
-                if (VersionInfo.FortniteVersion == 16.40)
+                if (VersionInfo.FortniteVersion == 16.40 || VersionInfo.FortniteVersion == 17.20)
                 {
                     static auto ControllerOff = spawnedPawn->GetOffset("Controller");
                     auto BotController = ControllerOff != -1 ? GetFromOffset<UObject*>(spawnedPawn, ControllerOff) : nullptr;
@@ -875,13 +1138,13 @@ namespace BossAI
                     {
                         if (!GetFromOffset<UObject*>(BotController, CachedOff))
                             GetFromOffset<UObject*>(BotController, CachedOff) = (UObject*)BotManager;
-                        auto AssignTeamAndSquad = (void (*)(UObject*, UObject*, const uint8*))((uint64)GetModuleHandleW(nullptr) + 0x46133E8);
+                        auto AssignTeamAndSquad = (void (*)(UObject*, UObject*, const uint8*))((uint64)GetModuleHandleW(nullptr) + (VersionInfo.FortniteVersion == 17.20 ? 0x4844CF4 : 0x46133E8));
                         AssignTeamAndSquad((UObject*)BotManager, BotController, nullptr);
                     }
                 }
                 if (VersionInfo.FortniteVersion >= 14.0 && VersionInfo.FortniteVersion < 16.0)
                     TrackSpawnedBot((AFortPlayerPawnAthena*)spawnedPawn, SpawnerCDO, Name);
-                if (VersionInfo.FortniteVersion >= 15.0 && VersionInfo.FortniteVersion < 17.0)
+                if (VersionInfo.FortniteVersion >= 15.0 && VersionInfo.FortniteVersion < 19.0)
                 {
                     AddNPCSpecialActor((AFortPlayerPawnAthena*)spawnedPawn, SpawnerCDO);
                     static auto ConvOff = SpawnerCDO->GetOffset("ConversationComponent");
@@ -1119,7 +1382,7 @@ namespace BossAI
 
     inline void S15Tick()
     {
-        if (VersionInfo.FortniteVersion < 15.0 || VersionInfo.FortniteVersion >= 17.0)
+        if (VersionInfo.FortniteVersion < 15.0 || VersionInfo.FortniteVersion >= 19.0)
             return;
         static bool bDone = false;
         static ULONGLONG NextCheck = 0;
@@ -1137,8 +1400,9 @@ namespace BossAI
             return;
         static bool bBossOverlay = false;
         static ULevelStreamingDynamic* BossOverlay = nullptr;
+        static std::vector<ULevelStreamingDynamic*> S17Overlays_;
         static int OverlayWaits = 0;
-        if (VersionInfo.FortniteVersion >= 16.0)
+        if (VersionInfo.FortniteVersion >= 16.0 && VersionInfo.FortniteVersion < 18.0)
         {
             if (!bBossOverlay)
             {
@@ -1148,14 +1412,43 @@ namespace BossAI
                 bool bLoaded = false;
                 BossOverlay = ULevelStreamingDynamic::LoadLevelInstanceBySoftObjectPtr(World, Overlay, FVector(), FRotator(), &bLoaded, FString(), nullptr);
                 printf("[Boron][Bots] NPCLibrary boss overlay streamed=%d level=%p\n", bLoaded, (void*)BossOverlay);
+                if (VersionInfo.FortniteVersion >= 17.0 && VersionInfo.FortniteVersion < 18.0)
+                {
+                    static const wchar_t* S17Overlays[] = {
+                        L"/Slone/LevelOverlays/Apollo_Terrain_Slone_LevelOverlay.Apollo_Terrain_Slone_LevelOverlay",
+                        L"/MotherGround/LevelOverlays/Apollo_Terrain_MotherGround_LevelOverlay.Apollo_Terrain_MotherGround_LevelOverlay",
+                        L"/MotherWall/LevelOverlays/Apollo_Terrain_MotherWall_LevelOverlay.Apollo_Terrain_MotherWall_LevelOverlay",
+                        L"/IO_Guard/Maps/Apollo_Terrain_IOGuard_LevelOverlay.Apollo_Terrain_IOGuard_LevelOverlay" };
+                    for (auto Path : S17Overlays)
+                    {
+                        TSoftObjectPtr<UWorld> Extra{};
+                        Extra.ObjectID.AssetPathName = FName(Path);
+                        bool bExtraLoaded = false;
+                        auto Level = ULevelStreamingDynamic::LoadLevelInstanceBySoftObjectPtr(World, Extra, FVector(), FRotator(), &bExtraLoaded, FString(), nullptr);
+                        S17Overlays_.push_back(Level);
+                        printf("[Boron][Bots] S17 overlay %ls streamed=%d level=%p\n", Path, bExtraLoaded, (void*)Level);
+                    }
+                }
                 return;
             }
             bool bReady = BossOverlay && BossOverlay->LoadedLevel && BossOverlay->LoadedLevel->bIsVisible;
+            for (auto Level : S17Overlays_)
+                bReady = bReady && Level && Level->LoadedLevel && Level->LoadedLevel->bIsVisible;
             if (!bReady && ++OverlayWaits < 12)
                 return;
             printf("[Boron][Bots] NPCLibrary boss overlay ready=%d after %d waits\n", bReady, OverlayWaits);
         }
         bDone = true;
+        if (VersionInfo.FortniteVersion >= 18.0)
+        {
+            static auto AISysOff = World->GetOffset("AISystem");
+            auto AISys = AISysOff != -1 ? GetFromOffset<UObject*>(World, AISysOff) : nullptr;
+            static auto TrackerOff = AISys ? AISys->GetOffset("AIPopulationTracker") : -1;
+            static auto TrackerClass = FindClass("AthenaAIPopulationTracker");
+            if (AISys && TrackerOff != -1 && TrackerClass && !GetFromOffset<UObject*>(AISys, TrackerOff))
+                GetFromOffset<UObject*>(AISys, TrackerOff) = (UObject*)UGameplayStatics::SpawnObject((UClass*)TrackerClass, AISys);
+            printf("[Boron][Bots] AIPopulationTracker=%p (aisys=%p off=%d)\n", AISys && TrackerOff != -1 ? (void*)GetFromOffset<UObject*>(AISys, TrackerOff) : nullptr, (void*)AISys, (int)TrackerOff);
+        }
         NPCConversation::Init();
 
         static const char* BattlepassNPCs[] = { "Bandolier", "BeefBoss", "BigChuggus", "Bigfoot", "Blaze", "BriteBomber", "Brutus", "Bullseye", "BunkerJonesy", "Burnout",
@@ -1188,6 +1481,20 @@ namespace BossAI
                 auto Path = "/NPCLibrary/NPCs/" + Candidate + "." + Candidate.substr(Candidate.rfind('/') + 1) + "_C";
                 if (FindObject<UClass>(std::wstring(Path.begin(), Path.end()).c_str()))
                     return Path;
+            }
+            if (VersionInfo.FortniteVersion >= 17.0)
+            {
+                std::string PluginCandidates[] = { "/" + Name + "/NPCs/" + Name + "/" + Name + "/BP_AIBotSpawnerData_" + Name,
+                                                   "/IO_Guard/AI/NPCs/" + Name + "/BP_AIBotSpawnerData_" + Name,
+                                                   "/IO_Guard/AI/NPCs/" + Name + "/AISpawnerData/BP_AIBotSpawnerData_" + Name,
+                                                   "/HeadbandAi/" + Name + "/AISpawnerData/BP_AIBotSpawnerData_NPC_" + Name,
+                                                   "/CorruptionNPC/NPCs/" + Name + "/" + Name + "/BP_AIBotSpawnerData_" + Name };
+                for (auto& Candidate : PluginCandidates)
+                {
+                    auto Path = Candidate + "." + Candidate.substr(Candidate.rfind('/') + 1) + "_C";
+                    if (FindObject<UClass>(std::wstring(Path.begin(), Path.end()).c_str()))
+                        return Path;
+                }
             }
             return "/NPCLibrary/NPCs/" + Candidates[0];
         };
@@ -1234,7 +1541,16 @@ namespace BossAI
                     continue;
                 std::string TagName = Tags.Get(0, FGameplayTag::Size()).TagName.ToString().c_str();
                 auto Leaf = TagName.substr(TagName.rfind('.') + 1);
-                if (Leaf.empty() || TagSeen[TagName])
+                bool bS17Plugin = VersionInfo.FortniteVersion >= 17.0 && (TagName.find(".Boss.Slone") != std::string::npos || TagName.find(".Boss.MotherGround") != std::string::npos ||
+                                                                          TagName.find(".MotherWall.") != std::string::npos || TagName.find("SpawnLocation.IO.") != std::string::npos);
+                if (bS17Plugin)
+                {
+                    if (!TagSeen[TagName])
+                        TagLeaves += TagName + " ";
+                    TagSeen[TagName] = true;
+                    continue;
+                }
+                if (Leaf.empty() || TagSeen[TagName] || (VersionInfo.FortniteVersion >= 17.0 && Leaf == "Outter"))
                     continue;
                 TagSeen[TagName] = true;
                 TagLeaves += TagName + " ";
@@ -1257,6 +1573,24 @@ namespace BossAI
             }
             bool bIOGuard = Spawner.Path.find("/IO_Guard/") != std::string::npos;
             SpawnAIOnPaths(Class, Spawner.Name, bIOGuard || Spawner.Name == "Outter", true, bIOGuard ? (Spawner.Name == "Grunt" ? 15 : 5) : 0);
+        }
+        if (VersionInfo.FortniteVersion >= 17.0 && VersionInfo.FortniteVersion < 18.0)
+        {
+            struct FS17Spawn { const char* Tag; const wchar_t* Class; bool bAll; int Max; };
+            static const FS17Spawn S17Spawns[] = {
+                { "Athena.AI.SpawnLocation.Boss.Slone", L"/Slone/NPCs/Slone/Slone/BP_AIBotSpawnerData_Slone.BP_AIBotSpawnerData_Slone_C", true, 0 },
+                { "Athena.AI.SpawnLocation.Boss.MotherGround", L"/MotherGround/NPCs/MotherGround/MotherGround/BP_AIBotSpawnerData_MotherGround.BP_AIBotSpawnerData_MotherGround_C", false, 0 },
+                { "Athena.AI.SpawnLocation.MotherWall.Grunt", L"/MotherWall/NPCs/MotherWall/MotherWall/BP_AIBotSpawnerData_MotherWall.BP_AIBotSpawnerData_MotherWall_C", true, 0 },
+                { "Athena.AI.SpawnLocation.IO.Grunt", L"/IO_Guard/AI/NPCs/IO_Compound/BP_AIBotSpawnerData_IO_Compound.BP_AIBotSpawnerData_IO_Compound_C", true, 0 },
+                { "Athena.AI.SpawnLocation.IO.FieldTeamBase", L"/IO_Guard/AI/NPCs/IO_FieldTeam/BP_AIBotSpawnerData_IO_FieldTeam.BP_AIBotSpawnerData_IO_FieldTeam_C", true, 0 },
+                { "Athena.AI.SpawnLocation.IO.FieldTeam.", L"/IO_Guard/AI/NPCs/IO_FieldTeamAR/BP_AIBotSpawnerData_IO_FieldTeamAR.BP_AIBotSpawnerData_IO_FieldTeamAR_C", true, 0 } };
+            for (auto& E : S17Spawns)
+            {
+                auto Class = FindObject<UClass>(E.Class);
+                printf("[Boron][Bots] S17 spawn %s class=%p\n", E.Tag, (void*)Class);
+                if (Class)
+                    SpawnAIOnPaths(Class, E.Tag, E.bAll, true, E.Max);
+            }
         }
         printf("[Boron][Bots] S15 NPC spawners not found: %s\n", Missing.c_str());
         if (bS16)
@@ -1446,7 +1780,7 @@ namespace BossAI
                                 auto& L = Loot();
                                 auto& Pool = !L.Startup.empty() ? L.Startup : L.Guns;
 
-                                if (!Pool.empty())
+                                if (!Pool.empty() && VersionInfo.FortniteVersion < 18.0)
                                     GiveAndEquip(State.inv, Bot, Pool[rand() % Pool.size()]);
                             }
                         }
@@ -1471,7 +1805,7 @@ namespace BossAI
                             auto& L = Loot();
                             auto& Pool = !L.Startup.empty() ? L.Startup : L.Guns;
 
-                            if (!Pool.empty())
+                            if (!Pool.empty() && VersionInfo.FortniteVersion < 18.0)
                                 GiveAndEquip(NewInv, Bot, Pool[rand() % Pool.size()]);
                         }
                     }
@@ -1727,7 +2061,26 @@ namespace BossAI
                 static int dlog = 0;
                 bool logThis = dlog++ < 16;
 
-                if (it->second.lastWeaponDef)
+                bool bDropInventory = true;
+                auto DeathLoot = g_NPCDeathLoot.find(it->first);
+                if (DeathLoot != g_NPCDeathLoot.end())
+                {
+                    bDropInventory = DeathLoot->second.bDropInventory;
+                    for (auto& Tier : DeathLoot->second.Tiers)
+                    {
+                        TArray<FFortItemEntry*> LootDrops{};
+                        UFortLootPackage::ChooseLootForContainer(LootDrops, Tier);
+                        for (auto& LootDrop : LootDrops)
+                        {
+                            AFortInventory::SpawnPickup(it->second.lastLoc, *LootDrop);
+                            free(LootDrop);
+                            dropped++;
+                        }
+                    }
+                    g_NPCDeathLoot.erase(DeathLoot);
+                }
+
+                if (bDropInventory && it->second.lastWeaponDef)
                 {
                     auto Drop = DroppableVersion(it->second.lastWeaponDef);
                     AFortInventory::SpawnPickup(it->second.lastLoc, Drop, 1, 0);
@@ -1746,7 +2099,7 @@ namespace BossAI
                     }
                 }
 
-                for (size_t d = 0; d < it->second.dropDefs.size(); d++)
+                for (size_t d = 0; bDropInventory && d < it->second.dropDefs.size(); d++)
                 {
                     auto Def = it->second.dropDefs[d];
 

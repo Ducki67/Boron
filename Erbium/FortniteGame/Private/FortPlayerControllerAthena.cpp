@@ -21,6 +21,7 @@ void ApplyGFPPlayerAttributesCH6(AActor* InventoryOwner);
 #include "../Public/BuildingSMActor.h"
 #include "../Public/FortAthenaCreativePortal.h"
 #include "../Public/FortGameMode.h"
+#include "../Public/FortAthenaMutator.h"
 #include "../Public/FortKismetLibrary.h"
 #include "../Public/FortLootPackage.h"
 #include "../Public/FortPhysicsPawn.h"
@@ -341,6 +342,16 @@ static void ProbeQuickEdit(AFortPlayerControllerAthena* PlayerController)
         CanEnableRow.ToString().c_str(), (unsigned long long)(__int64(QuickEditServerSetEnabledOG) - __int64(Base)));
 }
 
+static std::unordered_map<void*, bool> g_InvOverrideGiven;
+
+static int LoadoutClip(UFortItemDefinition* Def)
+{
+    auto Weapon = Def ? Def->Cast<UFortWeaponItemDefinition>() : nullptr;
+    auto Stats = Weapon ? AFortInventory::GetStats(Weapon) : nullptr;
+    return Stats ? Stats->ClipSize : 0;
+}
+static void ApplyInventoryOverrideMutators(AFortPlayerControllerAthena* PlayerController);
+
 static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* PlayerController, AActor* Pawn)
 {
     if (!Pawn || !PlayerController->WorldInventory)
@@ -430,7 +441,7 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
         if (LategameConfig::bLateGame)
             GiveLateGameShield(FortPawn);
     }
-    if ((!GameRuleConfig::bKeepInventory || LategameConfig::bLateGame) && PlayerController->WorldInventory)
+    if ((!GameRuleConfig::bKeepInventory || LategameConfig::bLateGame) && PlayerController->WorldInventory && !(VersionInfo.FortniteVersion == 17.20 && g_InvOverrideGiven[PlayerController]))
     {
         UEAllocatedVector<FGuid> GuidsToRemove;
         for (int i = 0; i < PlayerController->WorldInventory->Inventory.ReplicatedEntries.Num(); i++)
@@ -453,6 +464,16 @@ static void ServerAcknowledgePossession_Impl(AFortPlayerControllerAthena* Player
 
         for (auto& Guid : GuidsToRemove)
             PlayerController->WorldInventory->Remove(Guid);
+    }
+
+    if (VersionInfo.FortniteVersion == 17.20)
+        BORON_LOG("[Boron][Possess] items=%d inAircraft=%d\n", PlayerController->WorldInventory ? PlayerController->WorldInventory->Inventory.ReplicatedEntries.Num() : -1, (int)PlayerController->IsInAircraft());
+    if (VersionInfo.FortniteVersion == 17.20 && PlayerController->WorldInventory && !PlayerController->IsInAircraft())
+    {
+        auto PhaseState = UWorld::GetWorld() ? (UObject*)UWorld::GetWorld()->GameState : nullptr;
+        static auto PhaseOff = PhaseState ? PhaseState->GetOffset("GamePhase") : -1;
+        if (PhaseState && PhaseOff != -1 && GetFromOffset<uint8>(PhaseState, PhaseOff) >= 3)
+            ApplyInventoryOverrideMutators(PlayerController);
     }
 
     if (VersionInfo.FortniteVersion >= 18)
@@ -1096,6 +1117,174 @@ void AFortPlayerControllerAthena::ServerAcknowledgePossession_Native(AFortPlayer
 
 uint32 ServerAttemptAircraftJumpVft;
 
+struct FRawLoadoutArray { uint8* Data; int32 Num; int32 Max; };
+
+static const UStruct* LoadoutStruct(const char* Name)
+{
+    return (const UStruct*)TUObjectArray::FindObject(Name, 0x10, nullptr);
+}
+
+static int GiveLoadoutContainer(AFortPlayerControllerAthena* PlayerController, uint8* Container)
+{
+    static auto ContainerStruct = LoadoutStruct("ItemLoadoutContainer");
+    static auto ItemAndCountStruct = LoadoutStruct("ItemAndCount");
+    static auto HotfixStruct = LoadoutStruct("HotfixableInventoryOverrideItem");
+    if (!ContainerStruct || !Container)
+        return 0;
+    static auto LoadoutOff = ContainerStruct->GetOffset("Loadout");
+    static auto LoadoutListOff = ContainerStruct->GetOffset("LoadoutList");
+    int Given = 0;
+    if (LoadoutOff != (uint32)-1 && ItemAndCountStruct)
+    {
+        static auto CountOff = ItemAndCountStruct->GetOffset("Count");
+        static auto ItemOff = ItemAndCountStruct->GetOffset("Item");
+        static int Size = ItemAndCountStruct->GetPropertiesSize();
+        auto& Items = *(FRawLoadoutArray*)(Container + LoadoutOff);
+        for (int i = 0; i < Items.Num && Items.Data && Size > 0; i++)
+        {
+            auto Entry = Items.Data + i * Size;
+            auto Def = *(UFortItemDefinition**)(Entry + ItemOff);
+            int Count = *(int32*)(Entry + CountOff);
+            if (Def && Count > 0)
+            {
+                PlayerController->WorldInventory->GiveItem(Def, Count, LoadoutClip(Def));
+                Given++;
+            }
+        }
+    }
+    if (LoadoutListOff != (uint32)-1 && HotfixStruct)
+    {
+        static auto CountOff = HotfixStruct->GetOffset("Count");
+        static auto ItemOff = HotfixStruct->GetOffset("Item");
+        static int Size = HotfixStruct->GetPropertiesSize();
+        auto& Items = *(FRawLoadoutArray*)(Container + LoadoutListOff);
+        for (int i = 0; i < Items.Num && Items.Data && Size > 0; i++)
+        {
+            auto Entry = Items.Data + i * Size;
+            auto Def = *(UFortItemDefinition**)(Entry + ItemOff);
+            int Count = (int)((FScalableFloat*)(Entry + CountOff))->Evaluate();
+            if (Def && Count > 0)
+            {
+                PlayerController->WorldInventory->GiveItem(Def, Count, LoadoutClip(Def));
+                Given++;
+            }
+        }
+    }
+    return Given;
+}
+
+static void ApplyInventoryOverrideMutators(AFortPlayerControllerAthena* PlayerController)
+{
+    static auto MutatorClass = FindClass("FortAthenaMutator_InventoryOverride");
+    static auto ContainerStruct = LoadoutStruct("ItemLoadoutContainer");
+    static auto BucketStruct = LoadoutStruct("TeamBucketDefinition");
+    static auto BucketLoadoutStruct = LoadoutStruct("TeamBucketLoadout");
+    if (!MutatorClass || !ContainerStruct || !PlayerController || !PlayerController->WorldInventory)
+        return;
+    if (g_InvOverrideGiven[PlayerController])
+        return;
+    g_InvOverrideGiven[PlayerController] = true;
+
+    TArray<AActor*> PhaseMutators;
+    Utils::GetAll<AActor>(AFortAthenaMutator_GiveItemsAtGamePhaseStep::StaticClass(), PhaseMutators);
+    for (int i = 0; i < PhaseMutators.Num(); i++)
+    {
+        auto PhaseMutator = (AFortAthenaMutator_GiveItemsAtGamePhaseStep*)PhaseMutators[i];
+        if (!PhaseMutator)
+            continue;
+        for (auto& Item : PhaseMutator->ItemsToGive)
+        {
+            auto Existing = PlayerController->WorldInventory->Inventory.ItemInstances.Search([&](UFortWorldItem* Entry) { return Entry->ItemEntry.ItemDefinition == Item.ItemToDrop; });
+            if (!Existing && Item.ItemToDrop)
+                PlayerController->WorldInventory->GiveItem(Item.ItemToDrop, (int)Item.NumberToGive.Evaluate());
+        }
+    }
+    PhaseMutators.Free();
+
+    auto PlayerState = (AFortPlayerStateAthena*)PlayerController->PlayerState;
+    uint8 TeamIndex = PlayerState ? PlayerState->TeamIndex : 0;
+    static std::unordered_map<uint16, int> TeamPicks;
+    static std::unordered_map<uint16, int> TeamMembers;
+    static int ContainerSize = ContainerStruct->GetPropertiesSize();
+
+    TArray<AActor*> Mutators;
+    Utils::GetAll<AActor>(MutatorClass, Mutators);
+    for (int i = 0; i < Mutators.Num(); i++)
+    {
+        auto Mutator = Mutators[i];
+        if (!Mutator)
+            continue;
+        uint16 PickKey = (uint16)((i << 8) | TeamIndex);
+        int GivenCount = 0;
+
+        auto BucketsOff = Mutator->GetOffset("TeamBuckets");
+        if (BucketsOff != -1 && BucketStruct && BucketLoadoutStruct)
+        {
+            static auto BucketEnabledOff = BucketStruct->GetOffset("bEnabled");
+            static auto BucketLoadoutsOff = BucketStruct->GetOffset("Loadouts");
+            static int BucketSize = BucketStruct->GetPropertiesSize();
+            static auto ItemLoadoutOff = BucketLoadoutStruct->GetOffset("ItemLoadout");
+            static int BucketLoadoutSize = BucketLoadoutStruct->GetPropertiesSize();
+            auto& Buckets = GetFromOffset<FRawLoadoutArray>(Mutator, BucketsOff);
+            if (Buckets.Num <= 0 || !Buckets.Data || BucketLoadoutsOff == (uint32)-1 || ItemLoadoutOff == (uint32)-1)
+                continue;
+
+            auto Found = TeamPicks.find(PickKey);
+            int BucketIndex = -1;
+            if (Found != TeamPicks.end())
+                BucketIndex = Found->second;
+            else
+            {
+                std::vector<int> Enabled;
+                for (int b = 0; b < Buckets.Num; b++)
+                    if (BucketEnabledOff == (uint32)-1 || ((FScalableFloat*)(Buckets.Data + b * BucketSize + BucketEnabledOff))->Evaluate() > 0.f)
+                        Enabled.push_back(b);
+                if (Enabled.empty())
+                    continue;
+                BucketIndex = Enabled[rand() % Enabled.size()];
+                TeamPicks[PickKey] = BucketIndex;
+            }
+
+            auto& Loadouts = *(FRawLoadoutArray*)(Buckets.Data + BucketIndex * BucketSize + BucketLoadoutsOff);
+            if (Loadouts.Num <= 0 || !Loadouts.Data)
+                continue;
+            int MemberIndex = TeamMembers[PickKey]++ % Loadouts.Num;
+            GivenCount = GiveLoadoutContainer(PlayerController, Loadouts.Data + MemberIndex * BucketLoadoutSize + ItemLoadoutOff);
+            BORON_LOG("[Boron][InvOverride] %s team=%d bucket=%d/%d member=%d items=%d\n", Mutator->Name.ToString().c_str(), (int)TeamIndex, BucketIndex, Buckets.Num, MemberIndex, GivenCount);
+            continue;
+        }
+
+        auto LoadoutsOff = Mutator->GetOffset("InventoryLoadouts");
+        auto TeamLoadoutsOff = Mutator->GetOffset("TeamLoadouts");
+        if (LoadoutsOff == -1)
+            continue;
+        auto& Loadouts = GetFromOffset<FRawLoadoutArray>(Mutator, LoadoutsOff);
+        if (Loadouts.Num <= 0 || !Loadouts.Data)
+            continue;
+
+        int LoadoutIndex = -1;
+        if (TeamLoadoutsOff != -1)
+        {
+            auto& TeamLoadouts = GetFromOffset<FRawLoadoutArray>(Mutator, TeamLoadoutsOff);
+            for (int j = 0; j < TeamLoadouts.Num && TeamLoadouts.Data; j++)
+                if (TeamLoadouts.Data[j * 4] == TeamIndex)
+                {
+                    LoadoutIndex = TeamLoadouts.Data[j * 4 + 1];
+                    break;
+                }
+        }
+        if (LoadoutIndex < 0 || LoadoutIndex >= Loadouts.Num)
+        {
+            auto Found = TeamPicks.find(PickKey);
+            LoadoutIndex = Found != TeamPicks.end() ? Found->second : rand() % Loadouts.Num;
+        }
+        TeamPicks[PickKey] = LoadoutIndex;
+        GivenCount = GiveLoadoutContainer(PlayerController, Loadouts.Data + LoadoutIndex * ContainerSize);
+        BORON_LOG("[Boron][InvOverride] %s team=%d loadout=%d/%d items=%d\n", Mutator->Name.ToString().c_str(), (int)TeamIndex, LoadoutIndex, Loadouts.Num, GivenCount);
+    }
+    Mutators.Free();
+}
+
 void AFortPlayerControllerAthena::ServerAttemptAircraftJump_(UObject* Context, FFrame& Stack)
 {
     if (VersionInfo.FortniteVersion >= 33 && ServerAttemptAircraftJump_OG && !LategameConfig::bLateGame)
@@ -1161,9 +1350,15 @@ void AFortPlayerControllerAthena::ServerAttemptAircraftJump_(UObject* Context, F
         BORON_LOG("[Boron][Jump] #%d inAircraft=%d comp=%p currentAircraft=%p pawn=%p\n",
                JumpN, (int)PlayerController->IsInAircraft(), (void*)AircraftComp, CurAircraft, (void*)PlayerController->Pawn);
 
-        if ((VersionInfo.EngineVersion >= 5.4 || VersionInfo.FortniteVersion == 15.30) && !PlayerController->IsInAircraft())
+        if ((VersionInfo.EngineVersion >= 5.4 || VersionInfo.FortniteVersion == 15.30 || VersionInfo.FortniteVersion == 16.40 || VersionInfo.FortniteVersion == 17.20) && !PlayerController->IsInAircraft())
         {
             BORON_LOG("[Boron][Jump] #%d ignored - not in aircraft\n", JumpN);
+            if ((VersionInfo.FortniteVersion == 16.40 || VersionInfo.FortniteVersion == 17.20) && PlayerController->Pawn)
+                if (auto RestartFn = PlayerController->GetFunction("ClientRestart"))
+                {
+                    struct { void* NewPawn; } RestartParams{ (void*)PlayerController->Pawn };
+                    PlayerController->ProcessEvent(RestartFn, &RestartParams);
+                }
             return;
         }
 
@@ -1173,13 +1368,19 @@ void AFortPlayerControllerAthena::ServerAttemptAircraftJump_(UObject* Context, F
             PlayerController->UnPossess(PlayerController->Pawn);
 
         GameMode->RestartPlayer(PlayerController);
+        if ((VersionInfo.FortniteVersion == 16.40 || VersionInfo.FortniteVersion == 17.20) && PlayerController->Pawn)
+            if (auto RestartFn = PlayerController->GetFunction("ClientRestart"))
+            {
+                struct { void* NewPawn; } RestartParams{ (void*)PlayerController->Pawn };
+                PlayerController->ProcessEvent(RestartFn, &RestartParams);
+            }
 
         BORON_LOG("[Boron][Jump] #%d after restart pawn=%p myFortPawn=%p\n",
                JumpN, (void*)PlayerController->Pawn, (void*)PlayerController->MyFortPawn);
         // PlayerController->ServerRestartPlayer();
         PlayerController->SetControlRotation(Rotation);
 
-        if (VersionInfo.FortniteVersion == 15.30 && !LategameConfig::bLateGame && CurAircraft && PlayerController->MyFortPawn)
+        if ((VersionInfo.FortniteVersion == 15.30 || VersionInfo.FortniteVersion == 16.40 || VersionInfo.FortniteVersion == 17.20) && !LategameConfig::bLateGame && CurAircraft && PlayerController->MyFortPawn)
             PlayerController->MyFortPawn->K2_SetActorLocation(((AActor*)CurAircraft)->K2_GetActorLocation(), false, nullptr, true);
 
         if (PlayerController->MyFortPawn)
@@ -5954,7 +6155,7 @@ void AFortPlayerControllerAthena::PostLoadHook()
     else
         Hooking::ExecHook(ServerAttemptAircraftJumpPC, ServerAttemptAircraftJump_, ServerAttemptAircraftJump_OG);
 
-    if (VersionInfo.FortniteVersion == 15.30 && ServerAttemptAircraftJumpPC)
+    if (VersionInfo.FortniteVersion >= 15 && VersionInfo.FortniteVersion < 18 && ServerAttemptAircraftJumpPC)
     {
         if (auto AircraftCompDefault = DefaultObjImpl("FortControllerComponent_Aircraft"))
             Hooking::ExecHook(AircraftCompDefault->GetFunction("ServerAttemptAircraftJump"), ServerAttemptAircraftJump_);

@@ -230,6 +230,7 @@ public:
     DEFINE_PROP(GamePhaseStep, uint8);
     DEFINE_PROP(Aircrafts, TArray<AFortAthenaAircraft*>);
     DEFINE_PROP(Aircraft, AFortAthenaAircraft*);
+    DEFINE_PROP(TeamFlightPaths, TArray<FAircraftFlightInfo>);
     DEFINE_PROP(SafeZonesStartTime, float);
     DEFINE_PROP(AirCraftBehavior, uint8);
     DEFINE_PROP(CachedSafeZoneStartUp, uint8);

@@ -85,6 +85,7 @@ public:
     DEFINE_PROP(MaxSquadSize, int32);
     DEFINE_PROP(LootTierData, TSoftObjectPtr<UDataTable>);
     DEFINE_PROP(LootPackages, TSoftObjectPtr<UDataTable>);
+    DEFINE_PROP(SupplyDropInfoList, TArray<TSoftObjectPtr<UObject>>);
     DEFINE_PROP(AirCraftBehavior, uint8);
     DEFINE_PROP(SafeZoneStartUp, uint8);
     DEFINE_PROP(bRespawnInAir, bool);
