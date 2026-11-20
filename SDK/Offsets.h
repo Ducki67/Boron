@@ -57,6 +57,7 @@ namespace SDK
         inline uint32_t UObjectOuter = 0x20;
         inline uint32_t ObjectItemSize = 0x18;
         inline uint32_t ChildProperties = 0x50;
+        inline uint32_t UEnumNames = 0x40;
         inline uint32_t CastFlags = 0;
         inline uint32_t ObjectItemObject = 0x0;
         inline uint32_t ObjectItemFlags = 0x8;
@@ -70,6 +71,7 @@ namespace SDK
         inline bool bEncryptedObjectArray = false;
         inline bool bIsAUsesSuper = false;
         inline uint64_t FortniteCL = 0;
+        inline bool IsSeason34() { return FortniteCL == 41753727 || FortniteCL == 41588354; }
     } // namespace Offsets
 
     struct FReflectionCrypto
@@ -96,6 +98,9 @@ namespace SDK
         uint64_t CastFlagsSubtract = 0;
         bool bXorRorNot = false;
         bool bRor3Scheme = false;
+        bool bXorRorScheme = false;
+        uint8_t XorRorRotate = 0;
+        uint32_t FNameIndexXor = 0;
         uint64_t ObjectsNotXor = 0;
         uint64_t ObjectXor = 0;
         uint32_t NumElementsAdd = 0;
@@ -149,6 +154,9 @@ namespace SDK
 
     inline uint32_t ReadPropertyOffset(const void* Prop)
     {
+        if (Crypto.bXorRorScheme)
+            return Ror32(*(const uint32_t*)((const uint8_t*)Prop + Offsets::Offset_Internal) ^ Crypto.PropertyOffsetXor, Crypto.XorRorRotate);
+
         if (Crypto.bRor3Scheme)
             return Ror32(*(const uint32_t*)((const uint8_t*)Prop + Offsets::Offset_Internal), 3) + Crypto.PropertyOffsetAdd;
 
@@ -165,6 +173,9 @@ namespace SDK
 
     inline uint32_t ReadElementSize(const void* Prop)
     {
+        if (Crypto.bXorRorScheme)
+            return Ror32(*(const uint32_t*)((const uint8_t*)Prop + Offsets::ElementSize) ^ Crypto.ElementSizeXor, Crypto.XorRorRotate);
+
         if (Crypto.bRor3Scheme)
             return Ror32(*(const uint32_t*)((const uint8_t*)Prop + Offsets::ElementSize), 3) - Crypto.ElementSizeSub;
 
@@ -173,6 +184,9 @@ namespace SDK
 
     inline int32_t ReadStructSize(const void* Struct)
     {
+        if (Crypto.bXorRorScheme)
+            return (int32_t)Ror32(*(const uint32_t*)((const uint8_t*)Struct + Offsets::PropertiesSize) ^ Crypto.StructSizeXor, Crypto.XorRorRotate);
+
         if (Crypto.bRor3Scheme)
             return (int32_t)(Ror32(*(const uint32_t*)((const uint8_t*)Struct + Offsets::PropertiesSize), 3) - Crypto.StructSizeSub);
 
@@ -197,6 +211,9 @@ namespace SDK
 
     inline int32_t ReadObjectIndex(const void* Object)
     {
+        if (Crypto.bXorRorScheme)
+            return (int32_t)Ror32(*(const uint32_t*)((const uint8_t*)Object + Offsets::UObjectIndex) ^ Crypto.IndexXor, Crypto.XorRorRotate);
+
         if (Crypto.bRor3Scheme)
             return (int32_t)(Ror32(*(const uint32_t*)((const uint8_t*)Object + Offsets::UObjectIndex), 3) - Crypto.IndexSub);
 
@@ -205,6 +222,58 @@ namespace SDK
 
     inline void ApplyEncryptedBuildLayout()
     {
+        if (Offsets::FortniteCL == 41588354)
+        {
+            Offsets::UEnumNames = 0x50;
+            Offsets::UObjectFlags = 0xC;
+            Offsets::UObjectName = 0x8;
+            Offsets::UObjectClass = 0x10;
+            Offsets::UObjectIndex = 0x18;
+            Offsets::UObjectOuter = 0x20;
+            Offsets::Super = 0x40;
+            Offsets::Children = 0x68;
+            Offsets::ChildProperties = 0x78;
+            Offsets::PropertiesSize = 0x60;
+            Offsets::Offset_Internal = 0x3C;
+            Offsets::PropertyFlags = 0x30;
+            Offsets::ElementSize = 0x2C;
+            Offsets::CastFlags = 0x1F8;
+            Offsets::FieldClass = 0x18;
+            Offsets::FField_Next = 0x10;
+            Offsets::FFrame_Next = 0x10;
+            Offsets::FField_Name = 0x20;
+            Offsets::FieldMask = 0x68;
+            Offsets::ExecFunction = 0xD8;
+            Offsets::ObjectItemObject = 0x8;
+            Offsets::ObjectItemFlags = 0x10;
+            Offsets::ObjectItemSerial = 0x18;
+            Offsets::ObjectItemSize = 0x20;
+            Offsets::ObjArrayObjects = 0x0;
+            Offsets::ObjArrayNum = 0x1C;
+            Offsets::ObjArrayMax = 0x1C;
+            Offsets::ObjArrayNumChunks = -1;
+            Offsets::FNameIndexKey = 1;
+            Offsets::bEncryptedObjectArray = true;
+            Offsets::bIsAUsesSuper = true;
+
+            Crypto.bRor3Scheme = true;
+            Crypto.bXorRorScheme = true;
+            Crypto.XorRorRotate = 14;
+            Crypto.ObjectsNotXor = 0x9EFBD667;
+            Crypto.ObjectXor = 0xFFFFFFFF14618214;
+            Crypto.NumElementsXor = 0xDEC7D55B;
+            Crypto.IndexXor = 0xA5A59257;
+            Crypto.FieldDecXor = 0xFFFFFFFF783862AA;
+            Crypto.FieldClassXor = 0xFFFFFFFF7D187BCA;
+            Crypto.ElementSizeXor = 0x891470D5;
+            Crypto.PropertyOffsetXor = 0x88C13BF5;
+            Crypto.StructSizeXor = 0xE44E583B;
+            Crypto.PropertyFlagsNotXor = 0xC90A0A39;
+            Crypto.CastFlagsNotXor = 0x6D17A217;
+            Crypto.FNameIndexXor = 0x69C00DE3;
+            return;
+        }
+
         if (Offsets::FortniteCL == 41753727)
         {
             Offsets::UObjectFlags = 0x8;
@@ -946,6 +1015,24 @@ namespace SDK
             Offsets::StaticLoadObject = Base + 0x305B9FC;
             Offsets::FNameConstructor = Base + 0x1E6E40C;
             Offsets::SpawnActor = Base + 0x2AF7B50;
+        }
+
+        if (Offsets::FortniteCL == 41588354)
+        {
+            auto Base = Memcury::PE::GetModuleBase();
+            Offsets::Realloc = Base + 0x65869E8;
+            Offsets::AppendString = Base + 0x203FB94;
+            Offsets::ToString = Base + 0x203FB94;
+            addr = Base + 0x2080324;
+            Offsets::GObjectsChunked = Base + 0x16D7D6D0;
+            Offsets::GObjectsUnchunked = 0;
+            Offsets::Step = Base + 0x21581B4;
+            Offsets::StepExplicitProperty = Base + 0x27B89E4;
+            Offsets::GetInterfaceAddress = Base + 0x2155AD4;
+            Offsets::StaticFindObject = Base + 0x232218C;
+            Offsets::StaticLoadObject = Base + 0x2F307C0;
+            Offsets::FNameConstructor = Base + 0x203FF40;
+            Offsets::SpawnActor = Base + 0x31A1CB0;
         }
 
         if (Offsets::FortniteCL == 41753727)

@@ -884,7 +884,7 @@ namespace SDK
         {
             auto Engine = UEngine::GetEngine();
 
-            if (!Engine->GameViewport)
+            if (!Engine || !Engine->GameViewport)
                 return nullptr;
 
             return (UWorld*)Engine->GameViewport->World;
@@ -1076,6 +1076,8 @@ namespace SDK
             for (int i = 0; i < InvocationList.Num(); i++)
             {
                 auto& ScriptDelegate = InvocationList.Get(i, FScriptDelegate::Size());
+                if (!ScriptDelegate.Object.Get())
+                    continue;
 
                 ScriptDelegate.Object->Call(ScriptDelegate.Object->GetFunction(ScriptDelegate.FunctionName), std::forward<Args>(args)...);
             }

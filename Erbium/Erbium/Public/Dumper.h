@@ -40,7 +40,7 @@ inline void DumpItems()
         ss << "- " << UKismetSystemLibrary::GetPathName(Item).ToString() << "\n";
         ss << "-     Name: " << (Name.GetData() ? Name.ToString() : "None") << "\n";
 
-        auto Names = *(TArray<TPair<FName, int64>>*)(__int64(RarityEnum) + 0x40);
+        auto Names = *(TArray<TPair<FName, int64>>*)(__int64(RarityEnum) + Offsets::UEnumNames);
 
         for (int i = 0; i < Names.Num(); i++)
         {

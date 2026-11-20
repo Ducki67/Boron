@@ -640,7 +640,7 @@ void ABuildingSMActor::PostLoadHook()
         if (!GetSparseClassData_ && Offsets::FortniteCL == 39768313)
             GetSparseClassData_ = Memcury::PE::GetModuleBase() + 0x2426664;
 
-        if (!GetSparseClassData_ && Offsets::FortniteCL == 41753727)
+        if (!GetSparseClassData_ && Offsets::IsSeason34())
         {
             auto DataStruct = (UObject*)FindStruct("BuildingSMActorClassData");
             auto BuildingClass = (uint8*)ABuildingSMActor::StaticClass();
@@ -671,6 +671,8 @@ void ABuildingSMActor::PostLoadHook()
         OnDamageServerAddr = Memcury::PE::GetModuleBase() + 0x92CC9FC;
     else if (Offsets::FortniteCL == 38202817)
         OnDamageServerAddr = Memcury::PE::GetModuleBase() + 0x94C7EE0;
+    else if (Offsets::FortniteCL == 41588354)
+        OnDamageServerAddr = Memcury::PE::GetModuleBase() + 0xC581838;
 
     Hooking::Hook(OnDamageServerAddr, OnDamageServer, OnDamageServerOG);
 

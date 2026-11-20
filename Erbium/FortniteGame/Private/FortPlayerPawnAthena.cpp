@@ -155,6 +155,9 @@ static void ServerHandlePickupProbe(UObject* Context, FFrame& Stack)
         return;
     }
 
+    if (Pickup && !FFortItemEntry::HasCount() && Pickup->PawnWhoDroppedPickup == Pawn)
+        return;
+
     int before = -1, after = -1;
 
     if (PC && PC->WorldInventory)
@@ -1211,7 +1214,7 @@ void AFortPlayerPawnAthena::LaunchCharacterExec(UObject* Context, FFrame& Stack)
     LaunchCharacterExecOG(Context, Stack);
 
     auto Pawn = (AFortPlayerPawnAthena*)Context;
-    if (!Pawn || VersionInfo.EngineVersion < 5.4 || (Offsets::FortniteCL == 41753727 && Pawn->CurrentWeapon && Pawn->CurrentWeapon->Class && Pawn->CurrentWeapon->Class->Name.ToString().find("RocketDrill") != std::string::npos))
+    if (!Pawn || VersionInfo.EngineVersion < 5.4 || (Offsets::IsSeason34() && Pawn->CurrentWeapon && Pawn->CurrentWeapon->Class && Pawn->CurrentWeapon->Class->Name.ToString().find("RocketDrill") != std::string::npos))
         return;
 
     SetServerCorrections(Pawn, false);
@@ -1234,7 +1237,7 @@ void AFortPlayerPawnAthena::LaunchCharacterExec(UObject* Context, FFrame& Stack)
 
 void AFortPlayerPawnAthena::LaunchCharacter(AFortPlayerPawnAthena* Pawn, void* LaunchVelocity, bool bXYOverride, bool bZOverride)
 {
-    if (VersionInfo.EngineVersion >= 5.4 && Pawn && !(Offsets::FortniteCL == 41753727 && Pawn->CurrentWeapon && Pawn->CurrentWeapon->Class && Pawn->CurrentWeapon->Class->Name.ToString().find("RocketDrill") != std::string::npos))
+    if (VersionInfo.EngineVersion >= 5.4 && Pawn && !(Offsets::IsSeason34() && Pawn->CurrentWeapon && Pawn->CurrentWeapon->Class && Pawn->CurrentWeapon->Class->Name.ToString().find("RocketDrill") != std::string::npos))
     {
         SetServerCorrections(Pawn, false);
 

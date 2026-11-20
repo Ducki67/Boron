@@ -285,6 +285,12 @@ void UFortGameStateComponent_BattleRoyaleGamePhaseLogic::StartAircraftPhase()
             BORON_LOG("[Boron][Aircraft] CH5 parachute deploy trace: %.1f -> 10000\n",
                    GameState->DefaultParachuteDeployTraceForGroundDistance);
             GameState->DefaultParachuteDeployTraceForGroundDistance = 10000.f;
+            if (VersionInfo.FortniteVersion >= 34)
+                if (auto SetTraceFn = GameState->GetFunction("SetDefaultParachuteDeployTraceForGroundDistance"))
+                {
+                    float Trace = 10000.f;
+                    GameState->ProcessEvent(SetTraceFn, &Trace);
+                }
         }
         else
             printf("[Boron][Aircraft] CH5 parachute deploy trace prop MISSING on this build\n");

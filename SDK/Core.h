@@ -53,6 +53,9 @@ namespace SDK
             if (!Offsets::FNameIndexKey || !ComparisonIndex)
                 return ComparisonIndex;
 
+            if (Crypto.bXorRorScheme)
+                return (int32)(Ror32(((uint32)ComparisonIndex - 1) ^ Crypto.FNameIndexXor, Crypto.XorRorRotate) + 1);
+
             if (Crypto.bRor3Scheme)
                 return (int32)(Ror32((uint32)ComparisonIndex - 1, 3) - Crypto.FNameIndexSub);
 
@@ -421,8 +424,47 @@ namespace SDK
             return (const UField*)ReadFieldPtr(this, Offsets::ChildProperties);
         }
 
+        static bool ProbeChildrenAt(const void* Struct, uint32_t Offset, uint32_t FunctionName)
+        {
+            __try
+            {
+                auto Child = *(const uint8_t**)((const uint8_t*)Struct + Offset);
+                if (!Child || ((uint64_t)Child >> 47) != 0)
+                    return false;
+
+                auto ChildClass = *(const uint8_t**)(Child + Offsets::UObjectClass);
+                if (!ChildClass || ((uint64_t)ChildClass >> 47) != 0)
+                    return false;
+
+                return *(const uint32_t*)(ChildClass + Offsets::UObjectName) == FunctionName;
+            }
+            __except (1)
+            {
+                return false;
+            }
+        }
+
         const UField* GetChildren() const
         {
+            if (Offsets::FortniteCL == 41588354)
+            {
+                static bool bProbed = false;
+                static int Attempts = 0;
+                if (!bProbed && Attempts++ < 4096)
+                {
+                    static FName FunctionName(L"Function");
+                    for (uint32_t Candidate : { 0x68u, 0x48u, 0x50u, 0x58u })
+                    {
+                        if (ProbeChildrenAt(this, Candidate, *(uint32_t*)&FunctionName))
+                        {
+                            Offsets::Children = Candidate;
+                            bProbed = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
             return GetFromOffset<UField*>(this, Offsets::Children);
         }
 
@@ -796,6 +838,9 @@ namespace SDK
     public:
         inline int Num() const
         {
+            if (Crypto.bXorRorScheme)
+                return (int32)Ror32(*(const uint32_t*)((const uint8_t*)this + Offsets::ObjArrayNum) ^ Crypto.NumElementsXor, Crypto.XorRorRotate);
+
             if (Crypto.bRor3Scheme)
                 return (int32)(Ror32(*(const uint32_t*)((const uint8_t*)this + Offsets::ObjArrayNum), 3) + Crypto.NumElementsAdd);
 
@@ -1075,7 +1120,7 @@ namespace SDK
             if (!this)
                 return -1;
 
-            auto Names = *(TArray<TPair<FName, int64>>*)(__int64(this) + 0x40);
+            auto Names = *(TArray<TPair<FName, int64>>*)(__int64(this) + Offsets::UEnumNames);
 
             for (int i = 0; i < Names.Num(); i++)
             {

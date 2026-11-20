@@ -5,7 +5,7 @@
 
 // #define MANUAL_SERVER_SETUP // if defined then the gameserver WONT set up the playlist automatically  You HAVE TO click on the "Setup server" Button on the GUI
 //#define HITSCAN_WEAPONS // some hitscan weapons shit for ch5 (will be removed later on)
-#define BORON_LOGS // if defined then ALL [Boron] logs are printed, if not only errors/warnings are (use BORON_LOG_ON(...) to force a single line on)
+// #define BORON_LOGS // if defined then ALL [Boron] logs are printed, if not only errors/warnings are (use BORON_LOG_ON(...) to force a single line on)
 
 ///#define AUTOHOSTER_CONFIGURATOR // this will be for autohoster exes so the exe it self can change all configs even if the dll is compiled  (Coming later)
 
@@ -101,7 +101,7 @@ struct FConfig
     
 
     // Core gamemodes (s30 below 
-     static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo";
+    // static inline wchar_t Playlist[9999] = L"/Game/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo";
      //static inline wchar_t Playlist[9999] = L"/BlueCheese/Playlists/Playlist_BlueCheese_Trios.Playlist_BlueCheese_Trios"; // Bugha's Late Game (17.20)
 
     ///static inline wchar_t Playlist[9999] = L"/BlueCheese/Playlists/Playlist_ShowdownAlt_BlueCheese_Trios.Playlist_ShowdownAlt_BlueCheese_Trios"; // Bugha's LateGame Arena trios (17.20)
@@ -132,12 +132,12 @@ struct FConfig
     
    /// high version playlists (s30+)
 
-   // static inline wchar_t Playlist[9999] = L"/BRPlaylists/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo"; // 31.xx+ Main BR
+    //static inline wchar_t Playlist[9999] = L"/BRPlaylists/Athena/Playlists/Playlist_DefaultSolo.Playlist_DefaultSolo"; // 31.xx+ Main BR
    // static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_BlastBerrySquad.Playlist_BlastBerrySquad"; // 30.20 and 30.40 Reload Venture map (this can be Squads and Trios only)
    // static inline wchar_t Playlist[9999] = L"/ToadJam/Athena/Playlists/ToadJam/Playlist_ToadJam_Sm.Playlist_ToadJam_Sm"; // Day of Doom LTM (testing, 31.20, 31.30)
    // static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_PunchBerrySolo.Playlist_PunchBerrySolo";  // 32.xx+ Oasis Reload map
    // static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_SunflowerSolo.Playlist_SunflowerSolo"; // Venture Reload (32.xx+ iirc? and this one also work on 31.10+ cuz Solo one exists in the files)
-   // static inline wchar_t Playlist[9999] = L"/FigmentPlaylists/Playlists/Playlist_FigmentSolo.Playlist_FigmentSolo"; // 33.xx+  OG mode
+    static inline wchar_t Playlist[9999] = L"/FigmentPlaylists/Playlists/Playlist_FigmentSolo.Playlist_FigmentSolo"; // 33.xx+  OG mode
    
    // static inline wchar_t Playlist[9999] = L"/BRPlaylists/Athena/Playlists/Showdown/Playlist_ShowdownAlt_Solo.Playlist_ShowdownAlt_Solo"; // 32.xx+ Arena (swap Solo for Duos/Trios/Squads) | on 31.xx use the ch1-4 arena line (/Game/Athena/...) | kicks you 60s after death
    // static inline wchar_t Playlist[9999] = L"/BRPlaylists/Athena/Playlists/NoBuildBR/Competitive/Playlist_ShowdownAlt_NoBuildBR_Solo.Playlist_ShowdownAlt_NoBuildBR_Solo"; // 32.xx+ Zero Build Arena (swap Solo for Duos/Trios/Squads)
@@ -145,6 +145,7 @@ struct FConfig
    // static inline wchar_t Playlist[9999] = L"/Clyde/Playlist/BR_Build/Clyde_S3/Ranked/Playlist_Habanero_ClydeSolo_S3.Playlist_Habanero_ClydeSolo_S3"; // 32.10/32.11 Remix Ranked (no real Arena on Remix, this is the closest) | untested
    // static inline wchar_t Playlist[9999] = L"/FigmentPlaylists/Playlists/Habanero/Playlist_Habanero_Figment_Solo.Playlist_Habanero_Figment_Solo"; // 33.xx+ OG Ranked
    // static inline wchar_t Playlist[9999] = L"/FigmentPlaylists/Playlists/Competitive/Playlist_ShowdownTournament_FigmentSolo.Playlist_ShowdownTournament_FigmentSolo"; // 33.xx+ OG tournament (closest to OG Arena)
+   // static inline wchar_t Playlist[9999] = L"/BlastBerry/Playlists/Playlist_DashBerrySolo.Playlist_DashBerrySolo"; // 34.30+ Slurp Rush Reload (Solo) | 34.30+ Slurp Rush Reload (Duos/Trios/Squads) | 34.30+ Slurp
 
 
 

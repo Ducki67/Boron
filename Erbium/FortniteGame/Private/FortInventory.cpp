@@ -133,7 +133,7 @@ static void ApplyGadgetAttributesCH6(const UFortItemDefinition* Def, AActor* Inv
 void ApplyGFPPlayerAttributesCH6(AActor* InventoryOwner)
 {
     auto PlayerController = (AFortPlayerControllerAthena*)InventoryOwner;
-    if (Offsets::FortniteCL != 41753727 || !PlayerController || !PlayerController->PlayerState || !PlayerController->PlayerState->AbilitySystemComponent)
+    if (!Offsets::IsSeason34() || !PlayerController || !PlayerController->PlayerState || !PlayerController->PlayerState->AbilitySystemComponent)
         return;
 
     static auto StateMachineClass = FindClass("GameFeaturePluginStateMachine");
@@ -218,17 +218,17 @@ UFortWorldItem* AFortInventory::GiveItem(const UFortItemDefinition* Def, int Cou
         }
 
         if (Def->IsA<UFortWeaponRangedItemDefinition>())
-            CH6Item->ItemEntry.LoadedAmmo = LoadedAmmo >= 0 ? LoadedAmmo : ((int32 (*)(UFortWorldItem*))CH6Item->Vft[Offsets::FortniteCL == 41753727 ? 0x7F : 0x82])(CH6Item);
-        else if (Offsets::FortniteCL == 41753727 && Def->IsA<UFortGadgetItemDefinition>())
+            CH6Item->ItemEntry.LoadedAmmo = LoadedAmmo >= 0 ? LoadedAmmo : ((int32 (*)(UFortWorldItem*))CH6Item->Vft[Offsets::IsSeason34() ? 0x7F : 0x82])(CH6Item);
+        else if (Offsets::IsSeason34() && Def->IsA<UFortGadgetItemDefinition>())
             if (auto GadgetWeapon = (UFortWeaponItemDefinition*)((UFortGadgetItemDefinition*)Def)->GetWeaponItemDefinition())
                 if (auto GadgetStats = GetStats(GadgetWeapon))
                     CH6Item->ItemEntry.LoadedAmmo = LoadedAmmo >= 0 ? LoadedAmmo : GadgetStats->ClipSize;
-        if (Offsets::FortniteCL == 41753727 && Def->IsA<UFortGadgetItemDefinition>())
+        if (Offsets::IsSeason34() && Def->IsA<UFortGadgetItemDefinition>())
             ApplyGadgetAttributesCH6(Def, Owner);
 
         auto& CH6Rep = this->Inventory.ReplicatedEntries.Add(CH6Item->ItemEntry, FFortItemEntry::Size());
-        if (Offsets::FortniteCL == 39768313 || Offsets::FortniteCL == 41753727)
-            ((FFortItemEntry * (*)(FFortItemEntry*, const FFortItemEntry*))(Memcury::PE::GetModuleBase() + (Offsets::FortniteCL == 41753727 ? 0x4371F38 : 0x3B1BA38)))(&CH6Rep, &CH6Item->ItemEntry);
+        if (Offsets::FortniteCL == 39768313 || Offsets::IsSeason34())
+            ((FFortItemEntry * (*)(FFortItemEntry*, const FFortItemEntry*))(Memcury::PE::GetModuleBase() + (Offsets::FortniteCL == 41753727 ? 0x4371F38 : Offsets::FortniteCL == 41588354 ? 0x4A8A8BC : 0x3B1BA38)))(&CH6Rep, &CH6Item->ItemEntry);
         this->Inventory.ItemInstances.Add(CH6Item);
 
         if (updateInventory)
@@ -243,7 +243,7 @@ UFortWorldItem* AFortInventory::GiveItem(const UFortItemDefinition* Def, int Cou
         if (OnItemInstanceAddedVft)
             ((bool (*)(const UFortWorldItem*, const IInterface*))CH6Item->Vft[OnItemInstanceAddedVft])(CH6Item, Owner->GetInterface(IFortInventoryOwnerInterface::StaticClass()));
 
-        if (Offsets::FortniteCL == 41753727 && Def->HasDataList())
+        if (Offsets::IsSeason34() && Def->HasDataList())
         {
             static auto LinkStruct = (const UStruct*)FindStruct("FortItemComponentData_ItemLinking");
             for (auto& ItemData : Def->DataList)
@@ -786,13 +786,13 @@ struct FRawInstancedStruct
 
 void* CH6Component(FFortItemEntry* Entry, const char* StructName, UObject** Cache)
 {
-    if (!Entry || (Offsets::FortniteCL != 39768313 && Offsets::FortniteCL != 41753727))
+    if (!Entry || (Offsets::FortniteCL != 39768313 && !Offsets::IsSeason34()))
         return nullptr;
     if (!*Cache)
         *Cache = (UObject*)FindStruct(StructName);
     if (!*Cache)
         return nullptr;
-    auto& List = *(TArray<FRawInstancedStruct>*)((uint8*)Entry + (Offsets::FortniteCL == 41753727 ? 0x28 : 0x30));
+    auto& List = *(TArray<FRawInstancedStruct>*)((uint8*)Entry + (Offsets::IsSeason34() ? 0x28 : 0x30));
     for (int i = 0; i < List.Num(); i++)
     {
         auto& Data = List[i];
@@ -806,11 +806,11 @@ void* CH6AddComponent(FFortItemEntry* Entry, const char* StructName, UObject** C
 {
     if (auto Existing = CH6Component(Entry, StructName, Cache))
         return Existing;
-    if (!Entry || !*Cache || (Offsets::FortniteCL != 39768313 && Offsets::FortniteCL != 41753727))
+    if (!Entry || !*Cache || (Offsets::FortniteCL != 39768313 && !Offsets::IsSeason34()))
         return nullptr;
     auto Memory = FMemory::Malloc<uint8>(Size, 8);
     memset(Memory, 0, Size);
-    auto& List = *(TArray<FRawInstancedStruct>*)((uint8*)Entry + (Offsets::FortniteCL == 41753727 ? 0x28 : 0x30));
+    auto& List = *(TArray<FRawInstancedStruct>*)((uint8*)Entry + (Offsets::IsSeason34() ? 0x28 : 0x30));
     List.Add(FRawInstancedStruct{ *Cache, Memory });
     static int Logged = 0;
     if (Logged++ < 10)
@@ -884,9 +884,11 @@ static AFortPickupAthena* SpawnPickupCH6(FVector Loc, const UFortItemDefinition*
     }
     if (auto SourceLoaded = Ret && SourceEntry ? CH6LoadedAmmo(SourceEntry) : nullptr)
         Ret->PrimaryPickupItemEntry.LoadedAmmo = *SourceLoaded;
-    else if (Ret && !SourceEntry && Offsets::FortniteCL == 41753727 && ItemDefinition->IsA<UFortWeaponRangedItemDefinition>())
+    else if (Ret && !SourceEntry && Offsets::IsSeason34() && ItemDefinition->IsA<UFortWeaponRangedItemDefinition>())
         if (auto Stats = AFortInventory::GetStats((UFortWeaponItemDefinition*)ItemDefinition))
             Ret->PrimaryPickupItemEntry.LoadedAmmo = Stats->ClipSize;
+    if (Ret && Pawn && SourceTypeFlag == EFortPickupSourceTypeFlag::GetPlayer())
+        Ret->PawnWhoDroppedPickup = Pawn;
     static int ch6Pickups = 0;
     if (ch6Pickups++ < 20)
         BORON_LOG("[Boron][CH6Pickup] %s x%d -> %p manual=%d stack=%lld\n", ItemDefinition->Name.ToString().c_str(), Count, (void*)Ret, bManual, Ret && CH6StackSize(&Ret->PrimaryPickupItemEntry) ? (long long)*CH6StackSize(&Ret->PrimaryPickupItemEntry) : -1ll);
@@ -1384,7 +1386,7 @@ void AFortInventory::PostLoadHook()
         Hooking::Hook<UFortWorldItem>(uint32(0xC4), SetLoadedAmmoCH5);
         Hooking::Hook<UFortWorldItem>(uint32(0xC5), SetPhantomReserveAmmoCH5);
     }
-    else if (!SetOwningInventory && Offsets::FortniteCL == 41753727)
+    else if (!SetOwningInventory && Offsets::IsSeason34())
     {
         Hooking::Hook<UFortWorldItem>(uint32(0xC1), SetLoadedAmmoCH5);
         Hooking::Hook<UFortWorldItem>(uint32(0xC2), SetPhantomReserveAmmoCH5);

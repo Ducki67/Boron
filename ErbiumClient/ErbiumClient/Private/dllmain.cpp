@@ -46,6 +46,12 @@ void Main()
     
     SDK::Init();
 
+    for (int i = 0; i < 1800 && !UEngine::GetEngine(); i++)
+        Sleep(100);
+
+    if (!UEngine::GetEngine())
+        return;
+
 
         if (wcscmp(FConfig::Playlist, L"/DurianPlaylist/Playlist/Playlist_Durian.Playlist_Durian") == 0);
         FConfig::bEnableIris = false;
@@ -150,8 +156,26 @@ void Main()
         GFSGet = 0x2bacc18, GFSURLByName = 0x189f954, GFSChangeState = 0x189b27c;
     else if (Offsets::FortniteCL == 38202817)
         GFSGet = 0x2cc699c, GFSURLByName = 0x1947598, GFSChangeState = 0x23f5f80;
+    else if (Offsets::FortniteCL == 41588354)
+        GFSGet = 0x2b9ae48, GFSChangeState = 0x39df52c;
 
-    if (GFSGet && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_PunchBerry"))
+    if (GFSGet && Offsets::FortniteCL == 41588354 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_DashBerry"))
+    std::thread([GFSGet, GFSChangeState]()
+    {
+        while (!UWorld::GetWorld())
+            Sleep(500);
+        Sleep(3000);
+        auto Base = Memcury::PE::GetModuleBase();
+        auto GFS = ((void* (*)())(Base + GFSGet))();
+        alignas(16) FString FileURL = L"file:../../../FortniteGame/Plugins/GameFeatures/f4032749-42c4-7fe9-7fa2-c78076f34f54/f4032749-42c4-7fe9-7fa2-c78076f34f54.uplugin";
+        if (GFS)
+        {
+            alignas(16) uint8_t Done[0x10] = {};
+            ((void (*)(void*, FString*, uint8_t, void*))(Base + GFSChangeState))(GFS, &FileURL, 3, Done);
+        }
+    }).detach();
+
+    if (GFSGet && GFSURLByName && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_PunchBerry"))
     std::thread([GFSGet, GFSURLByName, GFSChangeState]()
     {
         while (!UWorld::GetWorld())

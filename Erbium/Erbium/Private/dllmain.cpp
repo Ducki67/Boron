@@ -104,9 +104,33 @@ void Main()
             FILE* s = _fsopen("stdout.log", "w", _SH_DENYNO);
             if (s)
             {
+                const int OutBefore = _fileno(stdout);
+                const int ErrBefore = _fileno(stderr);
+                FILE* Dummy = nullptr;
+                if (OutBefore < 0)
+                    freopen_s(&Dummy, "NUL", "w", stdout);
+                if (ErrBefore < 0)
+                    freopen_s(&Dummy, "NUL", "w", stderr);
                 _dup2(_fileno(s), _fileno(stdout));
                 _dup2(_fileno(s), _fileno(stderr));
                 setvbuf(stdout, nullptr, _IONBF, 0);
+                setvbuf(stderr, nullptr, _IONBF, 0);
+
+                static int LogFd = _fileno(s);
+                CreateThread(0, 0, [](LPVOID) -> DWORD {
+                    const intptr_t Want = _get_osfhandle(LogFd);
+                    for (;;)
+                    {
+                        Sleep(250);
+                        fflush(stdout);
+                        fflush(stderr);
+                        if (_get_osfhandle(_fileno(stdout)) != Want || _get_osfhandle(_fileno(stderr)) != Want)
+                        {
+                            _dup2(LogFd, _fileno(stdout));
+                            _dup2(LogFd, _fileno(stderr));
+                        }
+                    }
+                }, 0, 0, 0);
             }
         }
 
@@ -395,6 +419,21 @@ void Main()
         BORON_LOG("[Boron][3440] RequestExit patched\n");
     }
 
+    if (Offsets::FortniteCL == 41588354)
+    {
+        auto Base = Memcury::PE::GetModuleBase();
+        Hooking::Patch<uint8_t>(Base + 0x556A8DC, 0xC3);
+        Hooking::Patch<uint8_t>(Base + 0x556A75C, 0xC3);
+        Hooking::Patch<uint8_t>(Base + 0x6E7B6C0, 0xC3);
+        Hooking::Patch<uint8_t>(Base + 0x39F78F7, 0xEB);
+        Hooking::Patch<uint8_t>(Base + 0x3ACAFE4, 0xC3);
+        for (uint64_t Rva : { 0xD24C5D0ull, 0xD24C8A8ull })
+        {
+            Hooking::Patch<uint32_t>(Base + Rva, 0xC0FFC031);
+            Hooking::Patch<uint8_t>(Base + Rva + 4, 0xC3);
+        }
+    }
+
     auto SpawnTrackingGate = FindSpawnActorTrackingGate();
     if (SpawnTrackingGate)
     {
@@ -436,6 +475,11 @@ void Main()
     {
         GIsClientAddr = Memcury::PE::GetModuleBase() + 0x17691C69;
         GIsServerAddr = Memcury::PE::GetModuleBase() + 0x17691BED;
+    }
+    else if (Offsets::FortniteCL == 41588354)
+    {
+        GIsClientAddr = Memcury::PE::GetModuleBase() + 0x16C0E2D9;
+        GIsServerAddr = Memcury::PE::GetModuleBase() + 0x16C0E25E;
     }
     BORON_LOG("[Boron] GIsClient=0x%llX GIsServer=0x%llX (FN %.2f)\n",
            (unsigned long long)GIsClientAddr, (unsigned long long)GIsServerAddr, VersionInfo.FortniteVersion);
@@ -483,6 +527,11 @@ void Main()
         GFSGet = 0x3e87200;
         GFSChangeState = 0x2c805c8;
     }
+    else if (Offsets::FortniteCL == 41588354)
+    {
+        GFSGet = 0x2b9ae48;
+        GFSChangeState = 0x39df52c;
+    }
 
     if (GFSGet)
     {
@@ -503,7 +552,7 @@ void Main()
                 BORON_LOG("[Boron][SimpleEdit] activated SimpleEdit GFP\n");
             }
 
-            if (Offsets::FortniteCL == 41753727)
+            if (Offsets::IsSeason34())
             {
                 alignas(16) FString ClamberURL = L"file:../../../FortniteGame/Plugins/GameFeatures/ClamberingContent/ClamberingContent.uplugin";
                 alignas(16) uint8_t ClamberDone[0x10] = {};
@@ -551,6 +600,20 @@ void Main()
     // forgot to update thsi shit
     else if (VersionInfo.FortniteVersion >= 31.00 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_Sunflower"))
         terrainOpen = L"open BlastBerry_Terrain";
+    else if (GFSGet && Offsets::FortniteCL == 41588354 && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_DashBerry"))
+    {
+        auto Base = Memcury::PE::GetModuleBase();
+        auto GFS = ((void* (*)())(Base + GFSGet))();
+        alignas(16) FString FileURL = L"file:../../../FortniteGame/Plugins/GameFeatures/f4032749-42c4-7fe9-7fa2-c78076f34f54/f4032749-42c4-7fe9-7fa2-c78076f34f54.uplugin";
+        if (GFS)
+        {
+            alignas(16) uint8_t Done[0x10] = {};
+            ((void (*)(void*, FString*, uint8_t, void*))(Base + GFSChangeState))(GFS, &FileURL, 3, Done);
+        }
+        Sleep(8000);
+        terrainOpen = L"open /f4032749-42c4-7fe9-7fa2-c78076f34f54/DashBerry?game=/Game/Athena/Athena_GameMode.Athena_GameMode_C";
+        bDeferOpen = true;
+    }
     else if (GFSGet && wcsstr(FConfig::Playlist, L"/BlastBerry/Playlists/Playlist_PunchBerry")) // 32.00 and 32.11 used here btw!!
     {
         auto Base = Memcury::PE::GetModuleBase();
@@ -558,7 +621,7 @@ void Main()
         struct alignas(16) { const wchar_t* Ptr; int32_t Len; } GFPName{ L"632de27e-4506-41f8-532f-93ac01dc10ca", 36 };
         alignas(16) FString ByName;
         alignas(16) FString FileURL = L"file:../../../FortniteGame/Plugins/GameFeatures/632de27e-4506-41f8-532f-93ac01dc10ca/632de27e-4506-41f8-532f-93ac01dc10ca.uplugin";
-        bool bByName = GFS && ((bool (*)(void*, void*, FString*))(Base + GFSURLByName))(GFS, &GFPName, &ByName);
+        bool bByName = GFS && GFSURLByName && ((bool (*)(void*, void*, FString*))(Base + GFSURLByName))(GFS, &GFPName, &ByName);
         BORON_LOG("[Boron][Oasis] GFS=%p byName=%d\n", GFS, bByName);
         if (GFS)
         {

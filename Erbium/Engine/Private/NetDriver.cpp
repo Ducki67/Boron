@@ -841,7 +841,7 @@ void UNetDriver::TickFlush__Iris(UNetDriver* Driver, float DeltaSeconds)
             for (auto Conn : Driver->ClientConnections)
                 if (Conn && Conn->PlayerController)
                 {
-                    if (Offsets::FortniteCL == 41753727)
+                    if (Offsets::IsSeason34())
                     {
                         static float FirstSeen = -1.f;
                         auto Now = (float)UGameplayStatics::GetTimeSeconds(World);

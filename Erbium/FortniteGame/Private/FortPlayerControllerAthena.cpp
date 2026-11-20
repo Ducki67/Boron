@@ -1512,7 +1512,7 @@ void AFortPlayerControllerAthena::ServerExecuteInventoryItem_(UObject* Context, 
         {
             auto OldGuid = CurrentWeap->ItemEntryGuid;
             auto OldEntry = PC->WorldInventory->Inventory.ReplicatedEntries.Search([&](FFortItemEntry& en) { return en.ItemGuid == OldGuid; }, FFortItemEntry::Size());
-            if (Offsets::FortniteCL == 41753727 && OldEntry)
+            if (Offsets::IsSeason34() && OldEntry)
             {
                 static UObject* OldLoadedCache = nullptr;
                 auto OldItem = PC->WorldInventory->Inventory.ItemInstances.Search([&](UFortWorldItem* it) { return it->ItemEntry.ItemGuid == OldGuid; });
@@ -1532,7 +1532,7 @@ void AFortPlayerControllerAthena::ServerExecuteInventoryItem_(UObject* Context, 
             }
         }
 
-        if (Offsets::FortniteCL == 41753727 && CurrentWeap && CurrentWeap->EquippedAbilitySetHandles.Num())
+        if (Offsets::IsSeason34() && CurrentWeap && CurrentWeap->EquippedAbilitySetHandles.Num())
         {
             for (int i = 0; i < CurrentWeap->EquippedAbilitySetHandles.Num(); i++)
                 UFortKismetLibrary::UnequipFortAbilitySet(CurrentWeap->EquippedAbilitySetHandles.Get(i, FFortAbilitySetHandle::Size()));
@@ -1543,7 +1543,7 @@ void AFortPlayerControllerAthena::ServerExecuteInventoryItem_(UObject* Context, 
         auto NativeCW = NativePawn->CurrentWeapon;
 
         WeaponMods::Reapply((AFortWeapon*)NativeCW);
-        if (Offsets::FortniteCL == 41753727 && NativeCW && NativeCW->Class && NativeCW->Class->Name.ToString().find("DualWield") != std::string::npos)
+        if (Offsets::IsSeason34() && NativeCW && NativeCW->Class && NativeCW->Class->Name.ToString().find("DualWield") != std::string::npos)
         {
             static auto OffhandClass = FindClass("FortOffhandComponent");
             auto Offhand = OffhandClass ? NativePawn->GetComponentByClass((UClass*)OffhandClass) : nullptr;
@@ -1607,7 +1607,7 @@ void AFortPlayerControllerAthena::ServerExecuteInventoryItem_(UObject* Context, 
             }
         }
 
-        if (Offsets::FortniteCL == 41753727 && NativeCW)
+        if (Offsets::IsSeason34() && NativeCW)
         {
             static int MMELogs = 0;
             if (MMELogs < 10 && NativeCW->Class && NativeCW->Class->Name.ToString().find("RocketDrill") != std::string::npos)
@@ -1626,7 +1626,7 @@ void AFortPlayerControllerAthena::ServerExecuteInventoryItem_(UObject* Context, 
                 BORON_LOG("[Boron][MME] drill equip registry=%p regSet=%d regMap=%d pawnMap=%d moveComp=%s\n", (void*)Registry, SetNum, MapNum, PawnMapNum, NativePawn->CharacterMovement && NativePawn->CharacterMovement->Class ? NativePawn->CharacterMovement->Class->Name.ToString().c_str() : "null");
             }
         }
-        if ((Offsets::FortniteCL == 39768313 || Offsets::FortniteCL == 41753727) && NativeCW && NativeCW->IsA(AFortWeaponRanged::StaticClass()) && ((AFortWeaponRanged*)NativeCW)->HasAmmoCount())
+        if ((Offsets::FortniteCL == 39768313 || Offsets::IsSeason34()) && NativeCW && NativeCW->IsA(AFortWeaponRanged::StaticClass()) && ((AFortWeaponRanged*)NativeCW)->HasAmmoCount())
         {
             auto NewWeap = (AFortWeaponRanged*)NativeCW;
             auto NewGuid = NewWeap->ItemEntryGuid;
@@ -2487,8 +2487,13 @@ void AFortPlayerControllerAthena::ServerAttemptInventoryDrop(UObject* Context, F
         return;
     auto Item = *ItemP;
 
+    auto DropDef = Item->ItemEntry.ItemDefinition;
+    if (!DropDef || DropDef->IsA<UFortWeaponMeleeItemDefinition>() || DropDef->IsA<UFortBuildingItemDefinition>() || DropDef->IsA<UFortEditToolItemDefinition>())
+        return;
+
     if (!FFortItemEntry::HasCount())
     {
+
         int64* Stack = CH6StackSize(&Item->ItemEntry);
         int64* RepStack = itemEntry ? CH6StackSize(itemEntry) : nullptr;
         int Have = Stack ? (int)*Stack : 1;
@@ -4433,7 +4438,7 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
             if (!RarityName.empty())
             {
                 auto RarityEnum = EFortRarity::StaticEnum();
-                auto Names = *(TArray<TPair<FName, int64>>*)(__int64(RarityEnum) + 0x40);
+                auto Names = *(TArray<TPair<FName, int64>>*)(__int64(RarityEnum) + Offsets::UEnumNames);
 
                 for (int i = 0; i < Names.Num(); i++)
                 {
@@ -4757,6 +4762,29 @@ void AFortPlayerControllerAthena::ServerCheat(UObject* Context, FFrame& Stack)
 }
 
 extern bool bDidntFind;
+static void SetCosmeticLoadoutController3430(void* Comp, void* Loadout)
+{
+    const uint64 B = Memcury::PE::GetModuleBase();
+    auto Cur = (uint8*)Comp + 0xC0;
+
+    if (((bool (*)(void*, void*))(B + 0x8409004))(Loadout, Cur))
+        return;
+
+    *((uint8*)Comp + 0x3BC) |= 1;
+    ((void (*)(void*, void*))(B + 0x83EE824))(Cur, Loadout);
+    ((void (*)(void*))(B + 0xC7614B4))(Comp);
+
+    if (auto Pawn = ((uint8 * (*)(void*))(B + 0x230356C))(Comp))
+        if (auto PawnComp = *(void**)(Pawn + 0x25E0))
+            ((void (*)(void*))(B + 0xC1DE95C))(PawnComp);
+
+    ((void (*)(void*))(B + 0xC73679C))(Comp);
+
+    auto Owner = *(uint8**)((uint8*)Comp + 0xA8);
+    if (Owner && *(void**)(Owner + 0x2E8))
+        ((void (*)(void*, void*))(B + 0xC754B44))(Comp, *(void**)(Owner + 0x2E8));
+}
+
 void AFortPlayerControllerAthena::ServerSetMultiProductCosmeticLoadout_(UObject* Context, FFrame& Stack)
 {
     auto PlayerController = (AFortPlayerControllerAthena*)Context;
@@ -4772,7 +4800,15 @@ void AFortPlayerControllerAthena::ServerSetMultiProductCosmeticLoadout_(UObject*
     static auto CosmeticCompClass = FindClass("FortControllerComponent_CosmeticLoadout");
     auto CosmeticComp = PlayerController && CosmeticCompClass ? (UFortControllerComponent_CosmeticLoadout*)PlayerController->GetComponentByClass((UClass*)CosmeticCompClass) : nullptr;
 
-    if (SetLoadoutCtrl && CosmeticComp && Stack.Locals)
+    if (Offsets::FortniteCL == 41588354 && CosmeticComp && Stack.Locals)
+    {
+        SetCosmeticLoadoutController3430(CosmeticComp, Stack.Locals);
+
+        static int sn3430 = 0;
+        if (sn3430++ < 10)
+            BORON_LOG("[Boron][Cosmetics] 34.30 SetCosmeticLoadoutController(RPC loadout) rebuilt, OG skipped\n");
+    }
+    else if (SetLoadoutCtrl && CosmeticComp && Stack.Locals)
     {
         ((void (*)(void*, void*))(Memcury::PE::GetModuleBase() + SetLoadoutCtrl))(CosmeticComp, Stack.Locals);
 
@@ -5142,7 +5178,7 @@ void (*OnUnEquipOG)(AFortWeapon*);
 void OnUnEquip(AFortWeapon* Weapon)
 {
     static int UnEquipLogs = 0;
-    if (Offsets::FortniteCL == 41753727 && UnEquipLogs++ < 30)
+    if (Offsets::IsSeason34() && UnEquipLogs++ < 30)
         BORON_LOG("[Boron][UnEquip] %s abilitySets=%d\n", Weapon && Weapon->WeaponData ? Weapon->WeaponData->Name.ToString().c_str() : "?", Weapon ? Weapon->EquippedAbilitySetHandles.Num() : -1);
     AFortInventory::RemoveWeaponAbilities(Weapon);
 
@@ -6119,6 +6155,8 @@ void AFortPlayerControllerAthena::PostLoadHook()
         GiveAbilityAndActivateOnce = Memcury::PE::GetModuleBase() + 0xA57A5CC;
     if (!GiveAbilityAndActivateOnce && Offsets::FortniteCL == 41753727)
         GiveAbilityAndActivateOnce = Memcury::PE::GetModuleBase() + 0xB40C664;
+    if (!GiveAbilityAndActivateOnce && Offsets::FortniteCL == 41588354)
+        GiveAbilityAndActivateOnce = Memcury::PE::GetModuleBase() + 0xAAB274C;
     CanAffordToPlaceBuildableClass_ = FindCanAffordToPlaceBuildableClass();
     PayBuildableClassPlacementCost_ = FindPayBuildableClassPlacementCost();
     InitializePlayerGameplayAbilities_ = FindInitializePlayerGameplayAbilities();
@@ -6258,6 +6296,8 @@ void AFortPlayerControllerAthena::PostLoadHook()
             ProfileLoadoutOverwrite = 0x96774b4;
         else if (Offsets::FortniteCL == 39768313)
             ProfileLoadoutOverwrite = 0xc166c80;
+        else if (Offsets::FortniteCL == 41588354)
+            ProfileLoadoutOverwrite = 0x4de5da8;
 
         if (ProfileLoadoutOverwrite)
         {
@@ -6265,6 +6305,9 @@ void AFortPlayerControllerAthena::PostLoadHook()
             BORON_LOG("[Boron][Cosmetics] ret-patched profile loadout overwrite at RVA 0x%llX\n", (unsigned long long)ProfileLoadoutOverwrite);
         }
     }
+
+    if (Offsets::FortniteCL == 41588354)
+        Hooking::Patch<uint16_t>(Memcury::PE::GetModuleBase() + 0x2FA90DC, 0x10EB);
 
     Hooking::ExecHook(GetDefaultObj()->GetFunction("ServerDropAllItems"), ServerDropAllItems);
 
